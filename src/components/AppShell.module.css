@@ -1,0 +1,182 @@
+﻿.shell {
+  min-height: 100vh;
+  background: #f5f7fa;
+}
+
+.sidebar {
+  position: fixed;
+  z-index: 100;
+  inset: 0 auto 0 0;
+  display: flex;
+  width: 252px;
+  flex-direction: column;
+  padding: 24px 16px 18px;
+  border-right: 1px solid #dfe5ec;
+  background: #ffffff;
+  box-shadow: 8px 0 28px rgba(14, 68, 113, 0.06);
+}
+
+.sidebarTop { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 8px; }
+.brand { display: inline-flex; min-width: 0; align-items: center; gap: 10px; color: #0e4471; text-decoration: none; }
+.brand > span:last-child { display: grid; min-width: 0; gap: 2px; }
+.brand strong { overflow: hidden; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
+.brand small { color: #718096; font-size: 11px; }
+.brandIcon { display: grid; width: 38px; height: 38px; flex: 0 0 38px; place-items: center; border-radius: 10px; color: #ffffff; background: #0e4471; font-size: 18px; font-weight: 800; }
+.closeButton { display: none; border: 0; color: #718096; background: transparent; font-size: 26px; line-height: 1; cursor: pointer; }
+.collapseButton { display: grid; width: 28px; height: 28px; place-items: center; border: 1px solid #dfe5ec; border-radius: 7px; color: #0e4471; background: #ffffff; font-size: 20px; line-height: 1; cursor: pointer; }
+.collapseButton:hover { border-color: #0e4471; background: #edf4f9; }
+.workspaceLabel { margin: 34px 10px 9px; color: #91a0af; font-size: 10px; font-weight: 800; letter-spacing: .12em; }
+.navigation { display: grid; gap: 5px; }
+.navLink { display: flex; min-width: 0; align-items: center; gap: 11px; padding: 11px 12px; border-radius: 9px; color: #5e6b78; font-size: 14px; font-weight: 700; text-decoration: none; transition: background .2s ease, color .2s ease, transform .2s ease; }
+.navLink:hover { color: #0e4471; background: #edf4f9; transform: translateX(2px); }
+.navLinkActive { color: #0e4471; background: #e7f0f7; box-shadow: inset 3px 0 0 #0071f7; }
+.navIcon { display: grid; width: 26px; height: 26px; flex: 0 0 26px; place-items: center; border-radius: 7px; color: #6e8294; background: #f1f5f8; font-size: 16px; }
+.navLink > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.navLinkActive .navIcon { color: #ffffff; background: #0e4471; }
+.sidebarSpacer { flex: 1; }
+.accountSection { padding-top: 14px; border-top: 1px solid #edf1f5; }
+.accountSection .workspaceLabel { margin: 0 10px 9px; }
+.profileButton { display: flex; min-width: 0; align-items: center; gap: 10px; padding: 10px; border: 1px solid transparent; border-radius: 11px; color: inherit; text-decoration: none; transition: border-color .2s ease, background .2s ease; }
+.profileButton:hover, .profileButtonActive { border-color: #cdddea; background: #f4f8fb; }
+.avatar { display: grid; width: 36px; height: 36px; flex: 0 0 36px; place-items: center; border-radius: 50%; color: #ffffff; background: #0e4471; font-size: 12px; font-weight: 800; }
+.profileDetails { display: grid; min-width: 0; flex: 1; gap: 2px; }
+.profileDetails strong, .profileDetails span, .profileDetails small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.profileDetails strong { color: #17324d; font-size: 12px; }
+.profileDetails span { color: #718096; font-size: 10px; }
+.profileDetails small { color: #0071f7; font-size: 10px; font-weight: 700; }
+.profileArrow { color: #718096; font-size: 20px; line-height: 1; }
+.signOutButton { display: flex; width: 100%; align-items: center; justify-content: center; gap: 8px; margin-top: 9px; padding: 10px 12px; border: 1px solid #dfe5ec; border-radius: 9px; color: #0e4471; background: #ffffff; font-size: 13px; font-weight: 700; cursor: pointer; }
+.signOutButton:hover { border-color: #0e4471; background: #edf4f9; }
+.signOutButton:disabled { cursor: wait; opacity: .65; }
+.main { min-width: 0; min-height: 100vh; margin-left: 252px; }
+.mainCollapsed { margin-left: 76px; }
+.mobileHeader { display: none; }
+.pageToolbar { width: 100%; max-width: var(--portal-content-max-width, 1680px); box-sizing: border-box; margin: 0 auto; padding: 18px var(--portal-content-padding, clamp(16px, 2.5vw, 36px)) 0; }
+.backButton { display: inline-flex; align-items: center; gap: 7px; border: 1px solid #dfe5ec; border-radius: 10px; padding: 10px 14px; color: #0e4471; background: #ffffff; font-size: 14px; font-weight: 700; text-decoration: none; }
+.backButton:hover { border-color: #0e4471; background: #edf4f9; }
+.backButton:focus-visible, .navLink:focus-visible, .profileButton:focus-visible, .signOutButton:focus-visible, .menuButton:focus-visible { outline: 3px solid rgba(0, 113, 247, .28); outline-offset: 2px; }
+.content {
+  width: 100%;
+  padding-inline: var(--portal-content-padding, 24px);
+}
+
+/* App-shell pages share one predictable gutter. Their .container class still
+   controls the max width, but should not add a second horizontal inset. */
+.content > :global(.container) {
+  max-width: var(--portal-content-max-width, 1680px);
+  padding-inline: 0;
+}
+.backdrop { display: none; }
+
+.sidebarCollapsed { width: 76px; padding-inline: 10px; }
+.sidebarCollapsed .sidebarTop { justify-content: center; padding-inline: 0; }
+.sidebarCollapsed .brand > span:last-child,
+.sidebarCollapsed .workspaceLabel,
+.sidebarCollapsed .navLink > span:last-child,
+.sidebarCollapsed .profileDetails,
+.sidebarCollapsed .profileArrow,
+.sidebarCollapsed .signOutText { display: none; }
+.sidebarCollapsed .collapseButton { position: absolute; right: -13px; top: 29px; border-radius: 50%; background: #ffffff; box-shadow: 0 2px 8px rgba(14, 68, 113, .12); }
+.sidebarCollapsed .navigation { margin-top: 34px; }
+.sidebarCollapsed .navLink { justify-content: center; padding-inline: 8px; }
+.sidebarCollapsed .navIcon { width: 32px; height: 32px; flex-basis: 32px; }
+.sidebarCollapsed .accountSection .workspaceLabel { display: none; }
+.sidebarCollapsed .profileButton { justify-content: center; padding-inline: 4px; }
+.sidebarCollapsed .signOutButton { padding-inline: 8px; }
+
+@media (max-width: 900px) {
+  .sidebar { width: 228px; }
+  .main { margin-left: 228px; }
+}
+
+@media (max-width: 760px) {
+  .sidebar { width: min(290px, calc(100vw - 46px)); transform: translateX(-105%); transition: transform .22s ease; box-shadow: 16px 0 32px rgba(14, 68, 113, .18); }
+  .sidebarOpen { transform: translateX(0); }
+  .closeButton { display: block; }
+  .collapseButton { display: none; }
+  .sidebarCollapsed { width: min(290px, calc(100vw - 46px)); padding-inline: 16px; }
+  .sidebarCollapsed .sidebarTop { justify-content: space-between; padding-inline: 8px; }
+  .sidebarCollapsed .brand > span:last-child,
+  .sidebarCollapsed .workspaceLabel,
+  .sidebarCollapsed .profileDetails,
+  .sidebarCollapsed .profileArrow,
+  .sidebarCollapsed .signOutText { display: grid; }
+  .sidebarCollapsed .workspaceLabel { display: block; }
+  .sidebarCollapsed .navigation { margin-top: 0; }
+  .sidebarCollapsed .navLink { justify-content: flex-start; padding-inline: 12px; }
+  .sidebarCollapsed .navIcon { width: 26px; height: 26px; flex-basis: 26px; }
+  .sidebarCollapsed .profileButton { justify-content: flex-start; padding-inline: 10px; }
+  .sidebarCollapsed .signOutButton { padding-inline: 12px; }
+  .main { margin-left: 0; }
+  .content { padding-inline: 16px; }
+  .mobileHeader { position: sticky; top: 0; z-index: 70; display: flex; min-height: 64px; align-items: center; justify-content: space-between; gap: 12px; padding: 0 16px; border-bottom: 1px solid #dfe5ec; background: rgba(255, 255, 255, .96); box-shadow: 0 2px 10px rgba(14, 68, 113, .05); backdrop-filter: blur(10px); }
+  .mobileBrand { display: inline-flex; min-width: 0; align-items: center; gap: 9px; color: #0e4471; font-size: 14px; text-decoration: none; }
+  .mobileBrand .brandIcon { width: 34px; height: 34px; flex-basis: 34px; font-size: 16px; }
+  .mobileBrand strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .menuButton { display: inline-flex; align-items: center; gap: 7px; padding: 9px 11px; border: 1px solid #dfe5ec; border-radius: 8px; color: #0e4471; background: white; font-size: 13px; font-weight: 700; cursor: pointer; }
+  .backdropVisible { position: fixed; z-index: 90; inset: 0; display: block; background: rgba(10, 31, 50, .36); }
+  .pageToolbar { padding: 12px 16px 0; }
+}
+
+/* Shared portal shell refinements */
+.brandIcon { background: linear-gradient(135deg, #0e4471, #0879c7); box-shadow: 0 7px 18px rgba(14, 68, 113, .18); }
+.navIcon svg, .collapseButton svg, .closeButton svg, .profileArrow svg, .signOutButton svg, .menuButton svg, .backButton svg { display: block; }
+.navIcon { width: 30px; height: 30px; flex-basis: 30px; }
+.navLink { min-height: 46px; border: 1px solid transparent; }
+.navLinkActive { border-color: #cbddec; box-shadow: inset 3px 0 0 #0071f7, 0 4px 12px rgba(14, 68, 113, .05); }
+.profileArrow { display: inline-flex; align-items: center; }
+.signOutButton { min-height: 42px; }
+.pageToolbar { padding-top: 20px; }
+.backButton { min-height: 42px; box-shadow: 0 4px 12px rgba(14, 68, 113, .04); }
+
+/* --- Navigation refinement -----------------------------------------------
+   The rail carried three competing signals for "you are here": a background
+   tint, a 1px border and an inset bar. The border added a box that made the
+   active item look like a card floating inside the rail. Keep the tint and the
+   marker, drop the box, and use the McLink yellow for the marker so the rail
+   carries the brand the same way the sign-in hero does. */
+.navLinkActive {
+  border-color: transparent;
+  box-shadow: inset 3px 0 0 var(--yellow, #f7cf00);
+}
+
+/* Section labels sat 34px below the item above them, which read as a gap
+   rather than as a grouping. Bring them closer to the group they title. */
+.workspaceLabel {
+  margin-top: 26px;
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+/* The rail is a fixed element on a scrolling page; let long nav lists scroll
+   inside it instead of being cut off on short viewports. */
+.sidebar {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+/* Hover moved the whole row 2px right, which nudged text under the icon
+   column. A colour change is enough feedback and keeps the rail steady. */
+.navLink:hover {
+  transform: none;
+}
+
+.navLink:hover .navIcon {
+  color: #0e4471;
+  background: #dbe9f4;
+}
+
+/* The account block is the one destructive-adjacent control in the rail; give
+   it a clear edge from the navigation above it. */
+.accountSection {
+  padding-top: 16px;
+  border-top-color: #dfe5ec;
+}
+
+.profileDetails strong { font-size: 13px; }
+.profileDetails span { font-size: 11px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .navLink { transition: none; }
+}

@@ -1,0 +1,5 @@
+<!doctype html>
+<html lang="en">
+  <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>McLink Careers</title></head>
+  <body><main><h1>McLink Careers</h1><div id="roles">Loading published roles...</div></main><script>fetch('/api/public/roles').then(r=>r.json()).then(data=>{const root=document.getElementById('roles');if(!data.success||!data.roles.length){root.textContent='No published roles are currently accepting applications.';return;}root.innerHTML=data.roles.map(role=>`<article><h2>${role.jobTitle}</h2><p>${role.department}</p><a href="${role.applicationLink}">View and apply</a></article>`).join('');}).catch(()=>{document.getElementById('roles').textContent='Unable to load published roles.';});</script></body>
+</html>

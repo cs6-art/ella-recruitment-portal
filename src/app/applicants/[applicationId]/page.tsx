@@ -1,0 +1,98 @@
+import { cookies } from "next/headers";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+
+import AppShell from "@/components/AppShell";
+import ApplicantDecisionPanel from "@/components/ApplicantDecisionPanel";
+import UiIcon, { type UiIconName } from "@/components/UiIcon";
+import {
+  applicantStageClass,
+  getApplicantById,
+  getCandidateStatusHistory,
+  type CandidateStatusHistoryEntry,
+} from "@/lib/candidate-applications";
+import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
+
+export const dynamic = "force-dynamic";
+
+function dateValue(value: string) {
+  if (!value || Number.isNaN(Date.parse(value))) return value || "Not Provided";
+  return new Date(value).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+}
+
+function recordValue(record: Record<string, string> | undefined, ...keys: string[]) {
+  if (!record) return "";
+  for (const key of keys) {
+    const normalized = key.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+    if (record[normalized]) return record[normalized];
+  }
+  return "";
+}
+
+function externalUrl(value: string) {
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : "";
+  } catch {
+    return "";
+  }
+}
+
+function questionItems(value: string) {
+  return value.split(/\r?\n/).map((line) => line.replace(/^\s*(?:[-•*]|\d+[.)])\s*/, "").trim()).filter(Boolean);
+}
+
+function DetailField({ label, value }: { label: string; value?: string }) {
+  if (!value) return null;
+  return <div className="applicant-detail-field"><span>{label}</span><strong>{value}</strong></div>;
+}
+
+function DetailCardHeader({ icon, title, description }: { icon: UiIconName; title: string; description?: string }) {
+  return <div className="card-header applicant-section-header"><div className="applicant-section-heading"><span className="applicant-section-icon"><UiIcon name={icon} size={17} /></span><div><h2>{title}</h2>{description && <p>{description}</p>}</div></div></div>;
+}
+
+function ResumeResource({ value }: { value: string }) {
+  const url = externalUrl(value);
+  if (url) return <div className="resume-resource"><span className="resume-resource-icon"><UiIcon name="document" size={23} /></span><div className="resume-resource-copy"><strong>Resume / CV File</strong><span>Open the candidate's submitted document in a new tab.</span></div><a className="btn btn-primary resume-resource-action" href={url} target="_blank" rel="noreferrer"><UiIcon name="arrow-right" size={15} />View Resume / CV</a></div>;
+  return <pre className="applicant-resume">{value || "No resume or CV is available."}</pre>;
+}
+
+function InterviewQuestions({ value }: { value: string }) {
+  const items = questionItems(value);
+  if (items.length === 0) return <div className="applicant-empty-content"><UiIcon name="document" size={20} /><span>No interview questions are available.</span></div>;
+  return <ol className="applicant-question-list">{items.map((question, index) => <li key={`${question}-${index}`}><span>{String(index + 1).padStart(2, "0")}</span><p>{question}</p></li>)}</ol>;
+}
+
+function HistoryTimeline({ history }: { history: CandidateStatusHistoryEntry[] }) {
+  if (history.length === 0) {
+    return <section className="card applicant-detail-card history-card"><div className="card-header applicant-section-header"><div className="applicant-section-heading"><span className="applicant-section-icon"><UiIcon name="clock" size={17} /></span><div><h2>Candidate Status History</h2><p>Review the candidate audit trail.</p></div></div></div><div className="empty">No candidate status history is available.</div></section>;
+  }
+
+  return <section className="card applicant-detail-card history-card"><div className="card-header applicant-section-header"><div className="applicant-section-heading"><span className="applicant-section-icon"><UiIcon name="clock" size={17} /></span><div><h2>Candidate Status History</h2><p>Review the candidate audit trail.</p></div></div></div><div className="history-timeline">{history.map((entry, index) => <article className="timeline-entry" key={`${entry.historyId || entry.changedAt}-${index}`}><span className="timeline-marker" aria-hidden="true" /><div className="timeline-content"><div className="timeline-top"><div><h3>{entry.previousStatus ? `${entry.previousStatus} → ${entry.newStatus}` : entry.newStatus || entry.action}</h3><span className="timeline-action">{entry.stage} · {entry.action}</span></div><time dateTime={entry.changedAt}>{dateValue(entry.changedAt)}</time></div><div className="timeline-performer"><strong>{entry.changedByName}</strong><span>{entry.changedByEmail}</span></div><div className="timeline-meta">{[entry.roleId, entry.actionSource].filter(Boolean).join(" · ")}</div>{entry.comments && <p className="timeline-comments">{entry.comments}</p>}{entry.rejectionReason && <div className="history-entry-comments"><span>Rejection reason</span><p>{entry.rejectionReason}</p></div>}</div></article>)}</div></section>;
+}
+
+export default async function ApplicantDetailsPage({ params }: { params: Promise<{ applicationId: string }> }) {
+  const user = verifySessionToken((await cookies()).get(COOKIE_NAME)?.value);
+  if (!user) redirect("/");
+  if (user.canReviewRole !== true && user.canApproveRole !== true) redirect("/dashboard");
+
+  const applicationId = decodeURIComponent((await params).applicationId);
+  const [applicant, history] = await Promise.all([getApplicantById(applicationId), getCandidateStatusHistory(applicationId)]);
+  if (!applicant) return <AppShell user={user}><main className="container page"><section className="card"><div className="empty"><p>Applicant Not Found.</p><Link className="btn btn-secondary" href="/applicants">Back to Applicants</Link></div></section></main></AppShell>;
+
+  return <AppShell user={user}><main className="container page applicant-details-page">
+    <header className="applicant-detail-header"><Link href="/applicants" className="applicant-back-link"><UiIcon name="arrow-left" size={15} />Back to Applicants</Link><div className="applicant-detail-title-row"><div><span className="eyebrow-dark">APPLICANT PROFILE</span><h1>{applicant.candidateName || "Unnamed Candidate"}</h1><p>{applicant.applicationId} · {applicant.email || "No Email Provided"}</p></div><span className={applicantStageClass(applicant.currentStage)}>{applicant.currentStage}</span></div><div className="applicant-detail-actions"><Link className="btn btn-secondary" href={`/roles/${encodeURIComponent(applicant.roleId)}`}><UiIcon name="briefcase" size={15} />View Role</Link><Link className="btn btn-secondary" href={`/roles/${encodeURIComponent(applicant.roleId)}/applicants`}><UiIcon name="applicants" size={15} />Role Applicants</Link></div></header>
+    <div className="applicant-detail-summary"><DetailField label="Selected Role" value={applicant.selectedRole} /><DetailField label="Department" value={applicant.department} /><DetailField label="Applied" value={dateValue(applicant.appliedAt)} /><DetailField label="Match Score" value={applicant.matchScore} /><DetailField label="Recommendation" value={applicant.recommendation} /><DetailField label="Next Action" value={applicant.nextAction} /></div>
+    <div className="applicant-detail-grid"><div className="applicant-detail-main">
+      <ApplicantDecisionPanel applicationId={applicant.applicationId} resumeDecision={applicant.resumeDecision} voiceDecision={applicant.voiceDecision} voiceStatus={applicant.voiceStatus} finalInterviewStatus={applicant.finalInterviewStatus} voiceBookingLink={applicant.voiceBookingLink} finalBookingLink={applicant.finalBookingLink} canReview={user.canReviewRole === true || user.canApproveRole === true} />
+      <section className="card applicant-detail-card"><DetailCardHeader icon="document" title="AI Resume Screening" description="Ella's resume analysis and HR review inputs." /><div className="applicant-detail-content"><div className="applicant-detail-inline-fields"><DetailField label="Resume Status" value={applicant.resumeStatus} /><DetailField label="HR Decision" value={applicant.resumeDecision} /><DetailField label="Reviewed By" value={applicant.resumeReviewer} /></div><div className="applicant-copy-block"><span>AI Analysis Summary</span><p>{applicant.aiAnalysisSummary || "No AI summary is available."}</p></div><div className="applicant-copy-columns"><div><span>Strengths</span><p>{applicant.strengths || "Not Provided."}</p></div><div><span>Gaps</span><p>{applicant.gaps || "Not Provided."}</p></div></div></div></section>
+      <section className="card applicant-detail-card"><DetailCardHeader icon="document" title="Resume / CV" description="The candidate's submitted resume document." /><ResumeResource value={applicant.resumeText} /></section>
+      <section className="card applicant-detail-card"><DetailCardHeader icon="microphone" title="Interview Questions" description="Questions prepared for the candidate's interview." /><InterviewQuestions value={applicant.interviewQuestions} /></section>
+      <HistoryTimeline history={history} />
+    </div><aside className="applicant-detail-side">
+      <section className="card applicant-detail-card"><DetailCardHeader icon="microphone" title="Voice Interview" description="Ella's interview result and booking information." /><div className="applicant-detail-content"><div className="applicant-detail-inline-fields"><DetailField label="Status" value={applicant.voiceStatus} /><DetailField label="Booking Status" value={applicant.voiceBookingStatus} /><DetailField label="Score" value={applicant.voiceScore} /><DetailField label="Recommendation" value={applicant.voiceRecommendation} /><DetailField label="Scheduled" value={[applicant.voiceScheduledDate, applicant.voiceScheduledTime].filter(Boolean).join(" ")} /></div><div className="applicant-copy-block"><span>Voice Summary</span><p>{applicant.voiceSummary || "No voice interview summary is available."}</p></div><div className="applicant-copy-block"><span>Concerns</span><p>{applicant.voiceConcerns || "No concerns recorded."}</p></div></div></section>
+      <section className="card applicant-detail-card"><DetailCardHeader icon="clock" title="Workflow Tracking" description="Current progress through the candidate workflow." /><div className="applicant-timeline"><div><strong>1. Resume Screening</strong><span>{applicant.resumeStatus || "Not Started"}</span></div><div><strong>2. Voice Interview</strong><span>{applicant.voiceStatus || "Not Started"}</span></div><div><strong>3. Voice HR Review</strong><span>{applicant.voiceDecision || "Pending"}</span></div><div><strong>4. Final Interview</strong><span>{applicant.finalInterviewStatus || "Not Started"}</span></div><div><strong>Last Updated</strong><span>{dateValue(applicant.lastUpdated)}</span></div></div></section>
+      {applicant.finalInterview && <section className="card applicant-detail-card"><DetailCardHeader icon="briefcase" title="Final Interview" description="Final interview details and recommendation." /><div className="applicant-detail-content"><DetailField label="Status" value={recordValue(applicant.finalInterview, "Final_Interview_Status")} /><DetailField label="Date" value={recordValue(applicant.finalInterview, "Final_Interview_Date")} /><DetailField label="Interviewer" value={recordValue(applicant.finalInterview, "Interviewer_Name")} /><DetailField label="Recommendation" value={recordValue(applicant.finalInterview, "Final_Recommendation")} /></div></section>}
+    </aside></div>
+  </main></AppShell>;
+}

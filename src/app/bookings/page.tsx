@@ -1,0 +1,17 @@
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+
+import AppShell from "@/components/AppShell";
+import BookingsList from "@/components/BookingsList";
+import { getInterviewBookings } from "@/lib/candidate-applications";
+import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
+
+export const dynamic = "force-dynamic";
+
+export default async function BookingsPage() {
+  const user = verifySessionToken((await cookies()).get(COOKIE_NAME)?.value);
+  if (!user) redirect("/");
+  if (user.canReviewRole !== true && user.canApproveRole !== true) redirect("/dashboard");
+  const bookings = await getInterviewBookings();
+  return <AppShell user={user}><BookingsList bookings={bookings} /></AppShell>;
+}

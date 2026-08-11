@@ -1,0 +1,151 @@
+import crypto from "node:crypto";
+import { google } from "googleapis";
+
+import { getCalendarConnection, saveCalendarConnection } from "@/lib/calendar-tokens";
+
+const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.events";
+
+// Reuses the same OAuth 2.0 Web application client already registered for
+// "Sign in with Google" (NEXT_PUBLIC_GOOGLE_CLIENT_ID / GOOGLE_CLIENT_ID).
+// That flow only ever requests an ID token, so it never needed a client
+// secret; the calendar flow uses the authorization-code grant instead
+// (offline access, so we can refresh without the HOD present), which does.
+// Add GOOGLE_OAUTH_CLIENT_SECRET and GOOGLE_OAUTH_REDIRECT_URI to enable it.
+function oauthConfig() {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
+  const redirectUri = process.env.GOOGLE_OAUTH_REDIRECT_URI;
+  if (!clientId) throw new Error("GOOGLE_CLIENT_ID is not configured.");
+  if (!clientSecret) throw new Error("GOOGLE_OAUTH_CLIENT_SECRET is not configured.");
+  if (!redirectUri) throw new Error("GOOGLE_OAUTH_REDIRECT_URI is not configured.");
+  return { clientId, clientSecret, redirectUri };
+}
+
+function newOAuthClient() {
+  const { clientId, clientSecret, redirectUri } = oauthConfig();
+  return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+}
+
+/** Signed, expiring state param — protects the OAuth redirect against CSRF
+ * and carries the session email through the round trip to Google. */
+export function createOAuthState(email: string): string {
+  const secret = process.env.SESSION_SECRET;
+  if (!secret || secret.length < 32) throw new Error("SESSION_SECRET must contain at least 32 characters.");
+  const payload = JSON.stringify({ email, exp: Math.floor(Date.now() / 1000) + 600 });
+  const encoded = Buffer.from(payload, "utf8").toString("base64url");
+  const signature = crypto.createHmac("sha256", secret).update(encoded).digest("base64url");
+  return `${encoded}.${signature}`;
+}
+
+export function verifyOAuthState(state: string): string | null {
+  const secret = process.env.SESSION_SECRET;
+  if (!secret || secret.length < 32) return null;
+  const [encoded, signature] = state.split(".");
+  if (!encoded || !signature) return null;
+  const expected = crypto.createHmac("sha256", secret).update(encoded).digest("base64url");
+  const a = Buffer.from(signature);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8")) as { email: string; exp: number };
+    if (!payload.exp || payload.exp <= Math.floor(Date.now() / 1000)) return null;
+    return payload.email;
+  } catch {
+    return null;
+  }
+}
+
+export function getGoogleConsentUrl(email: string): string {
+  const client = newOAuthClient();
+  return client.generateAuthUrl({
+    access_type: "offline",
+    prompt: "consent", // forces a refresh_token on every connect, not just the first
+    scope: [CALENDAR_SCOPE],
+    state: createOAuthState(email),
+    login_hint: email,
+  });
+}
+
+export async function exchangeCodeAndStore(code: string, email: string): Promise<void> {
+  const client = newOAuthClient();
+  const { tokens } = await client.getToken(code);
+  await saveCalendarConnection({
+    email,
+    accessToken: tokens.access_token || "",
+    refreshToken: tokens.refresh_token || undefined,
+    tokenExpiresAt: tokens.expiry_date ? new Date(tokens.expiry_date).toISOString() : "",
+    scope: tokens.scope || CALENDAR_SCOPE,
+  });
+}
+
+/** Returns a ready-to-use OAuth2 client for this HOD, refreshing (and
+ * persisting) the access token first if it's expired or close to it. */
+async function getAuthorizedClient(email: string) {
+  const connection = await getCalendarConnection(email);
+  if (!connection || !connection.refreshToken) return null;
+
+  const client = newOAuthClient();
+  const expiresAt = connection.tokenExpiresAt ? Date.parse(connection.tokenExpiresAt) : 0;
+  const needsRefresh = !connection.accessToken || !expiresAt || expiresAt < Date.now() + 60_000;
+
+  if (needsRefresh) {
+    client.setCredentials({ refresh_token: connection.refreshToken });
+    const { credentials } = await client.refreshAccessToken();
+    await saveCalendarConnection({
+      email,
+      accessToken: credentials.access_token || "",
+      tokenExpiresAt: credentials.expiry_date ? new Date(credentials.expiry_date).toISOString() : "",
+      scope: credentials.scope || CALENDAR_SCOPE,
+    });
+    client.setCredentials(credentials);
+  } else {
+    client.setCredentials({ access_token: connection.accessToken, refresh_token: connection.refreshToken });
+  }
+
+  return client;
+}
+
+export type CalendarEventInput = {
+  hodEmail: string;
+  summary: string;
+  description: string;
+  date: string; // YYYY-MM-DD
+  startTime: string; // HH:mm:ss
+  endTime: string; // HH:mm:ss
+  timezone: string;
+  attendeeEmails: string[];
+};
+
+export type CalendarEventResult =
+  | { created: true; eventId: string; htmlLink: string }
+  | { created: false; reason: "not_connected" | "error"; error?: string };
+
+/**
+ * Creates the final-interview event on the HOD's own connected Google
+ * Calendar. Deliberately non-throwing: a HOD who hasn't connected their
+ * calendar yet (or a transient API error) must never block the candidate's
+ * booking — the caller logs the outcome and moves on.
+ */
+export async function createFinalInterviewEvent(input: CalendarEventInput): Promise<CalendarEventResult> {
+  try {
+    const client = await getAuthorizedClient(input.hodEmail);
+    if (!client) return { created: false, reason: "not_connected" };
+
+    const calendar = google.calendar({ version: "v3", auth: client });
+    const response = await calendar.events.insert({
+      calendarId: "primary",
+      sendUpdates: "all",
+      requestBody: {
+        summary: input.summary,
+        description: input.description,
+        start: { dateTime: `${input.date}T${input.startTime}`, timeZone: input.timezone },
+        end: { dateTime: `${input.date}T${input.endTime}`, timeZone: input.timezone },
+        attendees: input.attendeeEmails.map((email) => ({ email })),
+      },
+    });
+
+    return { created: true, eventId: response.data.id || "", htmlLink: response.data.htmlLink || "" };
+  } catch (error) {
+    return { created: false, reason: "error", error: error instanceof Error ? error.message : String(error) };
+  }
+}

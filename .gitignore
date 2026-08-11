@@ -1,0 +1,13 @@
+node_modules
+.next
+.env
+.env.local
+.env.localt
+tsconfig.tsbuildinfo
+playwright-report
+test-results
+*.log
+.DS_Store
+
+.next-dev/
+.next-verify/

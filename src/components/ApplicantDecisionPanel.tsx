@@ -1,0 +1,179 @@
+"use client";
+
+import { useState } from "react";
+
+type Stage = "resume" | "voice" | "final";
+type Props = {
+  applicationId: string;
+  resumeDecision: string;
+  voiceDecision: string;
+  voiceStatus: string;
+  finalInterviewStatus: string;
+  voiceBookingLink: string;
+  finalBookingLink: string;
+  canReview: boolean;
+};
+
+function DecisionRow({
+  stage,
+  title,
+  description,
+  current,
+  link,
+  enabled = true,
+  applicationId,
+  canReview,
+  onSaved,
+}: {
+  stage: Stage;
+  title: string;
+  description: string;
+  current: string;
+  link?: string;
+  enabled?: boolean;
+  applicationId: string;
+  canReview: boolean;
+  onSaved: (message: string) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [comments, setComments] = useState("");
+  const [error, setError] = useState("");
+  const decided = current === "Approve" || current === "Reject" || current.includes("Passed") || current.includes("Rejected") || current === "Pending Manual Review";
+
+  async function decide(decision: "Approve" | "Reject" | "Manual Review") {
+    const trimmed = comments.trim();
+    if (!trimmed) {
+      setError("Comments are required for every action.");
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/applicants/${encodeURIComponent(applicationId)}/decision`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stage, decision, comments: trimmed }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || "Unable to save decision.");
+      onSaved(
+        decision === "Approve"
+          ? `${title} approved.`
+          : decision === "Reject"
+            ? `${title} marked rejected.`
+            : `${title} sent for manual review.`,
+      );
+      setComments("");
+    } catch (decisionError) {
+      setError(decisionError instanceof Error ? decisionError.message : "Unable to save decision.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="applicant-decision-row">
+      <div className="applicant-decision-copy">
+        <div className="applicant-decision-title">
+          <strong>{title}</strong>
+          {current && (
+            <span
+              className={`applicant-decision-badge ${
+                current === "Reject" || current.includes("Rejected")
+                  ? "is-rejected"
+                  : "is-approved"
+              }`}
+            >
+              {current}
+            </span>
+          )}
+        </div>
+        <p>{description}</p>
+        {link && (
+          <a className="applicant-booking-link" href={link} target="_blank" rel="noreferrer">
+            Open Booking Link
+          </a>
+        )}
+        <label className="field applicant-decision-comments" htmlFor={`${stage}-decision-comments`}>
+          <span>Comments *</span>
+          <textarea
+            id={`${stage}-decision-comments`}
+            value={comments}
+            disabled={busy || !canReview || !enabled || decided}
+            minLength={1}
+            maxLength={5000}
+            required
+            placeholder="Explain the decision or provide the review note."
+            onChange={(event) => {
+              setComments(event.target.value);
+              setError("");
+            }}
+          />
+        </label>
+        {error && <small className="applicant-decision-error" role="alert">{error}</small>}
+      </div>
+
+      {canReview && enabled && !decided && (
+        <div className="applicant-decision-actions">
+          <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void decide("Approve")}>
+            {busy ? "Saving..." : "Approve"}
+          </button>
+          <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void decide("Reject")}>
+            Reject
+          </button>
+          <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void decide("Manual Review")}>
+            Request Manual Review
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function ApplicantDecisionPanel(props: Props) {
+  const [message, setMessage] = useState("");
+  return (
+    <section className="card applicant-decision-card">
+      <div className="card-header">
+        <div>
+          <h2>HR workflow decisions</h2>
+          <p>Comments are required before a candidate decision is saved. Ella keeps the workflow moving after HR records the action.</p>
+        </div>
+      </div>
+      {message && <div className="applicant-decision-success" role="status">{message}</div>}
+      <div className="applicant-decision-list">
+        <DecisionRow
+          stage="resume"
+          title="Resume Screening"
+          description="Applicant applied. HR reviews Ella's resume recommendation first."
+          current={props.resumeDecision}
+          applicationId={props.applicationId}
+          canReview={props.canReview}
+          onSaved={setMessage}
+        />
+        <DecisionRow
+          stage="voice"
+          title="Voice Interview Review"
+          description="After the voice interview, review Ella's summary before approving the final interview."
+          current={props.voiceDecision}
+          link={props.finalBookingLink}
+          enabled={props.voiceStatus === "Interviewed" || props.voiceStatus === "Completed"}
+          applicationId={props.applicationId}
+          canReview={props.canReview}
+          onSaved={setMessage}
+        />
+        <DecisionRow
+          stage="final"
+          title="Final Interview Decision"
+          description="Record the final interview outcome after the interviewer has completed the meeting."
+          current={props.finalInterviewStatus === "Interview Completed" ? "" : props.finalInterviewStatus}
+          enabled={props.finalInterviewStatus.includes("Scheduled") || props.finalInterviewStatus === "Interview Completed"}
+          applicationId={props.applicationId}
+          canReview={props.canReview}
+          onSaved={setMessage}
+        />
+      </div>
+    </section>
+  );
+}
