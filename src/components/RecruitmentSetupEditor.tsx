@@ -78,14 +78,6 @@ const questionKeys = [
   "requiredInterviewQuestion5",
 ] as const;
 
-const questionLabels = [
-  "Role experience",
-  "Problem solving",
-  "Technical or quality expertise",
-  "Leadership and execution",
-  "Role fit and priorities",
-];
-
 const channels = ["LinkedIn", "Facebook", "JobStreet"];
 
 function normalizeChannels(value: string[] | string | undefined) {
@@ -527,13 +519,13 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
 
       <div className="vapi-builder">
         <div className="vapi-section-heading">
-          <div><span className="vapi-kicker">INTERVIEW QUESTIONS</span><h3>Three required questions</h3><p>Ella asks these questions in order and does not invent replacements. Questions 4 and 5 are optional.</p></div>
+          <div><span className="vapi-kicker">INTERVIEW QUESTIONS</span><h3>What should Ella ask?</h3><p>Write 3 to 5 questions in the order you want them asked. Ella asks them exactly as written, one at a time, and doesn&apos;t make up her own. These questions appear directly in the script preview below.</p></div>
           <span className={`vapi-count-badge ${questions.length >= 3 ? "complete" : ""}`}>{Math.min(questions.length, 3)} of 3 required</span>
         </div>
         <div className="vapi-question-grid">
           {questionKeys.map((key, index) => (
             <label className="vapi-question" htmlFor={`vapi-question-${index + 1}`} key={key}>
-              <span><strong>{index + 1}</strong>{questionLabels[index]}{index < 3 ? " *" : " (optional)"}</span>
+              <span><strong>{index + 1}</strong>{`Question ${index + 1}`}{index < 3 ? " *" : " (optional)"}</span>
               <textarea id={`vapi-question-${index + 1}`} value={values[key] ?? ""} disabled={!editable || saving} placeholder="Write the exact question Ella should ask." onChange={(event) => update(key, event.target.value)} />
             </label>
           ))}
@@ -542,7 +534,7 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
 
       <div className="vapi-preview">
         <div className="vapi-section-heading">
-          <div><span className="vapi-kicker">{advancedPrompt ? "ADVANCED" : "SCRIPT PREVIEW"}</span><h3>{advancedPrompt ? "Edit the full interview script" : "See what Ella will say"}</h3><p>{advancedPrompt ? "For advanced use only. Keep the {{system_prompt}} marker where your field answers above should be inserted." : "This is what Ella actually says on the call, after your answers above are filled in."}</p></div>
+          <div><span className="vapi-kicker">{advancedPrompt ? "ADVANCED" : "SCRIPT PREVIEW"}</span><h3>{advancedPrompt ? "Edit the full interview script" : "See what Ella will say"}</h3><p>{advancedPrompt ? "For advanced use only. Keep the marker that says system_prompt exactly where it is — that's where your field answers above get inserted automatically." : "This includes your questions above and everything else Ella will say on the call, after your answers are filled in."}</p></div>
           <div className="vapi-preview-actions">
             {advancedPrompt && <button type="button" className="btn btn-secondary" disabled={!editable || saving} onClick={() => setAdvancedPrompt(false)}>Back to simple view</button>}
             {!advancedPrompt && <button type="button" className="btn btn-secondary" disabled={!editable || saving} onClick={openAdvancedPrompt}>Advanced: edit full script</button>}
