@@ -14,3 +14,13 @@ test-results
 .next-verify-*/
 
 data/private-resumes/
+
+# One-off scratch scripts used for manual/E2E testing in an assistant
+# session. Never intended to be permanent project code.
+/e2e-*.mjs
+/check-*.mjs
+/fix-*.mjs
+/make-*.mjs
+/reset-*.mjs
+/e2e-state.json
+/e2e-application-id.txt
