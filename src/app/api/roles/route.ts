@@ -261,29 +261,23 @@ export async function POST(request: Request) {
         customScreeningQuestion1: input.customScreeningQuestion1,
         customScreeningQuestion2: input.customScreeningQuestion2,
         aiGeneratedScreeningQuestions: input.aiGeneratedScreeningQuestions,
-        reportingManager:
-          input.reportingManager,
-        workLocation:
-          input.workLocation,
-        employmentType:
-          input.employmentType,
-        jobResponsibilities:
-          input.jobResponsibilities,
-        requiredSkills:
-          input.requiredSkills,
-        experienceRequired:
-          input.experienceRequired,
-        educationRequirements:
-          input.educationRequirements,
-        preferredQualifications:
-          input.preferredQualifications,
-        roleExpectations:
-          input.roleExpectations,
-        salaryMin: input.salaryMin,
-        salaryMax: input.salaryMax,
-        workSchedule: input.workSchedule,
-        noticePeriodRequirement: input.noticePeriodRequirement,
-        salaryExpectationGuidance: input.salaryExpectationGuidance,
+        // Keep the legacy sheet columns explicit and blank. These details are
+        // no longer collected during role creation; HR can add them later if
+        // they become necessary for a specific role.
+        reportingManager: input.reportingManager || "",
+        workLocation: input.workLocation || "",
+        employmentType: input.employmentType || "",
+        jobResponsibilities: input.jobResponsibilities || "",
+        requiredSkills: input.requiredSkills || "",
+        experienceRequired: input.experienceRequired || "",
+        educationRequirements: input.educationRequirements || "",
+        preferredQualifications: input.preferredQualifications || "",
+        roleExpectations: input.roleExpectations || "",
+        salaryMin: input.salaryMin ?? "",
+        salaryMax: input.salaryMax ?? "",
+        workSchedule: input.workSchedule || "",
+        noticePeriodRequirement: input.noticePeriodRequirement || "",
+        salaryExpectationGuidance: input.salaryExpectationGuidance || "",
       },
 
       recruitmentSetup: {

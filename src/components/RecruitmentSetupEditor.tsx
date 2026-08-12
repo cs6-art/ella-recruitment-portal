@@ -4,7 +4,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { notificationPresentation } from "@/lib/notification-status";
 import {
-  generateRecruitmentSystemPrompt,
+  renderRecruitmentSystemPrompt,
+  renderRecruitmentSystemPromptSample,
+  STANDARD_VAPI_SYSTEM_PROMPT_TEMPLATE,
 } from "@/lib/recruitment-prompt";
 import { recruitmentSetupSchema } from "@/lib/recruitment-setup-schema";
 import {
@@ -23,6 +25,7 @@ type Setup = {
   requiredInterviewQuestion4?: string;
   requiredInterviewQuestion5?: string;
   aiSystemPrompt: string;
+  resolvedAiSystemPrompt?: string;
   initialInterviewBookingLink: string;
   hodInterviewBookingLink: string;
   postingChannels: string[] | string;
@@ -118,8 +121,8 @@ function buildInitialValues(setup: Setup): Setup {
   };
 }
 
-function generatedPrompt(values: Setup) {
-  return generateRecruitmentSystemPrompt({
+function promptRenderInput(values: Setup) {
+  return {
     roleTitle: values.roleTitle,
     jobDescription: values.jobDescription,
     screeningCriteria: values.screeningCriteria,
@@ -127,25 +130,40 @@ function generatedPrompt(values: Setup) {
     licenseOrCertificateRequired: values.licenseOrCertificateRequired,
     keywordsToLookFor: values.keywordsToLookFor,
     transferableSkillsAccepted: values.transferableSkillsAccepted,
-    experienceRequired: values.experienceRequired || valueText(values.minimumYearsOfExperience),
+    experienceRequired: valueText(values.minimumYearsOfExperience) || values.experienceRequired,
     salaryMin: values.salaryMin,
     salaryMax: values.salaryMax,
+    salaryOrBudgetRange: values.salaryOrBudgetRange,
     noticePeriodRequirement: values.noticePeriodRequirement || values.earliestAvailabilityRule,
-  });
+    earliestAvailabilityRule: values.earliestAvailabilityRule,
+  };
 }
 
-function defaultPrompt(values: Setup) {
-  return generatedPrompt(values);
+function generatedPrompt(values: Setup, template = STANDARD_VAPI_SYSTEM_PROMPT_TEMPLATE) {
+  return renderRecruitmentSystemPrompt(template, promptRenderInput(values));
+}
+
+/** HR-facing only — never used for the value that gets saved or sent to
+ * Vapi. Fills the remaining {{candidate_name}} / {{email}} / {{match_score}}
+ * / {{ai_summary}} tags with a sample candidate so HR sees plain, readable
+ * text instead of template syntax. */
+function generatedSamplePrompt(values: Setup, template = STANDARD_VAPI_SYSTEM_PROMPT_TEMPLATE) {
+  return renderRecruitmentSystemPromptSample(template, promptRenderInput(values));
+}
+
+function defaultPrompt() {
+  return STANDARD_VAPI_SYSTEM_PROMPT_TEMPLATE;
 }
 
 function getQuestions(values: Setup) {
   return questionKeys.map((key) => valueText(values[key])).filter(Boolean);
 }
 
-function promptPayload(values: Setup, prompt: string, action: string, actionRequestId: string) {
+function promptPayload(values: Setup, template: string, action: string, actionRequestId: string) {
   return {
     ...values,
-    aiSystemPrompt: prompt,
+    aiSystemPrompt: template,
+    resolvedAiSystemPrompt: generatedPrompt(values, template),
     postingChannels: normalizeChannels(values.postingChannels),
     setupAction: action,
     actionRequestId,
@@ -236,8 +254,9 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
     return () => { cancelled = true; };
   }, []);
 
-  const generated = useMemo(() => generatedPrompt(values), [values]);
-  const currentPrompt = advancedPrompt ? valueText(values.aiSystemPrompt) || generated : generated;
+  const currentPrompt = valueText(values.aiSystemPrompt) || STANDARD_VAPI_SYSTEM_PROMPT_TEMPLATE;
+  const generated = useMemo(() => generatedPrompt(values, currentPrompt), [currentPrompt, values]);
+  const generatedSample = useMemo(() => generatedSamplePrompt(values, currentPrompt), [currentPrompt, values]);
   const questions = getQuestions(values);
   const draftPayload = promptPayload(values, currentPrompt, "save_draft", actionRequestId.current);
   const draftReadiness = getSetupReadiness(draftPayload as SetupReadinessInput, "draft");
@@ -257,9 +276,9 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
   };
 
   const applyStandardTemplate = () => {
-    setValues((current) => ({ ...current, aiSystemPrompt: defaultPrompt(current) }));
-    setAdvancedPrompt(false);
-    setMessage("Standard VAPI template loaded. Review the role-specific sections before saving.");
+    setValues((current) => ({ ...current, aiSystemPrompt: defaultPrompt() }));
+    setAdvancedPrompt(true);
+    setMessage("Standard script loaded. Edit the script or the fields above before saving.");
   };
 
   const openAdvancedPrompt = () => {
@@ -268,9 +287,9 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
   };
 
   const resetToGeneratedPrompt = () => {
-    update("aiSystemPrompt", generated);
-    setAdvancedPrompt(false);
-    setMessage("The generated VAPI prompt is active again.");
+    update("aiSystemPrompt", STANDARD_VAPI_SYSTEM_PROMPT_TEMPLATE);
+    setAdvancedPrompt(true);
+    setMessage("The standard script was restored. Your answers above will still be filled in automatically.");
   };
 
   const toggleChannel = (channel: string) => {
@@ -284,7 +303,7 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
       postingChannels: normalizeChannels(template.setup.postingChannels as string[] | string | undefined),
     } as Setup));
     setSelectedTemplateId(template.id);
-    setAdvancedPrompt(false);
+    setAdvancedPrompt(true);
     setMessage(`Loaded template "${template.name}" into the editor. Save the role only when you are ready.`);
     setWarning("");
     setError("");
@@ -403,8 +422,8 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
       <div className="card-header">
         <div>
           <span className="eyebrow-dark">RECRUITMENT SETUP</span>
-          <h2>VAPI System Prompt</h2>
-          <p className="section-subtitle">Configure how Ella screens candidates and conducts the voice interview.</p>
+          <h2>Interview Setup</h2>
+          <p className="section-subtitle">Fill in what Ella should look for when she screens candidates for this role.</p>
           {updatedAt && <small>Last saved {formatDate(updatedAt)}{updatedBy ? ` by ${updatedBy}` : ""}</small>}
         </div>
         <span className="setup-readonly">{editable ? "Editable by HR reviewers" : "Read-only"}</span>
@@ -416,12 +435,12 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
 
       <div className="vapi-template-bar">
         <div>
-          <span className="vapi-kicker">PROMPT TEMPLATE</span>
-          <strong>Standard VAPI Interviewer</strong>
-          <small>Role details and HR screening criteria are inserted into the final prompt automatically.</small>
+          <span className="vapi-kicker">INTERVIEW SCRIPT</span>
+          <strong>Ella's standard interview script</strong>
+           <small>The fields below plug directly into Ella's script for this role — no prompt-writing needed.</small>
         </div>
         <div className="vapi-template-actions">
-          <button type="button" className="btn btn-secondary" disabled={!editable || saving} onClick={applyStandardTemplate}>Load Standard VAPI Template</button>
+          <button type="button" className="btn btn-secondary" disabled={!editable || saving} onClick={applyStandardTemplate}>Load standard script</button>
           <label className="field vapi-template-name">
             <span>Template name</span>
             <input value={templateName} disabled={!editable || saving || templateActionId === "saving"} placeholder="Save current setup as a template" onChange={(event) => setTemplateName(event.target.value)} />
@@ -478,12 +497,12 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
 
       <div className="vapi-role-context">
         <div className="vapi-section-heading">
-          <div><span className="vapi-kicker">AUTOMATIC ROLE CONTEXT</span><h3>Already included from the role request</h3></div>
+          <div><span className="vapi-kicker">INITIAL ROLE CONTEXT</span><h3>Starting values from the role request</h3></div>
           <span className="vapi-readonly-badge">Read-only</span>
         </div>
         <div className="vapi-fact-grid">
           <ReadOnlyFact label="Role" value={values.roleTitle} />
-          <ReadOnlyFact label="Experience" value={values.experienceRequired || values.minimumYearsOfExperience} />
+           <ReadOnlyFact label="Experience" value={valueText(values.minimumYearsOfExperience) || values.experienceRequired} />
           <ReadOnlyFact label="Salary / budget" value={values.salaryOrBudgetRange || [values.salaryMin, values.salaryMax].filter(Boolean).join(" - ")} />
           <ReadOnlyFact label="Availability" value={values.noticePeriodRequirement || values.earliestAvailabilityRule} />
           <ReadOnlyFact label="Skills" value={values.keywordsToLookFor} />
@@ -496,10 +515,13 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
           <div><span className="vapi-kicker">HR EDITS THESE SECTIONS</span><h3>Screening instructions</h3><p>Add only the guidance that is specific to this role.</p></div>
         </div>
         <div className="form-grid vapi-form-grid">
-          <Field id="vapi-screeningCriteria" label="HR Screening Criteria" value={values.screeningCriteria} onChange={(value) => update("screeningCriteria", value)} disabled={!editable || saving} multiline required placeholder="What evidence should HR and Ella look for in each candidate?" hint="This is inserted into the VAPI prompt as HR Screening Criteria." />
+          <Field id="vapi-screeningCriteria" label="What should Ella listen for?" value={values.screeningCriteria} onChange={(value) => update("screeningCriteria", value)} disabled={!editable || saving} multiline required placeholder="What evidence should HR and Ella look for in each candidate?" hint="Ella will use this as extra guidance during the call, alongside the fields below." />
           <Field id="vapi-license" label="License or certificate" value={values.licenseOrCertificateRequired} onChange={(value) => update("licenseOrCertificateRequired", value)} disabled={!editable || saving} placeholder="Example: CPA preferred" />
           <Field id="vapi-keywords" label="Keywords to look for" value={values.keywordsToLookFor} onChange={(value) => update("keywordsToLookFor", value)} disabled={!editable || saving} placeholder="Separate keywords with commas" />
-          <Field id="vapi-transferable-skills" label="Transferable skills accepted" value={values.transferableSkillsAccepted} onChange={(value) => update("transferableSkillsAccepted", value)} disabled={!editable || saving} multiline placeholder="Describe adjacent experience that may be accepted." />
+           <Field id="vapi-transferable-skills" label="Transferable skills accepted" value={values.transferableSkillsAccepted} onChange={(value) => update("transferableSkillsAccepted", value)} disabled={!editable || saving} multiline placeholder="Describe adjacent experience that may be accepted." />
+           <Field id="vapi-experience" label="Minimum relevant experience" value={values.minimumYearsOfExperience} onChange={(value) => update("minimumYearsOfExperience", value)} disabled={!editable || saving} placeholder="Example: None, 3 years, or 5+ years" hint="Use None when no experience threshold applies." />
+           <Field id="vapi-salary" label="Approved salary or budget range" value={values.salaryOrBudgetRange} onChange={(value) => update("salaryOrBudgetRange", value)} disabled={!editable || saving} placeholder="Example: PHP 45,000 to PHP 60,000 per month" />
+           <Field id="vapi-availability" label="Earliest availability instructions" value={values.earliestAvailabilityRule} onChange={(value) => update("earliestAvailabilityRule", value)} disabled={!editable || saving} placeholder="Example: Ask whether the candidate can start within 30 days." />
         </div>
       </div>
 
@@ -520,18 +542,20 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
 
       <div className="vapi-preview">
         <div className="vapi-section-heading">
-          <div><span className="vapi-kicker">FINAL PROMPT</span><h3>{advancedPrompt ? "Custom VAPI System Prompt" : "Generated VAPI System Prompt"}</h3><p>Preview exactly what will be sent to ELLA.</p></div>
+          <div><span className="vapi-kicker">{advancedPrompt ? "ADVANCED" : "SCRIPT PREVIEW"}</span><h3>{advancedPrompt ? "Edit the full interview script" : "See what Ella will say"}</h3><p>{advancedPrompt ? "For advanced use only. Keep the {{system_prompt}} marker where your field answers above should be inserted." : "This is what Ella actually says on the call, after your answers above are filled in."}</p></div>
           <div className="vapi-preview-actions">
-            {!advancedPrompt && <button type="button" className="btn btn-secondary" disabled={!editable || saving} onClick={openAdvancedPrompt}>Advanced edit</button>}
-            {advancedPrompt && <button type="button" className="btn btn-secondary" disabled={!editable || saving} onClick={resetToGeneratedPrompt}>Reset to template</button>}
+            {advancedPrompt && <button type="button" className="btn btn-secondary" disabled={!editable || saving} onClick={() => setAdvancedPrompt(false)}>Back to simple view</button>}
+            {!advancedPrompt && <button type="button" className="btn btn-secondary" disabled={!editable || saving} onClick={openAdvancedPrompt}>Advanced: edit full script</button>}
+            {advancedPrompt && <button type="button" className="btn btn-secondary" disabled={!editable || saving} onClick={resetToGeneratedPrompt}>Reset to standard script</button>}
           </div>
         </div>
         {advancedPrompt ? (
-          <textarea className="vapi-full-prompt" aria-label="VAPI System Prompt" value={values.aiSystemPrompt ?? ""} disabled={!editable || saving} onChange={(event) => update("aiSystemPrompt", event.target.value)} />
+           <textarea className="vapi-full-prompt" aria-label="Full interview script" value={currentPrompt} disabled={!editable || saving} onChange={(event) => update("aiSystemPrompt", event.target.value)} />
         ) : (
           <details className="vapi-prompt-preview">
-            <summary>Preview full prompt</summary>
-            <pre>{generated}</pre>
+            <summary>See a sample call with an example candidate</summary>
+            <small>This shows what Ella would say on a real call, using a made-up candidate (&quot;Jamie Cruz&quot;) so you can read it as plain text.</small>
+            <pre>{generatedSample}</pre>
           </details>
         )}
       </div>

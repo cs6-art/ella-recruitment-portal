@@ -27,9 +27,9 @@ test("Staff Replacement requires replacement employee", () => {
   assert.match(schemaSource, /Staff Replacement/);
 });
 
-test("requester identity is read-only in the UI and server-owned in the API", () => {
-  assert.match(formSource, /id="requesterName"[\s\S]*readOnly/);
-  assert.match(formSource, /id="requesterEmail"[\s\S]*readOnly/);
+test("requester identity is not collected as a form field and remains server-owned", () => {
+  assert.doesNotMatch(formSource, /id="requesterName"/);
+  assert.doesNotMatch(formSource, /id="requesterEmail"/);
   assert.match(apiSource, /requesterName: user\.name/);
   assert.match(apiSource, /requesterEmail: sessionEmail/);
   assert.match(apiSource, /submittedBy: \{/);
@@ -56,4 +56,39 @@ test("required-field and vacancy rules remain in the shared schema", () => {
   assert.match(schemaSource, /numberOfVacancies: z\.coerce\.number\(\)\.int\(\)\.min\(1\)/);
   assert.match(schemaSource, /reasonForRequest: z\.string\(\)\.trim\(\)\.min/);
   assert.match(schemaSource, /targetHiringDate: z\.string\(\)\.trim\(\)\.min/);
+});
+
+test("role creation only renders the requisition and HOD screening fields", () => {
+  for (const field of [
+    "jobDescription",
+    "jobTitle",
+    "department",
+    "numberOfVacancies",
+    "reasonForRequest",
+    "targetHiringDate",
+    "hodAvailabilityDates",
+    "hodAvailabilityTimes",
+    "customScreeningQuestion1",
+    "customScreeningQuestion2",
+  ]) {
+    assert.match(formSource, new RegExp(`id=\\"${field}\\"`));
+  }
+
+  for (const removedField of [
+    "workLocation",
+    "employmentType",
+    "jobResponsibilities",
+    "requiredSkills",
+    "experienceRequired",
+    "educationRequirements",
+    "preferredQualifications",
+    "roleExpectations",
+    "salaryMin",
+    "salaryMax",
+    "workSchedule",
+    "noticePeriodRequirement",
+    "salaryExpectationGuidance",
+  ]) {
+    assert.doesNotMatch(formSource, new RegExp(`id=\\"${removedField}\\"`));
+  }
 });

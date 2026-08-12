@@ -56,6 +56,8 @@ test("candidate intake forms and decisions expose the required fields", () => {
   const publicRoute = read("src/app/api/public/applications/route.ts");
   const workflow = read("src/lib/applicant-workflow.ts");
   const decisionRoute = read("src/app/api/applicants/[applicationId]/decision/route.ts");
+  const uploadRoute = read("src/app/api/uploads/resumes/route.ts");
+  const downloadRoute = read("src/app/api/uploads/resumes/[fileId]/route.ts");
 
   assert.match(form, /preferredMobile/);
   assert.match(form, /skillsAssessment/);
@@ -68,6 +70,8 @@ test("candidate intake forms and decisions expose the required fields", () => {
   assert.match(decisionPanel, /disabled=\{busy \|\|/);
   assert.match(route, /findDuplicateCandidateApplication/);
   assert.match(route, /canReviewRole !== true/);
+  assert.match(route, /source: "HR Manual Intake"/);
+  assert.match(route, /allowedStatuses/);
   assert.match(publicRoute, /buildCandidateApplicationPayload/);
   assert.match(workflow, /preferredMobile/);
   assert.match(workflow, /skillsAssessment/);
@@ -75,4 +79,20 @@ test("candidate intake forms and decisions expose the required fields", () => {
   assert.match(workflow, /applicationSource/);
   assert.match(decisionRoute, /Manual Review/);
   assert.match(decisionRoute, /comments/);
+  assert.match(form, /type="file"/);
+  assert.match(form, /\.pdf/);
+  assert.match(form, /\.docx/);
+  assert.match(uploadRoute, /storeResumeFile/);
+  assert.match(downloadRoute, /canReviewRole/);
+});
+
+test("candidate screening contract is role-bound and HR-owned", () => {
+  const workflow = read("src/lib/applicant-workflow.ts");
+  const n8nContract = read("docs/N8N-CONTRACTS.md");
+  assert.match(workflow, /candidate_application_submitted/);
+  assert.match(workflow, /Role_ID/);
+  assert.match(n8nContract, /role-specific AI screening/);
+  assert.match(n8nContract, /For HR Review/);
+  assert.match(n8nContract, /portal accepts either pasted resume text or one validated PDF\/DOCX file/);
+  assert.match(n8nContract, /Binary or base64 resume content is\s+never sent/);
 });

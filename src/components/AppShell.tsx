@@ -50,16 +50,6 @@ export default function AppShell({ user, children }: AppShellProps) {
   const isSettings = pathname === "/settings";
   const closeSidebar = () => setSidebarOpen(false);
 
-  async function signOut() {
-    if (signingOut) return;
-    setSigningOut(true);
-    try {
-      await Promise.race([fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" }), new Promise((resolve) => setTimeout(resolve, 1500))]);
-    } finally {
-      window.location.replace("/");
-    }
-  }
-
   return (
     <div className={styles.shell}>
       <div className={`${styles.backdrop} ${sidebarOpen ? styles.backdropVisible : ""}`} onClick={closeSidebar} aria-hidden="true" />
@@ -85,7 +75,7 @@ export default function AppShell({ user, children }: AppShellProps) {
         <div className={styles.accountSection}>
           <div className={styles.workspaceLabel}>ACCOUNT</div>
           <Link href="/profile" onClick={closeSidebar} className={`${styles.profileButton} ${isProfile ? styles.profileButtonActive : ""}`}><div className={styles.avatar}>{initials}</div><div className={styles.profileDetails}><strong>{userName}</strong>{userEmail && <span>{userEmail}</span>}{user.accessRole && <small>{user.accessRole}</small>}</div><span className={styles.profileArrow}><UiIcon name="chevron-right" /></span></Link>
-          <button type="button" className={styles.signOutButton} onClick={() => void signOut()} disabled={signingOut}><UiIcon name="logout" /><span className={styles.signOutText}>{signingOut ? "Signing out..." : "Sign Out"}</span></button>
+          <form action="/api/auth/logout" method="get"><button type="submit" className={styles.signOutButton} onClick={() => setSigningOut(true)} disabled={signingOut}><UiIcon name="logout" /><span className={styles.signOutText}>{signingOut ? "Signing out..." : "Sign Out"}</span></button></form>
         </div>
       </aside>
 

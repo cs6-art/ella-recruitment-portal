@@ -44,6 +44,7 @@
         {"name":"Required_Interview_Question_3","value":"={{ $json.recruitmentSetup?.requiredInterviewQuestion3 || '' }}","type":"string"},
         {"name":"Final_AI_Evaluation_Template","value":"={{ $json.recruitmentSetup?.finalAiEvaluationTemplate || '' }}","type":"string"},
         {"name":"AI_System_Prompt","value":"={{ $json.recruitmentSetup?.aiSystemPrompt || '' }}","type":"string"},
+        {"name":"VAPI_Resolved_System_Prompt","value":"={{ $json.recruitmentSetup?.resolvedAiSystemPrompt || '' }}","type":"string"},
         {"name":"Initial_Interview_Booking_Link","value":"={{ $json.recruitmentSetup?.initialInterviewBookingLink || '' }}","type":"string"},
         {"name":"HOD_Interview_Booking_Link","value":"={{ $json.recruitmentSetup?.hodInterviewBookingLink || '' }}","type":"string"},
         {"name":"Posting_Channels","value":"={{ Array.isArray($json.recruitmentSetup?.postingChannels) ? $json.recruitmentSetup.postingChannels.join(', ') : ($json.recruitmentSetup?.postingChannels || '') }}","type":"string"},

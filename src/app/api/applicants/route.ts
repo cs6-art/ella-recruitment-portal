@@ -10,7 +10,9 @@ import {
   normalizePreferredMobile,
   sendCandidateApplicationWebhook,
 } from "@/lib/applicant-workflow";
+import { candidateBodyForValidation, readCandidateIntakeRequest } from "@/lib/candidate-intake";
 import { getRoleRequestById } from "@/lib/google-sheets";
+import { deleteResumeFile, storeResumeFile } from "@/lib/resume-files";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
 
 export const runtime = "nodejs";
@@ -23,18 +25,14 @@ function responseError(error: string, status: number, extra: Record<string, unkn
 }
 
 export async function POST(request: Request) {
+  let storedResume: Awaited<ReturnType<typeof storeResumeFile>> | null = null;
   try {
     const user = verifySessionToken((await cookies()).get(COOKIE_NAME)?.value);
     if (!user) return responseError("Authentication required.", 401);
     if (user.canReviewRole !== true) return responseError("Only HR reviewers can add candidates.", 403);
 
-    const rawBody = await request.json() as Record<string, unknown>;
-    const parsed = candidateApplicationSubmissionSchema.safeParse({
-      ...rawBody,
-      candidateName: rawBody.candidateName ?? rawBody.name,
-      preferredMobile: rawBody.preferredMobile ?? rawBody.mobile,
-      applicationSource: rawBody.applicationSource || "HR Invitation",
-    });
+    const intake = await readCandidateIntakeRequest(request);
+    const parsed = candidateApplicationSubmissionSchema.safeParse(candidateBodyForValidation(intake.body, intake.resumeFile));
 
     if (!parsed.success) {
       return responseError("Complete the candidate fields before submitting.", 422);
@@ -66,6 +64,7 @@ export async function POST(request: Request) {
 
     const applicationId = `APP-${crypto.randomUUID()}`;
     const submittedAt = new Date().toISOString();
+    if (intake.resumeFile) storedResume = await storeResumeFile(intake.resumeFile);
     const payload = buildCandidateApplicationPayload({
       applicationId,
       roleId,
@@ -73,12 +72,15 @@ export async function POST(request: Request) {
       submittedAt,
       candidate: {
         ...parsed.data,
+        resumeText: storedResume?.extractedText || parsed.data.resumeText,
+        ...(storedResume ? { resumeFile: storedResume.record } : {}),
         preferredMobile: normalizePreferredMobile(parsed.data.preferredMobile),
       },
     });
 
     const { response, result } = await sendCandidateApplicationWebhook(webhookUrl, webhookSecret, payload);
     if (!response.ok || result.success !== true) {
+      if (storedResume) await deleteResumeFile(storedResume.record).catch(() => undefined);
       return responseError("The application could not be submitted.", response.status === 409 ? 409 : 502);
     }
 
@@ -89,7 +91,8 @@ export async function POST(request: Request) {
       message: "Candidate added successfully.",
     }, { status: 201 });
   } catch (error) {
+    if (storedResume) await deleteResumeFile(storedResume.record).catch(() => undefined);
     console.error("[API Applicants] POST failed:", error);
-    return responseError("Unable to add the candidate.", 400);
+    return responseError(error instanceof Error ? error.message : "Unable to add the candidate.", 400);
   }
 }

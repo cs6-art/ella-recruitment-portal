@@ -11,3 +11,6 @@ test-results
 
 .next-dev/
 .next-verify/
+.next-verify-*/
+
+data/private-resumes/

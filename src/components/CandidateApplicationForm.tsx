@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useMemo, useRef, useState, type FormEvent } from "react";
 
 type RoleOption = {
   roleId: string;
@@ -54,6 +54,13 @@ function isPreferredMobileValid(value: string) {
   return /^\+[1-9]\d{7,14}$/.test(normalizePreferredMobile(value));
 }
 
+const maxResumeFileBytes = 10 * 1024 * 1024;
+const resumeMimeTypes = new Set([
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/octet-stream",
+]);
+
 function readFieldError(errors: Partial<Record<keyof FormState, string>>, key: keyof FormState) {
   return errors[key] || "";
 }
@@ -89,6 +96,9 @@ export default function CandidateApplicationForm({
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof FormState, string>>>({});
   const [saving, setSaving] = useState(false);
+  const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [fileInputKey, setFileInputKey] = useState(0);
+  const fileInput = useRef<HTMLInputElement>(null);
 
   const selectedRoleLabel = useMemo(
     () => roleOptions.find((option) => option.roleId === form.roleId)?.label || "",
@@ -112,12 +122,32 @@ export default function CandidateApplicationForm({
     } else if (!isPreferredMobileValid(form.preferredMobile)) {
       nextErrors.preferredMobile = "Use an international mobile number such as +639171234567 or +6581234567.";
     }
-    if (!form.resumeText.trim() || form.resumeText.trim().length < 20) nextErrors.resumeText = "Resume text must be at least 20 characters.";
+    if (!resumeFile && (!form.resumeText.trim() || form.resumeText.trim().length < 20)) nextErrors.resumeText = "Upload a PDF/DOCX file or enter at least 20 characters of resume text.";
     if (showRoleSelect && !form.roleId.trim()) nextErrors.roleId = "Choose a role.";
     if (requireConsent && !form.consent) nextErrors.consent = "Please confirm consent before submitting.";
 
     setFieldErrors(nextErrors);
     return nextErrors;
+  }
+
+  function selectResumeFile(file: File | null) {
+    setResumeFile(null);
+    setFieldErrors((current) => ({ ...current, resumeText: "" }));
+    if (!file) return;
+    const extension = file.name.toLowerCase().split(".").pop();
+    if (!extension || !["pdf", "docx"].includes(extension) || !resumeMimeTypes.has(file.type || "application/octet-stream")) {
+      setFieldErrors((current) => ({ ...current, resumeText: "Choose a valid PDF or DOCX resume file." }));
+      setError("The selected resume file is not supported.");
+      return;
+    }
+    if (file.size > maxResumeFileBytes) {
+      setFieldErrors((current) => ({ ...current, resumeText: "Resume files must be 10 MB or smaller." }));
+      setError("The selected resume file is too large.");
+      return;
+    }
+    setResumeFile(file);
+    setError("");
+    setMessage("");
   }
 
   async function submit(event: FormEvent) {
@@ -134,15 +164,13 @@ export default function CandidateApplicationForm({
     }
 
     try {
-      const response = await fetch(submitUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...form,
-          roleId: form.roleId || roleId,
-          preferredMobile: normalizePreferredMobile(form.preferredMobile),
-        }),
+      const body = new FormData();
+      Object.entries({ ...form, roleId: form.roleId || roleId, preferredMobile: normalizePreferredMobile(form.preferredMobile) }).forEach(([key, value]) => {
+        if (key === "resumeText" && !String(value).trim()) return;
+        body.append(key, typeof value === "boolean" ? String(value) : String(value));
       });
+      if (resumeFile) body.append("resumeFile", resumeFile, resumeFile.name);
+      const response = await fetch(submitUrl, { method: "POST", body });
       const result = await response.json();
       if (!response.ok || result.success !== true) {
         throw new Error(result.error || "Unable to submit application.");
@@ -163,6 +191,9 @@ export default function CandidateApplicationForm({
         roleId: roleId || "",
         consent: false,
       });
+      setResumeFile(null);
+      setFileInputKey((value) => value + 1);
+      if (fileInput.current) fileInput.current.value = "";
       setFieldErrors({});
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to submit application.");
@@ -255,13 +286,21 @@ export default function CandidateApplicationForm({
           </label>
 
           <label className="field full">
-            <span>Resume text *</span>
+            <span>Resume / CV *</span>
+            <input
+              key={fileInputKey}
+              ref={fileInput}
+              type="file"
+              accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              disabled={saving}
+              onChange={(event) => selectResumeFile(event.target.files?.[0] || null)}
+            />
+            {resumeFile && <small>Selected file: {resumeFile.name} ({Math.ceil(resumeFile.size / 1024)} KB)</small>}
+            <span className="field-help">Upload one PDF or DOCX file (maximum 10 MB), or use the text fallback below.</span>
             <textarea
-              required
-              minLength={20}
               value={form.resumeText}
               disabled={saving}
-              placeholder="Paste the resume text or a concise summary."
+              placeholder="Optional fallback: paste the resume text or a concise summary."
               onChange={(event) => update("resumeText", event.target.value)}
             />
             {readFieldError(fieldErrors, "resumeText") && <small>{readFieldError(fieldErrors, "resumeText")}</small>}

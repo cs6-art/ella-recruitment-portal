@@ -44,6 +44,10 @@ export type ApplicantDetails = ApplicantSummary & {
   aiAnalysisSummary: string;
   interviewQuestions: string;
   resumeText: string;
+  resumeFileId: string;
+  resumeFileName: string;
+  resumeFileMimeType: string;
+  resumeFileExpiresAt: string;
   strengths: string;
   gaps: string;
   resumeDecision: string;
@@ -54,6 +58,7 @@ export type ApplicantDetails = ApplicantSummary & {
   voiceRecommendation: string;
   voiceSummary: string;
   voiceConcerns: string;
+  voiceTranscript: string;
   voiceScheduledDate: string;
   voiceScheduledTime: string;
   voiceBookingStatus: string;
@@ -288,6 +293,10 @@ export async function getApplicantById(id: string): Promise<ApplicantDetails | n
     aiAnalysisSummary: field(record, "AI_Analysis_Summary", "AI Analysis Summary"),
     interviewQuestions: field(record, "Interview_Questions", "Interview Questions"),
     resumeText: field(record, "Resume_CV", "Resume/CV", "Resume Text"),
+    resumeFileId: field(record, "Resume_File_Id"),
+    resumeFileName: field(record, "Resume_File_Name"),
+    resumeFileMimeType: field(record, "Resume_File_Mime_Type"),
+    resumeFileExpiresAt: field(record, "Resume_File_Expires_At"),
     strengths: field(record, "Strengths"),
     gaps: field(record, "Gaps"),
     resumeDecision: field(record, "Resume_HR_Decision"),
@@ -298,6 +307,7 @@ export async function getApplicantById(id: string): Promise<ApplicantDetails | n
     voiceRecommendation: field(voiceResult ?? {}, "Voice_Recommendation", "Voice Recommendation"),
     voiceSummary: field(voiceResult ?? {}, "AI_Voice_Summary", "AI Voice Summary"),
     voiceConcerns: field(voiceResult ?? {}, "Voice_Concerns", "Voice Concerns"),
+    voiceTranscript: field(voiceResult ?? {}, "Transcript", "Voice_Transcript", "Call_Transcript") || field(callLog ?? {}, "Transcript", "Voice_Transcript", "Call_Transcript"),
     voiceScheduledDate: field(record, "Voice_Interview_Scheduled_Date"),
     voiceScheduledTime: field(record, "Voice_Interview_Scheduled_Time"),
     voiceBookingStatus: field(record, "Voice_Interview_Booking_Status"),

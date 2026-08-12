@@ -42,16 +42,21 @@ export async function POST(request: Request, context: Context) {
     const forwardedHost = request.headers.get("x-forwarded-host") || request.headers.get("host");
       const appBaseUrl = configuredAppUrl || (forwardedHost ? `${request.headers.get("x-forwarded-proto") || "https"}://${forwardedHost}` : "");
     const applicationLink = appBaseUrl ? `${appBaseUrl}/apply/${encodeURIComponent(role.roleId)}` : `/apply/${encodeURIComponent(role.roleId)}`;
-    const roleSalaryRange = [role.salaryMin, role.salaryMax].filter((value) => String(value || "").trim()).join(" - ");
+    const initialInterviewQuestions = [
+      setup.requiredInterviewQuestion1,
+      setup.requiredInterviewQuestion2,
+      setup.requiredInterviewQuestion3,
+      setup.requiredInterviewQuestion4,
+      setup.requiredInterviewQuestion5,
+    ].filter((question) => question.trim());
     const canonicalSetup = {
       ...setup,
-      // These values belong to the original Role Request. Keep legacy setup
-      // fields populated for the webhook without allowing a template to
-      // overwrite the canonical role data.
+      // The active n8n workflow still consumes its historical aggregate field;
+      // keep it as a compatibility projection of the five canonical questions.
+      initialInterviewQuestions,
+      // Keep role context available to the workflow, but let HR's structured
+      // setup values override the initial role-request defaults.
       jobDescription: role.jobDescription || setup.jobDescription,
-      minimumYearsOfExperience: role.experienceRequired || setup.minimumYearsOfExperience || "",
-      salaryOrBudgetRange: roleSalaryRange || role.salaryExpectationGuidance || setup.salaryOrBudgetRange,
-      earliestAvailabilityRule: role.noticePeriodRequirement || setup.earliestAvailabilityRule,
       initialInterviewBookingLink: role.initialInterviewBookingLink || setup.initialInterviewBookingLink,
       hodInterviewBookingLink: role.hodInterviewBookingLink || setup.hodInterviewBookingLink,
     };
@@ -68,12 +73,14 @@ export async function POST(request: Request, context: Context) {
       recruitmentSetup: canonicalSetup,
       Job_Description: role.jobDescription,
       Screening_Criteria: setup.screeningCriteria,
+      Initial_Interview_Questions: initialInterviewQuestions.join("\n"),
       Required_Interview_Question_1: setup.requiredInterviewQuestion1,
       Required_Interview_Question_2: setup.requiredInterviewQuestion2,
       Required_Interview_Question_3: setup.requiredInterviewQuestion3,
       Required_Interview_Question_4: setup.requiredInterviewQuestion4,
       Required_Interview_Question_5: setup.requiredInterviewQuestion5,
       AI_System_Prompt: setup.aiSystemPrompt,
+      VAPI_Resolved_System_Prompt: setup.resolvedAiSystemPrompt || "",
       Initial_Interview_Booking_Link: role.initialInterviewBookingLink || setup.initialInterviewBookingLink,
       HOD_Interview_Booking_Link: role.hodInterviewBookingLink || setup.hodInterviewBookingLink,
       Posting_Channels: setup.postingChannels.join(", "),
@@ -81,10 +88,10 @@ export async function POST(request: Request, context: Context) {
       Posting_Confirmed: setupAction === "publish_role" ? "TRUE" : "FALSE",
       License_or_Certificate_Required: setup.licenseOrCertificateRequired,
       Keywords_to_Look_For: setup.keywordsToLookFor,
-      Minimum_Years_of_Experience: role.experienceRequired || setup.minimumYearsOfExperience || "",
+      Minimum_Years_of_Experience: setup.minimumYearsOfExperience || "",
       Transferable_Skills_Accepted: setup.transferableSkillsAccepted,
-      Salary_or_Budget_Range: roleSalaryRange || role.salaryExpectationGuidance || setup.salaryOrBudgetRange,
-      Earliest_Availability_Rule: role.noticePeriodRequirement || setup.earliestAvailabilityRule,
+      Salary_or_Budget_Range: setup.salaryOrBudgetRange,
+      Earliest_Availability_Rule: setup.earliestAvailabilityRule,
       Experience_Required: role.experienceRequired,
       Salary_Minimum: role.salaryMin,
       Salary_Maximum: role.salaryMax,

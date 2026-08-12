@@ -16,8 +16,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ kin
   const { kind, token } = await params;
   if (!validKind(kind)) return NextResponse.json({ error: "Booking type not found." }, { status: 404 });
   try {
-    const body = await request.json() as { slotId?: string };
-    const booking = await reserveBooking(kind, token, String(body.slotId || ""));
+    const body = await request.json() as { slotId?: string; preferredMobile?: string };
+    const booking = await reserveBooking(kind, token, String(body.slotId || ""), String(body.preferredMobile || ""));
     return NextResponse.json({ success: true, booking });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to reserve this interview slot." }, { status: 400 });

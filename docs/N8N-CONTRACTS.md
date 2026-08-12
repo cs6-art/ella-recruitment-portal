@@ -14,8 +14,8 @@ The portal sends this payload to `N8N_RECRUITMENT_SETUP_WEBHOOK_URL`, or to
   "recruitmentSetup": {
     "jobDescription": "...",
     "screeningCriteria": "...",
-    "initialInterviewQuestions": "...",
-    "aiSystemPrompt": "...",
+    "aiSystemPrompt": "Editable template containing {{system_prompt}}",
+    "resolvedAiSystemPrompt": "Rendered prompt for the current role",
     "initialInterviewBookingLink": "https://...",
     "hodInterviewBookingLink": "https://...",
     "postingChannels": "LinkedIn, careers page"
@@ -24,6 +24,7 @@ The portal sends this payload to `N8N_RECRUITMENT_SETUP_WEBHOOK_URL`, or to
   "Screening_Criteria": "...",
   "Initial_Interview_Questions": "...",
   "AI_System_Prompt": "...",
+  "VAPI_Resolved_System_Prompt": "...",
   "Initial_Interview_Booking_Link": "https://...",
   "HOD_Interview_Booking_Link": "https://...",
   "Posting_Channels": "LinkedIn, careers page",
@@ -32,7 +33,7 @@ The portal sends this payload to `N8N_RECRUITMENT_SETUP_WEBHOOK_URL`, or to
   "Recruitment_Setup_Updated_By_Email": "hr@mclinkgroup.com",
   "License_or_Certificate_Required": "",
   "Keywords_to_Look_For": "",
-  "Minimum_Years_of_Experience": 2,
+  "Minimum_Years_of_Experience": "None",
   "Transferable_Skills_Accepted": "",
   "Salary_or_Budget_Range": "",
   "Earliest_Availability_Rule": "",
@@ -48,8 +49,12 @@ The portal sends this payload to `N8N_RECRUITMENT_SETUP_WEBHOOK_URL`, or to
 ```
 
 n8n must verify `X-Webhook-Secret`, verify the role is still in
-`expectedCurrentStatus`, update the seven setup columns plus the three audit
-columns, and return HTTP 200 JSON with `{ "success": true }`.
+`expectedCurrentStatus`, persist the editable `AI_System_Prompt` template and
+the structured criteria values, and use `VAPI_Resolved_System_Prompt` (or
+render the template itself) when configuring Vapi. The `{{system_prompt}}`
+placeholder must be replaced with the structured HR criteria at call setup;
+the editable template must remain available for later HR changes. Return HTTP
+200 JSON with `{ "success": true }`.
 
 ## Events and responses
 
@@ -87,6 +92,16 @@ application route and the HR manual intake route:
     "applicationSource": "Direct Application",
     "consent": true
   },
+  "resumeFile": {
+    "fileId": "RES-...",
+    "fileName": "candidate-resume.pdf",
+    "mimeType": "application/pdf",
+    "size": 123456,
+    "sha256": "...",
+    "uploadedAt": "2026-08-11T00:00:00.000Z",
+    "expiresAt": "2026-09-10T00:00:00.000Z",
+    "kind": "pdf"
+  },
   "submittedAt": "2026-08-07T00:00:00.000Z",
   "source": "Public Application Page",
   "applicationSource": "Direct Application"
@@ -98,9 +113,18 @@ The HR intake route uses the same schema, but the `source` value is
 values are `Direct Application`, `Referral`, `Walk-in`, `Agency`,
 `Existing Database`, and `HR Invitation`.
 
-Actual PDF/DOCX uploads are deferred. Do not store binary or base64 resume
-content in Google Sheets. Store file metadata separately and keep only the
-extracted text in `High_Match_Profile`.
+The portal accepts either pasted resume text or one validated PDF/DOCX file.
+For a file submission, the portal validates the extension, MIME type, file
+signature, 10 MB limit, and readable extracted text, stores the binary in the
+private resume storage directory, and sends only extracted text plus safe file
+metadata to n8n. The active `McLink - Candidate Application Foundation`
+workflow validates the selected `Role_ID` and file metadata, loads that role's
+job description and screening criteria, runs role-specific AI screening, and
+appends the result with `Recommendation: For HR Review`,
+`Resume_HR_Decision: Pending`, and safe `Resume_File_*` metadata. The AI is
+not allowed to approve or reject a candidate. HR decisions remain portal-owned
+and are written to candidate status history. Binary or base64 resume content is
+never sent to or stored in Google Sheets.
 
 ## Recruitment Setup stage actions
 

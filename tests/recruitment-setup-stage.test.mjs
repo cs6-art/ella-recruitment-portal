@@ -42,6 +42,15 @@ test("publishing is blocked until Ready for Publishing", () => {
   assert.match(route, /Job Posted/);
 });
 
+test("setup payload keeps the five canonical questions compatible with n8n", () => {
+  assert.match(route, /requiredInterviewQuestion1/);
+  assert.match(route, /requiredInterviewQuestion5/);
+  assert.match(route, /initialInterviewQuestions/);
+  assert.match(route, /Initial_Interview_Questions: initialInterviewQuestions\.join/);
+  assert.match(route, /Required_Interview_Question_1/);
+  assert.match(route, /Required_Interview_Question_5/);
+});
+
 test("editor exposes separate stage actions and readiness", () => {
   assert.match(editor, /Save Draft/);
   assert.match(editor, /Mark as Recruitment Ready/);
@@ -50,11 +59,14 @@ test("editor exposes separate stage actions and readiness", () => {
   assert.match(editor, /setup-readiness/);
 });
 
-test("recruitment setup uses one guided VAPI editor", () => {
-  assert.match(editor, /VAPI System Prompt/);
-  assert.match(editor, /HR Screening Criteria/);
-  assert.match(editor, /Advanced edit/);
+test("recruitment setup uses one guided editor with simple HR-facing fields", () => {
+  assert.match(editor, /Interview Setup/);
+  assert.match(editor, /What should Ella listen for\?/);
+  assert.match(editor, /Advanced: edit full script/);
   assert.match(editor, /Publishing checklist/);
+  // The raw {{curly_brace}} template stays hidden behind an explicit
+  // "Advanced" action so HR lands on the simple field-based view by default.
+  assert.match(editor, /useState\(false\)/);
   assert.doesNotMatch(roleDetails, /EllaSetupFields/);
 });
 

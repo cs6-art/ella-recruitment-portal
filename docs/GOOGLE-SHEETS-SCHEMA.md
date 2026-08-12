@@ -27,6 +27,14 @@ the portal maps by header name, but spelling must remain exact.
 `Recruitment_Setup_Updated_At`, `Recruitment_Setup_Updated_By_Name`,
 `Recruitment_Setup_Updated_By_Email`.
 
+`AI_System_Prompt` stores the HR-editable Vapi template, including tokens such
+as `{{candidate_name}}`, `{{interview_questions}}`, and `{{system_prompt}}`.
+`VAPI_Resolved_System_Prompt` is the rendered prompt sent to the interview
+workflow after the role criteria values are inserted. If the live workbook
+does not yet have that column, n8n may keep the resolved value in its own
+workflow payload, but it must use the editable template as the source of
+truth.
+
 Stage-based Recruitment Setup also uses these exact Role_Requests columns:
 `Recruitment_Setup_Status`, `Salary_Disclosure_Status`,
 `Experience_Requirement_Status`, `License_Requirement_Status`,
@@ -70,11 +78,26 @@ The portal reads and writes these candidate fields in `High_Match_Profile`:
 `Preferred_Mobile`, `Resume_Text`, `Salary_Expectation`, `Notice_Period`,
 `Availability`, `Skills_Assessment`, `Role_Expectations`,
 `Application_Source`, `Final_Status`, `Resume_HR_Comments`,
-`Voice_HR_Comments`, `Last_Updated`.
+`Voice_HR_Comments`, `Resume_File_Id`, `Resume_File_Name`,
+`Resume_File_Mime_Type`, `Resume_File_Size`, `Resume_File_SHA256`,
+`Resume_File_Expires_At`, `Last_Updated`.
+
+## Interview_Slots
+
+The booking calendar uses `Slot_ID`, `Interview_Type`, `Role_ID`, `Date`,
+`Start_Time`, `End_Time`, `Timezone`, `Status`, `Application_ID`,
+`Candidate_Name`, `Candidate_Email`, `Booked_At`, and `Last_Updated`.
+`Status` may be `Available`, `Booked`, or `No Show`. Rescheduling clears the
+candidate fields on the old booked row and returns it to `Available`.
+
+HR may mark a booked slot `No Show` only after its start time in the slot
+timezone. The portal also updates the corresponding voice/final status in
+`High_Match_Profile`; a completed interview cannot be changed to `No Show`.
 
 Binary resume files, DOCX uploads, and base64-encoded resume blobs must not be
 stored in Google Sheets. Keep file storage separate and store only metadata plus
-extracted text in the sheet.
+extracted text in the sheet. The portal's `RESUME_STORAGE_DIR` must be a
+private, persistent directory in production; expired files are not downloadable.
 
 ## User_Directory
 

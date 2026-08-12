@@ -59,7 +59,7 @@ export default async function DashboardPage() {
               {String(user.accessRole ?? "Portal User")} · {String(user.department ?? "Department not assigned")} Department
             </span>
           </div>
-
+          {user.canCreateRole === true && <div className="hero-actions dashboard-welcome-actions"><Link className="btn btn-primary" href="/roles/new">Create Role Request</Link></div>}
         </section>
 
         {hasRecruitmentAccess ? <section className="dashboard-stats"><DashboardMetrics scope={creatorOnly ? "personal" : "organization"} /></section> : <LimitedAccessCard user={user} />}

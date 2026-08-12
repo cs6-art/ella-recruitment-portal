@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { createFinalInterviewEvent } from "@/lib/google-calendar";
 import { getRoleRequestById } from "@/lib/google-sheets";
+import type { ResumeFileRecord } from "@/lib/resume-files";
 
 export type BookingKind = "voice" | "final";
 export type ApplicantDecisionStage = "resume" | "voice" | "final";
@@ -29,6 +30,7 @@ export type CandidateApplicationInput = {
   skillsAssessment: string;
   roleExpectations: string;
   applicationSource: CandidateApplicationSource | string;
+  resumeFile?: ResumeFileRecord;
 };
 
 export type CandidateApplicationDuplicate = {
@@ -60,6 +62,7 @@ export type CandidateApplicationWebhookPayload = {
   submittedAt: string;
   source: string;
   applicationSource: string;
+  resumeFile?: Pick<ResumeFileRecord, "fileId" | "fileName" | "mimeType" | "size" | "sha256" | "uploadedAt" | "expiresAt" | "kind">;
 };
 
 export const candidateApplicationSources = [
@@ -120,6 +123,8 @@ export type BookingSlot = {
   startTime: string;
   endTime: string;
   timezone: string;
+  status?: string;
+  applicationId?: string;
 };
 
 export type BookingContext = {
@@ -133,6 +138,8 @@ export type BookingContext = {
   scheduledDate: string;
   scheduledTime: string;
   timezone: string;
+  preferredMobile: string;
+  currentSlot?: BookingSlot;
   slots: BookingSlot[];
 };
 
@@ -204,6 +211,8 @@ function slotFrom(row: Row): BookingSlot {
     startTime: field(row, "Start_Time", "Start Time"),
     endTime: field(row, "End_Time", "End Time"),
     timezone: field(row, "Timezone", "Time Zone"),
+    status: field(row, "Status"),
+    applicationId: field(row, "Application_ID", "Application ID"),
   };
 }
 
@@ -263,6 +272,18 @@ export function buildCandidateApplicationPayload(input: {
     submittedAt: input.submittedAt,
     source: input.source,
     applicationSource: text(input.candidate.applicationSource),
+    ...(input.candidate.resumeFile ? {
+      resumeFile: {
+        fileId: input.candidate.resumeFile.fileId,
+        fileName: input.candidate.resumeFile.fileName,
+        mimeType: input.candidate.resumeFile.mimeType,
+        size: input.candidate.resumeFile.size,
+        sha256: input.candidate.resumeFile.sha256,
+        uploadedAt: input.candidate.resumeFile.uploadedAt,
+        expiresAt: input.candidate.resumeFile.expiresAt,
+        kind: input.candidate.resumeFile.kind,
+      },
+    } : {}),
   };
 }
 
@@ -281,22 +302,6 @@ export async function sendCandidateApplicationWebhook(webhookUrl: string, webhoo
   const result = await response.json().catch(() => ({}));
   return { response, result: result as Record<string, unknown> };
 }
-
-const candidateHistoryHeaders = [
-  "History_ID",
-  "Application_ID",
-  "Role_ID",
-  "Changed_At",
-  "Previous_Status",
-  "New_Status",
-  "Stage",
-  "Action",
-  "Changed_By_Name",
-  "Changed_By_Email",
-  "Comments",
-  "Rejection_Reason",
-  "Action_Source",
-] as const;
 
 export function buildCandidateStatusHistoryEntry(input: {
   applicationId: string;
@@ -390,6 +395,11 @@ export async function getBookingContext(kind: BookingKind, token: string): Promi
   if (expiry && Date.parse(expiry) < Date.now()) return null;
   const roleId = field(row, "Role_ID", "Role ID");
   const status = kind === "voice" ? field(row, "Booking_Token_Status") : field(row, "Status 3 (Final Interview)");
+  const currentSlot = slotsData.rows
+    .map((slot, index) => ({ slot: slotFrom(slot), index }))
+    .find(({ slot }) => slot.applicationId === field(row, "Application ID", "Application_ID")
+      && slot.interviewType === bookingKindValue(kind)
+      && ["booked", "no show"].includes((slot.status || "").toLowerCase()));
   const slots = slotsData.rows
     .filter((slot) => field(slot, "Role_ID", "Role ID").toLowerCase() === roleId.toLowerCase())
     .filter((slot) => field(slot, "Interview_Type", "Interview Type") === bookingKindValue(kind))
@@ -406,9 +416,11 @@ export async function getBookingContext(kind: BookingKind, token: string): Promi
     selectedRole: field(row, "Selected Role", "Selected_Role"),
     roleId,
     bookingStatus: status,
-    scheduledDate: field(row, "Voice_Interview_Scheduled_Date"),
-    scheduledTime: field(row, "Voice_Interview_Scheduled_Time"),
-    timezone: field(row, "Voice_Interview_Timezone"),
+    preferredMobile: field(row, "Preferred_Mobile", "Preferred Mobile", "Contact_Number", "Contact Number", "Phone"),
+    scheduledDate: currentSlot?.slot.date || field(row, "Voice_Interview_Scheduled_Date", "Final_Interview_Scheduled_Date"),
+    scheduledTime: currentSlot?.slot.startTime || field(row, "Voice_Interview_Scheduled_Time", "Final_Interview_Scheduled_Time"),
+    timezone: currentSlot?.slot.timezone || field(row, "Voice_Interview_Timezone", "Final_Interview_Timezone"),
+    currentSlot: currentSlot?.slot,
     slots,
   };
 }
@@ -419,7 +431,10 @@ async function updateCells(updates: CellUpdate[]) {
   const grouped = new Map<string, CellUpdate[]>();
   updates.forEach((update) => grouped.set(update.tab, [...(grouped.get(update.tab) ?? []), update]));
   for (const [tab, tabUpdates] of grouped) {
-    const data = await readSheet(tab, tab === "High_Match_Profile" ? "BH" : tab === "Interview_Slots" ? "P" : "AE");
+    const data = await readSheet(tab,
+      tab === "High_Match_Profile" ? "BH" :
+        tab === "Interview_Slots" ? "P" :
+          tab === "Voice_Call_Queue" ? "X" : "AE");
     const requests = tabUpdates.map((update) => {
       let index = data.headers.findIndex((header) => normalize(header) === normalize(update.header));
       if (index < 0) index = data.headers.length;
@@ -429,13 +444,13 @@ async function updateCells(updates: CellUpdate[]) {
   }
 }
 
-export async function reserveBooking(kind: BookingKind, token: string, slotId: string) {
+export async function reserveBooking(kind: BookingKind, token: string, slotId: string, preferredMobile: string) {
   const cleanSlotId = text(slotId);
   if (!cleanSlotId) throw new Error("Choose an interview slot.");
+  const confirmedMobile = normalizePreferredMobile(preferredMobile);
+  if (!isPreferredMobileValid(confirmedMobile)) throw new Error("Confirm a valid preferred mobile number in international format.");
   const [context, slotsData, applicantData] = await Promise.all([getBookingContext(kind, token), readSheet("Interview_Slots", "P"), readSheet("High_Match_Profile", "BH")]);
   if (!context) throw new Error("This booking link is invalid or expired.");
-  if (kind === "voice" && (context.bookingStatus.toLowerCase() === "used" || Boolean(context.scheduledDate))) throw new Error("This interview has already been scheduled.");
-  if (kind === "final" && context.bookingStatus.toLowerCase().includes("scheduled")) throw new Error("This interview has already been scheduled.");
   const matchingSlotIndex = slotsData.rows.findIndex((row) => field(row, "Slot_ID", "Slot ID") === cleanSlotId);
   if (matchingSlotIndex < 0) throw new Error("The selected interview slot is no longer available.");
   const matchingSlot = slotsData.rows[matchingSlotIndex];
@@ -446,6 +461,10 @@ export async function reserveBooking(kind: BookingKind, token: string, slotId: s
   const applicantIndex = applicantData.rows.findIndex((row) => field(row, "Application ID", "Application_ID") === context.applicationId);
   if (applicantIndex < 0) throw new Error("Applicant record not found.");
   const applicantRow = applicantData.rowNumbers[applicantIndex];
+  const oldSlotIndex = context.currentSlot
+    ? slotsData.rows.findIndex((row) => field(row, "Slot_ID", "Slot ID") === context.currentSlot?.slotId)
+    : -1;
+  if (oldSlotIndex === matchingSlotIndex) throw new Error("Choose a different interview slot to reschedule.");
   const updates: CellUpdate[] = [
     { tab: "Interview_Slots", row: slotRow, header: "Status", value: "Booked" },
     { tab: "Interview_Slots", row: slotRow, header: "Application_ID", value: context.applicationId },
@@ -454,6 +473,22 @@ export async function reserveBooking(kind: BookingKind, token: string, slotId: s
     { tab: "Interview_Slots", row: slotRow, header: "Booked_At", value: now },
     { tab: "Interview_Slots", row: slotRow, header: "Last_Updated", value: now },
   ];
+  if (oldSlotIndex >= 0) {
+    const oldSlotRow = slotsData.rowNumbers[oldSlotIndex];
+    updates.push(
+      { tab: "Interview_Slots", row: oldSlotRow, header: "Status", value: "Available" },
+      { tab: "Interview_Slots", row: oldSlotRow, header: "Application_ID", value: "" },
+      { tab: "Interview_Slots", row: oldSlotRow, header: "Candidate_Name", value: "" },
+      { tab: "Interview_Slots", row: oldSlotRow, header: "Candidate_Email", value: "" },
+      { tab: "Interview_Slots", row: oldSlotRow, header: "Booked_At", value: "" },
+      { tab: "Interview_Slots", row: oldSlotRow, header: "Last_Updated", value: now },
+    );
+  }
+  updates.push(
+    { tab: "High_Match_Profile", row: applicantRow, header: "Preferred_Mobile", value: confirmedMobile },
+    { tab: "High_Match_Profile", row: applicantRow, header: "Contact_Number", value: confirmedMobile },
+  );
+  let queueValues: string[] | null = null;
   if (kind === "voice") {
     updates.push(
       { tab: "High_Match_Profile", row: applicantRow, header: "Status 2 (Voice Interview)", value: "Scheduled" },
@@ -473,14 +508,15 @@ export async function reserveBooking(kind: BookingKind, token: string, slotId: s
     // here never results in an actual call.
     const applicantRecord = applicantData.rows[applicantIndex];
     const queueData = await readSheet("Voice_Call_Queue", "X");
-    const queueValues = queueData.headers.map((header) => {
+    const newQueueValues = queueData.headers.map((header) => {
       const key = normalize(header);
       if (key === normalize("Application_ID")) return context.applicationId;
       if (key === normalize("Voice_Interview_Scheduled_Date")) return field(matchingSlot, "Date");
       if (key === normalize("Voice_Interview_Scheduled_Time")) return field(matchingSlot, "Start_Time", "Start Time");
       if (key === normalize("Voice_Interview_Timezone")) return field(matchingSlot, "Timezone", "Time Zone");
       if (key === normalize("Applicant_Country")) return field(applicantRecord, "Applicant_Country");
-      if (key === normalize("Contact_Number")) return field(applicantRecord, "Contact Number", "Contact_Number");
+      if (key === normalize("Preferred_Mobile")) return confirmedMobile;
+      if (key === normalize("Contact_Number")) return confirmedMobile;
       if (key === normalize("Role_ID")) return context.roleId;
       if (key === normalize("Voice_Call_Status")) return "Scheduled";
       if (key === normalize("Voice_Call_Attempts")) return "0";
@@ -488,7 +524,18 @@ export async function reserveBooking(kind: BookingKind, token: string, slotId: s
       if (key === normalize("Last_Updated")) return now;
       return "";
     });
-    await appendRows("Voice_Call_Queue", [queueValues]);
+    if (oldSlotIndex >= 0) {
+      const oldQueueUpdates = queueData.rows
+        .map((queueRow, index) => ({ queueRow, rowNumber: queueData.rowNumbers[index] }))
+        .filter(({ queueRow }) => field(queueRow, "Application_ID", "Application ID") === context.applicationId
+          && ["scheduled", "queued"].includes(field(queueRow, "Voice_Call_Status").toLowerCase()))
+        .flatMap(({ rowNumber }) => [
+          { tab: "Voice_Call_Queue", row: rowNumber, header: "Voice_Call_Status", value: "Cancelled" },
+          { tab: "Voice_Call_Queue", row: rowNumber, header: "Last_Updated", value: now },
+        ]);
+      updates.push(...oldQueueUpdates);
+    }
+    queueValues = newQueueValues;
   } else {
     updates.push(
       { tab: "High_Match_Profile", row: applicantRow, header: "Status 3 (Final Interview)", value: "Interview Scheduled" },
@@ -497,6 +544,7 @@ export async function reserveBooking(kind: BookingKind, token: string, slotId: s
     );
   }
   await updateCells(updates);
+  if (queueValues) await appendRows("Voice_Call_Queue", [queueValues]);
 
   if (kind === "final") {
     // Best-effort: put the event on the HOD's own connected Google Calendar.
@@ -530,6 +578,65 @@ export async function reserveBooking(kind: BookingKind, token: string, slotId: s
   }
 
   return { ...context, bookingStatus: kind === "voice" ? "Scheduled" : "Interview Scheduled", scheduledDate: field(matchingSlot, "Date"), scheduledTime: field(matchingSlot, "Start_Time", "Start Time"), timezone: field(matchingSlot, "Timezone", "Time Zone"), slots: [] };
+}
+
+function scheduledInstant(date: string, time: string, timeZone: string) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date(`${date}T${time}:00Z`));
+  const values = Object.fromEntries(parts.filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
+  const desired = Date.UTC(Number(date.slice(0, 4)), Number(date.slice(5, 7)) - 1, Number(date.slice(8, 10)), Number(time.slice(0, 2)), Number(time.slice(3, 5)));
+  const shown = Date.UTC(Number(values.year), Number(values.month) - 1, Number(values.day), Number(values.hour), Number(values.minute), Number(values.second));
+  return new Date(desired - (shown - Date.parse(`${date}T${time}:00Z`)));
+}
+
+export async function markInterviewNoShow(slotId: string) {
+  const cleanSlotId = text(slotId);
+  if (!cleanSlotId) throw new Error("Interview slot is required.");
+  const [slotsData, applicantsData] = await Promise.all([readSheet("Interview_Slots", "P"), readSheet("High_Match_Profile", "BH")]);
+  const slotIndex = slotsData.rows.findIndex((row) => field(row, "Slot_ID", "Slot ID") === cleanSlotId);
+  if (slotIndex < 0) throw new Error("Interview slot not found.");
+  const slot = slotsData.rows[slotIndex];
+  if (field(slot, "Status").toLowerCase() !== "booked") throw new Error("Only booked interviews can be marked as No Show.");
+  const scheduledAt = scheduledInstant(field(slot, "Date"), field(slot, "Start_Time", "Start Time"), field(slot, "Timezone", "Time Zone") || "Asia/Singapore");
+  if (scheduledAt.getTime() > Date.now()) throw new Error("No Show can only be recorded after the scheduled start time.");
+  const applicationId = field(slot, "Application_ID", "Application ID");
+  const applicantIndex = applicantsData.rows.findIndex((row) => field(row, "Application_ID", "Application ID") === applicationId);
+  if (applicantIndex < 0) throw new Error("Applicant record not found.");
+  const now = new Date().toISOString();
+  const slotRow = slotsData.rowNumbers[slotIndex];
+  const applicantRow = applicantsData.rowNumbers[applicantIndex];
+  const isVoice = field(slot, "Interview_Type", "Interview Type") === "AI Voice Interview";
+  const interviewStatus = field(applicantsData.rows[applicantIndex], isVoice ? "Status 2 (Voice Interview)" : "Status 3 (Final Interview)").toLowerCase();
+  if (interviewStatus.includes("interviewed") || interviewStatus.includes("completed")) throw new Error("This interview already has a completed result and cannot be marked as No Show.");
+  const updates: CellUpdate[] = [
+    { tab: "Interview_Slots", row: slotRow, header: "Status", value: "No Show" },
+    { tab: "Interview_Slots", row: slotRow, header: "Last_Updated", value: now },
+    { tab: "High_Match_Profile", row: applicantRow, header: "Last_Updated", value: now },
+    { tab: "High_Match_Profile", row: applicantRow, header: isVoice ? "Status 2 (Voice Interview)" : "Status 3 (Final Interview)", value: "No Show" },
+    { tab: "High_Match_Profile", row: applicantRow, header: "Final_Status", value: `${isVoice ? "AI Voice Interview" : "Final Interview"} No Show` },
+  ];
+  if (isVoice) updates.push({ tab: "High_Match_Profile", row: applicantRow, header: "Voice_Interview_Booking_Status", value: "No Show" });
+  if (isVoice) {
+    const queueData = await readSheet("Voice_Call_Queue", "X");
+    queueData.rows
+      .map((queueRow, index) => ({ queueRow, rowNumber: queueData.rowNumbers[index] }))
+      .filter(({ queueRow }) => field(queueRow, "Application_ID", "Application ID") === applicationId
+        && ["scheduled", "queued"].includes(field(queueRow, "Voice_Call_Status").toLowerCase()))
+      .forEach(({ rowNumber }) => updates.push(
+        { tab: "Voice_Call_Queue", row: rowNumber, header: "Voice_Call_Status", value: "No Show" },
+        { tab: "Voice_Call_Queue", row: rowNumber, header: "Last_Updated", value: now },
+      ));
+  }
+  await updateCells(updates);
+  return { slotId: cleanSlotId, applicationId, status: "No Show" };
 }
 
 export async function createInterviewSlot(input: CreateInterviewSlotInput) {

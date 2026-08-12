@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 const optionalUrl = z.string().trim().max(2000).refine((value) => value === "" || /^https?:\/\//i.test(value), "Enter a valid http(s) URL.");
-const optionalNumber = z.preprocess((value) => value === "" || value === null || value === undefined ? undefined : Number(value), z.number().finite().nonnegative().optional());
+const editableExperience = z.preprocess((value) => value === null || value === undefined ? "" : String(value), z.string().trim().max(100).default(""));
 
 export const recruitmentSetupSchema = z.object({
   jobDescription: z.string().trim().min(1, "Job Description is required.").max(20000),
@@ -11,13 +11,14 @@ export const recruitmentSetupSchema = z.object({
   requiredInterviewQuestion3: z.string().trim().max(2000).default(""),
   requiredInterviewQuestion4: z.string().trim().max(2000).default(""),
   requiredInterviewQuestion5: z.string().trim().max(2000).default(""),
-  aiSystemPrompt: z.string().trim().max(20000),
+  aiSystemPrompt: z.string().trim().max(50000),
+  resolvedAiSystemPrompt: z.string().trim().max(50000).optional().default(""),
   initialInterviewBookingLink: optionalUrl,
   hodInterviewBookingLink: optionalUrl,
   postingChannels: z.union([z.string(), z.array(z.string())]).transform((value) => (Array.isArray(value) ? value : value.split(/[\n,]/)).map((item) => item.trim()).filter(Boolean).slice(0, 30)),
   licenseOrCertificateRequired: z.string().trim().max(5000).default(""),
   keywordsToLookFor: z.string().trim().max(5000).default(""),
-  minimumYearsOfExperience: optionalNumber,
+  minimumYearsOfExperience: editableExperience,
   transferableSkillsAccepted: z.string().trim().max(5000).default(""),
   salaryOrBudgetRange: z.string().trim().max(1000).default(""),
   earliestAvailabilityRule: z.string().trim().max(1000).default(""),

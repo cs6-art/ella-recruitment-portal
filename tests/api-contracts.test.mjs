@@ -58,7 +58,7 @@ test("saved recruitment templates stay isolated from role request rows", () => {
   assert.doesNotMatch(templateRoute, /Role_Requests/);
   assert.match(editor, /Save as template/);
   assert.match(editor, /Saved template/);
-  assert.match(editor, /Load Standard VAPI Template/);
+  assert.match(editor, /Load standard script/);
   assert.match(editor, /Delete/);
 });
 
