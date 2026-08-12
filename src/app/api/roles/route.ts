@@ -6,6 +6,7 @@ import { getRoleRequests } from "@/lib/google-sheets";
 import { filterVisibleRoles } from "@/lib/access-control";
 import { roleRequestSchema } from "@/lib/role-schema";
 import { generateRoleId } from "@/lib/role-id";
+import { consumeRateLimit, rateLimitHeaders, requestClientKey } from "@/lib/rate-limit";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
 
 export const runtime = "nodejs";
@@ -131,6 +132,9 @@ export async function POST(request: Request) {
         { status: 403 },
       );
     }
+
+    const rate = consumeRateLimit(`role-create:${user.email}:${requestClientKey(request)}`, 20, 15 * 60 * 1000);
+    if (!rate.allowed) return NextResponse.json({ success: false, error: "Too many role requests. Try again later." }, { status: 429, headers: rateLimitHeaders(rate) });
 
     const sessionEmail = user.email.trim().toLowerCase();
     if (!/^[^\s@]+@mclinkgroup\.com$/i.test(sessionEmail)) {

@@ -2,13 +2,16 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { markInterviewNoShow } from "@/lib/applicant-workflow";
+import { consumeRateLimit, rateLimitHeaders, requestClientKey } from "@/lib/rate-limit";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
 
-export async function POST(_request: Request, { params }: { params: Promise<{ slotId: string }> }) {
+export async function POST(request: Request, { params }: { params: Promise<{ slotId: string }> }) {
   const user = verifySessionToken((await cookies()).get(COOKIE_NAME)?.value);
   if (!user || (user.canReviewRole !== true && user.canApproveRole !== true)) {
     return NextResponse.json({ error: "You are not authorized to update interview status." }, { status: 403 });
   }
+  const rate = consumeRateLimit(`slot-status:${user.email}:${requestClientKey(request)}`, 60, 15 * 60 * 1000);
+  if (!rate.allowed) return NextResponse.json({ error: "Too many interview status updates. Try again later." }, { status: 429, headers: rateLimitHeaders(rate) });
 
   try {
     const result = await markInterviewNoShow(decodeURIComponent((await params).slotId));

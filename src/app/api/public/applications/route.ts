@@ -11,7 +11,8 @@ import {
 } from "@/lib/applicant-workflow";
 import { candidateBodyForValidation, readCandidateIntakeRequest } from "@/lib/candidate-intake";
 import { getRoleRequestById } from "@/lib/google-sheets";
-import { deleteResumeFile, storeResumeFile } from "@/lib/resume-files";
+import { consumeRateLimit, rateLimitHeaders, requestClientKey } from "@/lib/rate-limit";
+import { deleteResumeFile, MAX_RESUME_REQUEST_BYTES, storeResumeFile } from "@/lib/resume-files";
 
 export const runtime = "nodejs";
 
@@ -22,6 +23,11 @@ function responseError(error: string, status: number, extra: Record<string, unkn
 export async function POST(request: Request) {
   let storedResume: Awaited<ReturnType<typeof storeResumeFile>> | null = null;
   try {
+    const rate = consumeRateLimit(`public-application:${requestClientKey(request)}`, 10, 15 * 60 * 1000);
+    if (!rate.allowed) return NextResponse.json({ success: false, error: "Too many applications from this network. Try again later." }, { status: 429, headers: rateLimitHeaders(rate) });
+    const contentLength = Number(request.headers.get("content-length") || 0);
+    if (contentLength > MAX_RESUME_REQUEST_BYTES) return responseError("Application uploads must be 10 MB or smaller.", 413);
+
     const intake = await readCandidateIntakeRequest(request);
     const parsed = candidateApplicationSubmissionSchema.safeParse(candidateBodyForValidation(intake.body, intake.resumeFile));
 

@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
 
 import { getBookingContext, reserveBooking, type BookingKind } from "@/lib/applicant-workflow";
+import { consumeRateLimit, rateLimitHeaders, requestClientKey } from "@/lib/rate-limit";
 
 function validKind(value: string): value is BookingKind { return value === "voice" || value === "final"; }
 
-export async function GET(_request: Request, { params }: { params: Promise<{ kind: string; token: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ kind: string; token: string }> }) {
+  const rate = consumeRateLimit(`public-booking-read:${requestClientKey(request)}`, 60, 15 * 60 * 1000);
+  if (!rate.allowed) return NextResponse.json({ error: "Too many booking requests. Try again later." }, { status: 429, headers: rateLimitHeaders(rate) });
   const { kind, token } = await params;
   if (!validKind(kind)) return NextResponse.json({ error: "Booking type not found." }, { status: 404 });
   const context = await getBookingContext(kind, token);
@@ -13,6 +16,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ kin
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ kind: string; token: string }> }) {
+  const rate = consumeRateLimit(`public-booking-write:${requestClientKey(request)}`, 20, 15 * 60 * 1000);
+  if (!rate.allowed) return NextResponse.json({ error: "Too many booking attempts. Try again later." }, { status: 429, headers: rateLimitHeaders(rate) });
   const { kind, token } = await params;
   if (!validKind(kind)) return NextResponse.json({ error: "Booking type not found." }, { status: 404 });
   try {

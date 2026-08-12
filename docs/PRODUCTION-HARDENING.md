@@ -2,10 +2,15 @@
 
 ## Rate limiting
 
-Apply a shared IP/user rate limiter at the reverse proxy or hosting edge for
-login, role creation, status transitions, recruitment setup, and settings.
-Use a durable store such as Redis in a multi-instance deployment. Keep the
-current server-side permission checks as the final authorization layer.
+The application now applies process-local limits to login, role creation,
+status transitions, recruitment setup, settings, template changes, applicant
+decisions, booking management, public applications, public booking tokens,
+and resume processing. Keep a shared IP/user limiter at the reverse proxy or
+hosting edge as the authoritative limit. Use a durable store such as Redis in
+a multi-instance deployment, because the application map is not shared across
+instances. Ensure the proxy overwrites forwarded client-IP headers rather than
+accepting client-supplied values. Keep the current server-side permission
+checks as the final authorization layer.
 
 ## CSRF protection
 

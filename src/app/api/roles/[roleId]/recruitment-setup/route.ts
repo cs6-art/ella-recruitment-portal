@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 
 import { canEditRecruitmentSetup, canUseRecruitmentSetup, canViewRole } from "@/lib/access-control";
 import { getRoleRequestById } from "@/lib/google-sheets";
+import { consumeRateLimit, rateLimitHeaders, requestClientKey } from "@/lib/rate-limit";
 import { BASELINE_EVALUATION_FIELDS, EVALUATION_FIELD_CATALOG, recruitmentSetupSchema } from "@/lib/recruitment-setup-schema";
 import { getSetupReadiness, setupStatusForAction } from "@/lib/recruitment-setup-readiness";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
@@ -17,6 +18,9 @@ export async function POST(request: Request, context: Context) {
   const user = verifySessionToken((await cookies()).get(COOKIE_NAME)?.value);
   if (!user) return NextResponse.json({ success: false, error: "Authentication required." }, { status: 401 });
   if (!canEditRecruitmentSetup(user)) return NextResponse.json({ success: false, error: "Only HR reviewers can edit recruitment setup." }, { status: 403 });
+
+  const rate = consumeRateLimit(`recruitment-setup:${user.email}:${requestClientKey(request)}`, 30, 15 * 60 * 1000);
+  if (!rate.allowed) return NextResponse.json({ success: false, error: "Too many setup updates. Try again later." }, { status: 429, headers: rateLimitHeaders(rate) });
 
   const { roleId: encodedRoleId } = await context.params;
   const roleId = decodeURIComponent(encodedRoleId);

@@ -11,6 +11,7 @@ import {
   COOKIE_NAME,
   verifySessionToken,
 } from "@/lib/session";
+import { consumeRateLimit, rateLimitHeaders, requestClientKey } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -123,6 +124,9 @@ export async function POST(
     if (!user) {
       return jsonError("Authentication required.", 401);
     }
+
+    const rate = consumeRateLimit(`role-status:${user.email}:${requestClientKey(request)}`, 30, 15 * 60 * 1000);
+    if (!rate.allowed) return NextResponse.json({ success: false, error: "Too many status changes. Try again later." }, { status: 429, headers: rateLimitHeaders(rate) });
 
     const { roleId: routeRoleId } =
       await context.params;

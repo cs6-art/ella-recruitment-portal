@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 
 import { canEditRecruitmentSetup } from "@/lib/access-control";
 import { deleteRecruitmentTemplate, getRecruitmentTemplates, upsertRecruitmentTemplate, type RecruitmentTemplateRecord } from "@/lib/google-sheets";
+import { consumeRateLimit, rateLimitHeaders, requestClientKey } from "@/lib/rate-limit";
 import { recruitmentSetupSchema } from "@/lib/recruitment-setup-schema";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
 
@@ -58,6 +59,8 @@ export async function POST(request: Request) {
   const user = await getUser();
   if (!user) return responseError("Authentication required.", 401);
   if (!canEditRecruitmentSetup(user)) return responseError("Only HR reviewers can manage recruitment templates.", 403);
+  const rate = consumeRateLimit(`template-write:${user.email}:${requestClientKey(request)}`, 30, 15 * 60 * 1000);
+  if (!rate.allowed) return NextResponse.json({ success: false, error: "Too many template updates. Try again later." }, { status: 429, headers: rateLimitHeaders(rate) });
   try {
     const input = await readTemplate(request);
     const now = new Date().toISOString();
@@ -74,6 +77,8 @@ export async function PUT(request: Request) {
   const user = await getUser();
   if (!user) return responseError("Authentication required.", 401);
   if (!canEditRecruitmentSetup(user)) return responseError("Only HR reviewers can manage recruitment templates.", 403);
+  const rate = consumeRateLimit(`template-write:${user.email}:${requestClientKey(request)}`, 30, 15 * 60 * 1000);
+  if (!rate.allowed) return NextResponse.json({ success: false, error: "Too many template updates. Try again later." }, { status: 429, headers: rateLimitHeaders(rate) });
   try {
     const input = await readTemplate(request);
     if (!input.id) return responseError("Template ID is required.", 400);
@@ -92,6 +97,8 @@ export async function DELETE(request: Request) {
   const user = await getUser();
   if (!user) return responseError("Authentication required.", 401);
   if (!canEditRecruitmentSetup(user)) return responseError("Only HR reviewers can manage recruitment templates.", 403);
+  const rate = consumeRateLimit(`template-write:${user.email}:${requestClientKey(request)}`, 30, 15 * 60 * 1000);
+  if (!rate.allowed) return NextResponse.json({ success: false, error: "Too many template updates. Try again later." }, { status: 429, headers: rateLimitHeaders(rate) });
   const id = new URL(request.url).searchParams.get("id")?.trim();
   if (!id) return responseError("Template ID is required.", 400);
   try {

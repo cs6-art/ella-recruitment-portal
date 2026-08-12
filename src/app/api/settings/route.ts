@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { defaultPortalSettings, getPortalSettings, upsertPortalSettings } from "@/lib/google-sheets";
+import { consumeRateLimit, rateLimitHeaders, requestClientKey } from "@/lib/rate-limit";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
 
 export const runtime = "nodejs";
@@ -37,6 +38,8 @@ export async function PUT(request: Request) {
   const user = await currentUser();
   if (!user) return NextResponse.json({ success: false, error: "Authentication required." }, { status: 401 });
   if (user.canEditSettings !== true) return NextResponse.json({ success: false, error: "Settings permission required." }, { status: 403 });
+  const rate = consumeRateLimit(`settings:${user.email}:${requestClientKey(request)}`, 30, 15 * 60 * 1000);
+  if (!rate.allowed) return NextResponse.json({ success: false, error: "Too many settings updates. Try again later." }, { status: 429, headers: rateLimitHeaders(rate) });
   try {
     const input = settingsSchema.parse(await request.json());
     const existing = await getPortalSettings();

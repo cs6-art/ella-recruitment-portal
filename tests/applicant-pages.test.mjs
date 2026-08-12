@@ -86,6 +86,27 @@ test("candidate intake forms and decisions expose the required fields", () => {
   assert.match(downloadRoute, /canReviewRole/);
 });
 
+test("resume processing is bounded and standalone uploads require HR review access", () => {
+  const uploadRoute = read("src/app/api/uploads/resumes/route.ts");
+  const publicRoute = read("src/app/api/public/applications/route.ts");
+  const resumeFiles = read("src/lib/resume-files.ts");
+  const limiter = read("src/lib/rate-limit.ts");
+  const instrumentation = read("src/instrumentation.ts");
+
+  assert.match(uploadRoute, /verifySessionToken/);
+  assert.match(uploadRoute, /canReviewRole !== true/);
+  assert.match(uploadRoute, /MAX_RESUME_REQUEST_BYTES/);
+  assert.match(uploadRoute, /consumeRateLimit/);
+  assert.match(publicRoute, /consumeRateLimit/);
+  assert.match(publicRoute, /MAX_RESUME_REQUEST_BYTES/);
+  assert.match(resumeFiles, /cleanupExpiredResumeFiles/);
+  assert.match(resumeFiles, /CLEANUP_INTERVAL_MS/);
+  assert.match(resumeFiles, /orphanCutoff/);
+  assert.match(limiter, /MAX_BUCKETS/);
+  assert.match(instrumentation, /cleanupExpiredResumeFiles/);
+  assert.match(instrumentation, /setInterval/);
+});
+
 test("candidate screening contract is role-bound and HR-owned", () => {
   const workflow = read("src/lib/applicant-workflow.ts");
   const n8nContract = read("docs/N8N-CONTRACTS.md");
@@ -109,4 +130,21 @@ test("final booking links use the public portal host and final tokens are single
   assert.match(decisionRoute, /getPublicAppBaseUrl\(request\)/);
   assert.match(publicUrl, /NEXT_PUBLIC_APP_URL/);
   assert.match(publicUrl, /x-forwarded-host/);
+});
+
+test("high-cost and state-changing APIs apply request throttling", () => {
+  const routes = [
+    "src/app/api/auth/google/route.ts",
+    "src/app/api/roles/route.ts",
+    "src/app/api/roles/[roleId]/status/route.ts",
+    "src/app/api/roles/[roleId]/recruitment-setup/route.ts",
+    "src/app/api/settings/route.ts",
+    "src/app/api/bookings/slots/route.ts",
+    "src/app/api/bookings/[slotId]/status/route.ts",
+    "src/app/api/applicants/[applicationId]/decision/route.ts",
+    "src/app/api/recruitment-templates/route.ts",
+    "src/app/api/public/bookings/[kind]/[token]/route.ts",
+  ];
+
+  for (const route of routes) assert.match(read(route), /consumeRateLimit/);
 });

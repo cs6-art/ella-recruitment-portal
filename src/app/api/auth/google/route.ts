@@ -2,12 +2,16 @@ import { OAuth2Client } from "google-auth-library";
 import { NextResponse } from "next/server";
 
 import { findDirectoryUser } from "@/lib/google-sheets";
+import { consumeRateLimit, rateLimitHeaders, requestClientKey } from "@/lib/rate-limit";
 import { COOKIE_NAME, createSessionToken } from "@/lib/session";
 
 const client = new OAuth2Client();
 
 export async function POST(request: Request) {
   console.log("\n[Login] Route started");
+
+  const rate = consumeRateLimit(`login:${requestClientKey(request)}`, 10, 15 * 60 * 1000);
+  if (!rate.allowed) return NextResponse.json({ error: "Too many login attempts. Try again later." }, { status: 429, headers: rateLimitHeaders(rate) });
 
   try {
     const body = await request.json();

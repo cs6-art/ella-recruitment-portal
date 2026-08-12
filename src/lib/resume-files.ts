@@ -1,11 +1,12 @@
 import crypto from "node:crypto";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import mammoth from "mammoth";
 import pdfParse from "pdf-parse/lib/pdf-parse.js";
 
 export const MAX_RESUME_FILE_BYTES = 10 * 1024 * 1024;
+export const MAX_RESUME_REQUEST_BYTES = MAX_RESUME_FILE_BYTES + 512 * 1024;
 export const RESUME_RETENTION_DAYS = 30;
 
 const PDF_MIME = "application/pdf";
@@ -91,7 +92,83 @@ function retentionExpiry(uploadedAt: Date) {
   return expiresAt.toISOString();
 }
 
+function isResumeFileRecord(value: unknown): value is ResumeFileRecord {
+  if (!value || typeof value !== "object") return false;
+  const record = value as Partial<ResumeFileRecord>;
+  return typeof record.fileId === "string"
+    && /^RES-[0-9a-f-]{36}$/i.test(record.fileId)
+    && (record.kind === "pdf" || record.kind === "docx")
+    && typeof record.expiresAt === "string"
+    && Number.isFinite(Date.parse(record.expiresAt));
+}
+
+/** Remove expired metadata/binaries and abandoned binaries from the private store. */
+export async function cleanupExpiredResumeFiles(now = Date.now()) {
+  const directory = storageDirectory();
+  let entries;
+  try {
+    entries = await readdir(directory, { withFileTypes: true });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return { deleted: 0, scanned: 0 };
+    throw error;
+  }
+
+  let deleted = 0;
+  const metadataIds = new Set<string>();
+  for (const entry of entries) {
+    if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
+    const fileId = entry.name.slice(0, -5);
+    if (!/^RES-[0-9a-f-]{36}$/i.test(fileId)) continue;
+    metadataIds.add(fileId.toLowerCase());
+
+    try {
+      const record = JSON.parse(await readFile(path.join(directory, entry.name), "utf8")) as unknown;
+      if (isResumeFileRecord(record) && record.fileId === fileId && Date.parse(record.expiresAt) <= now) {
+        await deleteResumeFile(record);
+        deleted += 1;
+      }
+    } catch {
+      // Leave malformed metadata for an operator to inspect rather than
+      // deleting an unknown file from a configured storage directory.
+    }
+  }
+
+  const orphanCutoff = now - RESUME_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+  for (const entry of entries) {
+    if (!entry.isFile() || !/\.(pdf|docx)$/i.test(entry.name)) continue;
+    const fileId = entry.name.replace(/\.(pdf|docx)$/i, "");
+    if (!/^RES-[0-9a-f-]{36}$/i.test(fileId) || metadataIds.has(fileId.toLowerCase())) continue;
+    try {
+      const details = await stat(path.join(directory, entry.name));
+      if (details.mtimeMs <= orphanCutoff) {
+        await rm(path.join(directory, entry.name), { force: true });
+        deleted += 1;
+      }
+    } catch {
+      // A concurrent cleanup or upload may have removed the file already.
+    }
+  }
+
+  return { deleted, scanned: entries.length };
+}
+
+let lastCleanupAt = 0;
+let cleanupInFlight: Promise<unknown> | null = null;
+const CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
+
+async function cleanupIfDue() {
+  const now = Date.now();
+  if (cleanupInFlight) return cleanupInFlight;
+  if (lastCleanupAt + CLEANUP_INTERVAL_MS > now) return;
+  lastCleanupAt = now;
+  cleanupInFlight = cleanupExpiredResumeFiles(now)
+    .catch((error) => console.warn("[Resume Cleanup] Unable to remove expired files:", error))
+    .finally(() => { cleanupInFlight = null; });
+  return cleanupInFlight;
+}
+
 export async function storeResumeFile(file: File): Promise<StoredResume> {
+  await cleanupIfDue();
   const fileName = safeFileName(file.name || "resume");
   const kind = detectKind(fileName, file.type);
   if (!kind) throw new Error("Only PDF and DOCX resume files are supported.");
@@ -124,7 +201,8 @@ export async function storeResumeFile(file: File): Promise<StoredResume> {
 export async function getResumeFileRecord(fileId: string) {
   if (!/^RES-[0-9a-f-]{36}$/i.test(fileId)) return null;
   try {
-    const record = JSON.parse(await readFile(metadataPath(fileId), "utf8")) as ResumeFileRecord;
+    const record = JSON.parse(await readFile(metadataPath(fileId), "utf8")) as unknown;
+    if (!isResumeFileRecord(record) || record.fileId !== fileId) return null;
     if (new Date(record.expiresAt).getTime() <= Date.now()) {
       await deleteResumeFile(record).catch(() => undefined);
       return null;

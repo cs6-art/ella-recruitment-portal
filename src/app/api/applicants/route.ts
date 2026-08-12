@@ -12,6 +12,7 @@ import {
 } from "@/lib/applicant-workflow";
 import { candidateBodyForValidation, readCandidateIntakeRequest } from "@/lib/candidate-intake";
 import { getRoleRequestById } from "@/lib/google-sheets";
+import { consumeRateLimit, rateLimitHeaders, requestClientKey } from "@/lib/rate-limit";
 import { deleteResumeFile, storeResumeFile } from "@/lib/resume-files";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
 
@@ -30,6 +31,9 @@ export async function POST(request: Request) {
     const user = verifySessionToken((await cookies()).get(COOKIE_NAME)?.value);
     if (!user) return responseError("Authentication required.", 401);
     if (user.canReviewRole !== true) return responseError("Only HR reviewers can add candidates.", 403);
+
+    const rate = consumeRateLimit(`hr-application:${user.email}:${requestClientKey(request)}`, 30, 15 * 60 * 1000);
+    if (!rate.allowed) return NextResponse.json({ success: false, error: "Too many candidate submissions. Try again later." }, { status: 429, headers: rateLimitHeaders(rate) });
 
     const intake = await readCandidateIntakeRequest(request);
     const parsed = candidateApplicationSubmissionSchema.safeParse(candidateBodyForValidation(intake.body, intake.resumeFile));

@@ -8,6 +8,7 @@ import {
   type ApplicantDecisionStage,
 } from "@/lib/applicant-workflow";
 import { getPublicAppBaseUrl } from "@/lib/public-url";
+import { consumeRateLimit, rateLimitHeaders, requestClientKey } from "@/lib/rate-limit";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
 
 const stages = new Set<ApplicantDecisionStage>(["resume", "voice", "final"]);
@@ -23,6 +24,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ app
   if (!user || (user.canReviewRole !== true && user.canApproveRole !== true)) {
     return NextResponse.json({ error: "You are not authorized to review applicants." }, { status: 403 });
   }
+  const rate = consumeRateLimit(`applicant-decision:${user.email}:${requestClientKey(request)}`, 60, 15 * 60 * 1000);
+  if (!rate.allowed) return NextResponse.json({ error: "Too many applicant decisions. Try again later." }, { status: 429, headers: rateLimitHeaders(rate) });
 
   try {
     const body = decisionSchema.parse(await request.json());

@@ -6,9 +6,11 @@ fallback during rollout. PDF and DOCX bytes are never placed in
 
 1. `CandidateApplicationForm.tsx` accepts one PDF or DOCX file and validates
    the extension and a 10 MB maximum.
-2. `/api/uploads/resumes` validates the file signature, extracts readable text
-   with server-side PDF/DOCX parsers, and stores the binary under a generated
-   private object key in `RESUME_STORAGE_DIR`.
+2. `/api/uploads/resumes` is restricted to authenticated HR reviewers. It
+   validates the file signature, extracts readable text with server-side
+   PDF/DOCX parsers, and stores the binary under a generated private object key
+   in `RESUME_STORAGE_DIR`. Public applicants submit resumes inline through
+   `/api/public/applications`, which is rate-limited separately.
 3. The application webhook carries `resumeFile` metadata alongside the
    extracted `resumeText`. n8n validates the metadata and screens the extracted
    text; no binary data crosses the webhook.
@@ -17,7 +19,12 @@ fallback during rollout. PDF and DOCX bytes are never placed in
 5. `/api/uploads/resumes/[fileId]` allows only authorized HR sessions to
    download a non-expired file. Expiry is 30 days by default.
 
-Before production enablement, configure `RESUME_STORAGE_DIR` as a private,
-persistent directory, add malware scanning at the hosting edge or storage
-layer, and verify retention cleanup. The current route rejects invalid file
+Uploads are limited per client/user and request bodies are bounded before
+`formData()` parsing. In the Node.js server runtime, `src/instrumentation.ts`
+runs retention cleanup at startup and hourly afterward. Expired metadata and
+binaries, including old orphaned binary files from interrupted writes, can
+also be cleaned by a scheduled hosting job calling
+`cleanupExpiredResumeFiles()`. Before production enablement, configure
+`RESUME_STORAGE_DIR` as a private, persistent directory and add malware
+scanning at the hosting edge or storage layer. The route rejects invalid file
 signatures and empty extraction results before screening.
