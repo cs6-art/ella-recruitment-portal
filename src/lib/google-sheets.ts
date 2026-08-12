@@ -1,5 +1,7 @@
 import { google } from "googleapis";
 
+import { cachedSheetsRead } from "@/lib/sheets-cache";
+
 const spreadsheetId =
   process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
 
@@ -523,16 +525,16 @@ async function getRoleRequestRecords(): Promise<
     "[Role Requests] Reading Role_Requests sheet",
   );
 
-  const response =
-    await sheets.spreadsheets.values.get({
+  const rows = await cachedSheetsRead("Role_Requests:ZZ", async () => {
+    const response = await sheets.spreadsheets.values.get({
       spreadsheetId,
       // Role_Requests contains workflow and requester fields beyond column
       // AN. Reading through ZZ keeps the mapper aligned with the full sheet
       // schema instead of silently dropping later columns.
       range: "Role_Requests!A1:ZZ",
     });
-
-  const rows = response.data.values ?? [];
+    return response.data.values ?? [];
+  });
 
   if (rows.length === 0) {
     console.log(
@@ -565,13 +567,16 @@ export async function findDirectoryUser(
 ): Promise<DirectoryUser | null> {
   console.log("[User Directory] Looking up:", email);
 
-  const response =
-    await sheets.spreadsheets.values.get({
+  // Cached: this runs on essentially every authenticated request, so it is
+  // the single hottest read in the app. A short cache turns repeated
+  // per-request permission checks into one real API read per TTL window.
+  const rows = await cachedSheetsRead("User_Directory:I", async () => {
+    const response = await sheets.spreadsheets.values.get({
       spreadsheetId,
       range: "User_Directory!A2:I",
     });
-
-  const rows = response.data.values ?? [];
+    return response.data.values ?? [];
+  });
 
   console.log(
     "[User Directory] Rows read:",

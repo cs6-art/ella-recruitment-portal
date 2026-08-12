@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { createFinalInterviewEvent } from "@/lib/google-calendar";
 import { getRoleRequestById } from "@/lib/google-sheets";
+import { cachedSheetsRead, invalidateSheetsCache } from "@/lib/sheets-cache";
 import type { ResumeFileRecord } from "@/lib/resume-files";
 
 export type BookingKind = "voice" | "final";
@@ -171,8 +172,15 @@ export function isPreferredMobileValid(value: string) {
 }
 
 async function readSheet(tab: string, endColumn: string): Promise<SheetData> {
-  const response = await sheets.spreadsheets.values.get({ spreadsheetId, range: `'${tab.replace(/'/g, "''")}'!A1:${endColumn}` });
-  const values = response.data.values ?? [];
+  // Cached: reserveBooking() alone reads Interview_Slots and
+  // High_Match_Profile up to three times per call (getBookingContext, its
+  // own Promise.all, then updateCells locating column indices). A short
+  // cache turns those into one real API read plus cache hits, instead of
+  // burning three read-quota units for identical data.
+  const values = await cachedSheetsRead(`${tab}:${endColumn}`, async () => {
+    const response = await sheets.spreadsheets.values.get({ spreadsheetId, range: `'${tab.replace(/'/g, "''")}'!A1:${endColumn}` });
+    return response.data.values ?? [];
+  });
   const headers = (values[0] ?? []).map(text);
   const rows: Row[] = [];
   const rowNumbers: number[] = [];
@@ -192,6 +200,7 @@ async function appendRows(tab: string, values: string[][]) {
     insertDataOption: "INSERT_ROWS",
     requestBody: { values },
   });
+  invalidateSheetsCache(tab);
 }
 
 function findApplicant(data: SheetData, applicationId: string) {
@@ -441,6 +450,7 @@ async function updateCells(updates: CellUpdate[]) {
       return { range: `'${tab}'!${columnName(index)}${update.row}`, values: [[update.value]] };
     });
     await sheets.spreadsheets.values.batchUpdate({ spreadsheetId, requestBody: { valueInputOption: "USER_ENTERED", data: requests } });
+    invalidateSheetsCache(tab);
   }
 }
 
@@ -666,6 +676,7 @@ export async function createInterviewSlot(input: CreateInterviewSlotInput) {
     return "";
   });
   await sheets.spreadsheets.values.append({ spreadsheetId, range: "'Interview_Slots'!A1", valueInputOption: "USER_ENTERED", insertDataOption: "INSERT_ROWS", requestBody: { values: [values] } });
+  invalidateSheetsCache("Interview_Slots");
   return { slotId, interviewType: input.interviewType, roleId, date, startTime, endTime, timezone, status: "Available", applicationId: "", candidateName: "", candidateEmail: "", bookedAt: "", lastUpdated: new Date().toISOString() };
 }
 
@@ -769,4 +780,5 @@ async function upsertFinalTracking(applicant: Row, applicationId: string, decisi
   } else {
     await sheets.spreadsheets.values.append({ spreadsheetId, range: "'Final_Interview_Tracking'!A1", valueInputOption: "USER_ENTERED", insertDataOption: "INSERT_ROWS", requestBody: { values: [values] } });
   }
+  invalidateSheetsCache("Final_Interview_Tracking");
 }
