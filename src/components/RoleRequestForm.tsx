@@ -5,6 +5,11 @@ import { useRef, useState } from "react";
 import type { FormEvent } from "react";
 
 import UiIcon from "@/components/UiIcon";
+import {
+  legacyAvailabilityDates,
+  legacyAvailabilityTimes,
+} from "@/lib/hod-availability";
+import type { HodAvailabilitySlot } from "@/lib/hod-availability";
 import { roleRequestSchema } from "@/lib/role-schema";
 
 type RoleRequestFormProps = {
@@ -30,8 +35,8 @@ type FormState = {
   jobDescription: string;
   replacementEmployee: string;
   targetHiringDate: string;
-  hodAvailabilityDates: string;
-  hodAvailabilityTimes: string;
+  hodEmail: string;
+  hodAvailabilitySlots: HodAvailabilitySlot[];
   customScreeningQuestion1: string;
   customScreeningQuestion2: string;
   aiGeneratedScreeningQuestions: string[];
@@ -46,8 +51,8 @@ const initial: FormState = {
   jobDescription: "",
   replacementEmployee: "",
   targetHiringDate: "",
-  hodAvailabilityDates: "",
-  hodAvailabilityTimes: "",
+  hodEmail: "",
+  hodAvailabilitySlots: [{ date: "", startTime: "09:00", endTime: "09:30", timezone: "Asia/Singapore" }],
   customScreeningQuestion1: "",
   customScreeningQuestion2: "",
   aiGeneratedScreeningQuestions: [],
@@ -64,6 +69,8 @@ const fieldLabels: Record<string, string> = {
   targetHiringDate: "Target Hiring Date",
   hodAvailabilityDates: "HOD Availability Dates",
   hodAvailabilityTimes: "HOD Availability Times",
+  hodAvailabilitySlots: "HOD availability",
+  hodEmail: "HOD email",
   customScreeningQuestion1: "Custom Screening Question 1",
   customScreeningQuestion2: "Custom Screening Question 2",
 };
@@ -92,6 +99,44 @@ export default function RoleRequestForm({ user }: RoleRequestFormProps) {
     }));
   }
 
+  function updateAvailability(index: number, name: keyof HodAvailabilitySlot, value: string) {
+    setForm((current) => ({
+      ...current,
+      hodAvailabilitySlots: current.hodAvailabilitySlots.map((slot, slotIndex) => (
+        slotIndex === index ? { ...slot, [name]: value } : slot
+      )),
+    }));
+  }
+
+  function addAvailability() {
+    setForm((current) => ({
+      ...current,
+      hodAvailabilitySlots: [...current.hodAvailabilitySlots, { date: "", startTime: "09:00", endTime: "09:30", timezone: "Asia/Singapore" }],
+    }));
+  }
+
+  function removeAvailability(index: number) {
+    setForm((current) => ({
+      ...current,
+      hodAvailabilitySlots: current.hodAvailabilitySlots.length > 1
+        ? current.hodAvailabilitySlots.filter((_, slotIndex) => slotIndex !== index)
+        : [{ date: "", startTime: "09:00", endTime: "09:30", timezone: "Asia/Singapore" }],
+    }));
+  }
+
+  function availabilityPayload() {
+    const slots = form.hodAvailabilitySlots.filter((slot) => slot.date
+      || slot.startTime !== "09:00"
+      || slot.endTime !== "09:30"
+      || slot.timezone !== "Asia/Singapore");
+    return {
+      hodEmail: form.hodEmail || user.email,
+      hodAvailabilitySlots: slots,
+      hodAvailabilityDates: legacyAvailabilityDates(slots),
+      hodAvailabilityTimes: legacyAvailabilityTimes(slots),
+    };
+  }
+
   function fieldErrorProps(field: string) {
     return { "aria-invalid": Boolean(fieldErrors[field]) };
   }
@@ -106,8 +151,10 @@ export default function RoleRequestForm({ user }: RoleRequestFormProps) {
   }
 
   function validateForm() {
+    const availability = availabilityPayload();
     const parsed = roleRequestSchema.safeParse({
       ...form,
+      ...availability,
       requesterName: user.name,
       requesterEmail: user.email,
       replacementEmployee: form.requestType === "Staff Replacement" ? form.replacementEmployee : "",
@@ -144,6 +191,7 @@ export default function RoleRequestForm({ user }: RoleRequestFormProps) {
         credentials: "same-origin",
         body: JSON.stringify({
           ...form,
+          ...availabilityPayload(),
           requesterName: user.name,
           requesterEmail: user.email,
           replacementEmployee: form.requestType === "Staff Replacement" ? form.replacementEmployee : "",
@@ -279,13 +327,40 @@ export default function RoleRequestForm({ user }: RoleRequestFormProps) {
           <p className="section-intro">Add interview availability and up to two questions. Ella will generate the remaining screening questions.</p>
 
           <div className="grid-2">
-            <div className="field">
-              <label htmlFor="hodAvailabilityDates">HOD Availability Dates</label>
-              <textarea id="hodAvailabilityDates" value={form.hodAvailabilityDates} onChange={(event) => update("hodAvailabilityDates", event.target.value)} placeholder="Dates the HOD can interview candidates" />
+            <div className="field full">
+              <label htmlFor="hodEmail">HOD / Interviewer Email</label>
+              <input id="hodEmail" {...fieldErrorProps("hodEmail")} type="email" value={form.hodEmail || user.email} onChange={(event) => update("hodEmail", event.target.value)} placeholder="The person whose calendar will receive final interviews" />
+              <small className="field-help">This defaults to your McLink account but can identify the HOD when management submits the request.</small>
             </div>
-            <div className="field">
-              <label htmlFor="hodAvailabilityTimes">HOD Availability Times</label>
-              <textarea id="hodAvailabilityTimes" value={form.hodAvailabilityTimes} onChange={(event) => update("hodAvailabilityTimes", event.target.value)} placeholder="Time windows and timezone" />
+            <div className="field full">
+              <label>HOD Availability Windows <span className="field-optional">(optional)</span></label>
+              <small className="field-help">These windows guide HR slot creation. Include the timezone for each window.</small>
+              <div className="availability-entry-list">
+                {form.hodAvailabilitySlots.map((slot, index) => (
+                  <div className="availability-entry" key={`availability-${index}`}>
+                    <label htmlFor={index === 0 ? "hodAvailabilityDates" : `hodAvailabilityDates-${index}`}>Date
+                      <input id={index === 0 ? "hodAvailabilityDates" : `hodAvailabilityDates-${index}`} type="date" value={slot.date} onChange={(event) => updateAvailability(index, "date", event.target.value)} />
+                    </label>
+                    <label htmlFor={index === 0 ? "hodAvailabilityTimes" : `hodAvailabilityTimes-${index}`}>Start time
+                      <input id={index === 0 ? "hodAvailabilityTimes" : `hodAvailabilityTimes-${index}`} type="time" value={slot.startTime} onChange={(event) => updateAvailability(index, "startTime", event.target.value)} />
+                    </label>
+                    <label htmlFor={`hodAvailabilityEndTime-${index}`}>End time
+                      <input id={`hodAvailabilityEndTime-${index}`} type="time" value={slot.endTime} onChange={(event) => updateAvailability(index, "endTime", event.target.value)} />
+                    </label>
+                    <label htmlFor={`hodAvailabilityTimezone-${index}`}>Timezone
+                      <select id={`hodAvailabilityTimezone-${index}`} value={slot.timezone} onChange={(event) => updateAvailability(index, "timezone", event.target.value)}>
+                        <option>Asia/Singapore</option>
+                        <option>Asia/Manila</option>
+                        <option>Asia/Hong_Kong</option>
+                        <option>UTC</option>
+                        <option>America/Los_Angeles</option>
+                      </select>
+                    </label>
+                    <button type="button" className="btn btn-secondary availability-entry-remove" onClick={() => removeAvailability(index)} aria-label={`Remove availability window ${index + 1}`}>Remove</button>
+                  </div>
+                ))}
+              </div>
+              <button type="button" className="btn btn-secondary availability-entry-add" onClick={addAvailability}>+ Add availability window</button>
             </div>
             <div className="field full">
               <label htmlFor="customScreeningQuestion1">Custom HOD Screening Question 1 <span className="field-optional">(optional)</span></label>

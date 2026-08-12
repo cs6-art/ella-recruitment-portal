@@ -1,6 +1,7 @@
 import { google } from "googleapis";
 
 import { cachedSheetsRead, invalidateSheetsCache } from "@/lib/sheets-cache";
+import { BASELINE_EVALUATION_FIELDS, EVALUATION_FIELD_CATALOG } from "@/lib/recruitment-setup-schema";
 
 const spreadsheetId =
   process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
@@ -84,6 +85,7 @@ export type RoleRequestDetails = {
   requesterEmail: string;
   requesterName: string;
   requesterType: string;
+  hodEmail: string;
 
   requestType: string;
   department: string;
@@ -96,6 +98,7 @@ export type RoleRequestDetails = {
   targetHiringDate: string;
   hodAvailabilityDates: string;
   hodAvailabilityTimes: string;
+  hodAvailabilitySlots: string;
   customScreeningQuestion1: string;
   customScreeningQuestion2: string;
   aiGeneratedScreeningQuestions: string;
@@ -126,6 +129,8 @@ export type RoleRequestDetails = {
   initialInterviewBookingLink: string;
   hodInterviewBookingLink: string;
   postingChannels: string;
+  evaluationFieldToggles?: string;
+  customEvaluationFields?: { key: string; label: string; description: string }[];
   recruitmentSetupStatus?: string;
   salaryDisclosureStatus?: string;
   experienceRequirementStatus?: string;
@@ -274,9 +279,38 @@ function parseNumber(value: string): number {
     : 0;
 }
 
+function parseStoredEvaluationFields(
+  value: string,
+): Pick<RoleRequestDetails, "evaluationFieldToggles" | "customEvaluationFields"> {
+  if (!value.trim()) return { evaluationFieldToggles: "", customEvaluationFields: [] };
+
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (!Array.isArray(parsed)) return { evaluationFieldToggles: "", customEvaluationFields: [] };
+
+    const catalogKeys = new Set<string>(EVALUATION_FIELD_CATALOG.map((field) => field.key));
+    const baselineKeys = new Set<string>(BASELINE_EVALUATION_FIELDS.map((field) => field.key));
+    const fields = parsed.filter((field): field is { key: string; label: string; description: string } => (
+      typeof field === "object" && field !== null
+      && typeof (field as { key?: unknown }).key === "string"
+      && typeof (field as { label?: unknown }).label === "string"
+      && typeof (field as { description?: unknown }).description === "string"
+    ));
+
+    return {
+      evaluationFieldToggles: fields.filter((field) => catalogKeys.has(field.key)).map((field) => field.key).join(","),
+      customEvaluationFields: fields.filter((field) => !catalogKeys.has(field.key) && !baselineKeys.has(field.key)).slice(0, 3),
+    };
+  } catch {
+    return { evaluationFieldToggles: "", customEvaluationFields: [] };
+  }
+}
+
 function mapRoleRequest(
   record: Record<string, string>,
 ): RoleRequestDetails {
+  const storedEvaluationFields = parseStoredEvaluationFields(getField(record, ["Evaluation_Fields", "Evaluation Fields"]));
+
   return {
     roleId: getField(record, [
       "Role_ID",
@@ -317,6 +351,8 @@ function mapRoleRequest(
       "Requester_Type",
       "Requester Type",
     ]),
+
+    hodEmail: getField(record, ["HOD_Email", "HOD Email"]) || getField(record, ["Requester_Email", "Requester Email"]),
 
     requestType: getField(record, [
       "Request_Type",
@@ -361,6 +397,7 @@ function mapRoleRequest(
 
     hodAvailabilityDates: getField(record, ["HOD_Availability_Dates"]),
     hodAvailabilityTimes: getField(record, ["HOD_Availability_Times"]),
+    hodAvailabilitySlots: getField(record, ["HOD_Availability_Slots"]),
     customScreeningQuestion1: getField(record, ["Custom_Screening_Question_1"]),
     customScreeningQuestion2: getField(record, ["Custom_Screening_Question_2"]),
     aiGeneratedScreeningQuestions: getField(record, ["AI_Screening_Questions"]),
@@ -462,6 +499,7 @@ function mapRoleRequest(
       "Posting_Channels",
       "Posting Channels",
     ]),
+    ...storedEvaluationFields,
 
     status:
       getField(record, [

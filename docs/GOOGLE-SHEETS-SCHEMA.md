@@ -7,7 +7,7 @@ the portal maps by header name, but spelling must remain exact.
 
 `Role_ID`, `Created_At`, `Status`, `Last_Updated_At`, `Last_Updated_By_Name`,
 `Last_Updated_By_Email`, `Latest_Comments`, `Resume_Target_Status`,
-`Requester_Name`, `Requester_Email`, `Requester_Type`, `Request_Type`,
+`Requester_Name`, `Requester_Email`, `HOD_Email`, `Requester_Type`, `Request_Type`,
 `Department`, `Job_Title`, `Number_Of_Vacancies`, `Reason_For_Request`,
 `Replacement_Employee`, `Target_Hiring_Date`, `Reporting_Manager`,
 `Work_Location`, `Employment_Type`, `Job_Responsibilities`, `Required_Skills`,
@@ -17,13 +17,14 @@ the portal maps by header name, but spelling must remain exact.
 `AI_Interviewer_Name`, `AI_Interviewer_Behavior`,
 `Required_Interview_Question_1`, `Required_Interview_Question_2`,
 `Required_Interview_Question_3`, `Final_AI_Evaluation_Template`,
-`HOD_Availability_Dates`, `HOD_Availability_Times`,
+`HOD_Availability_Dates`, `HOD_Availability_Times`, `HOD_Availability_Slots`,
 `Custom_Screening_Question_1`, `Custom_Screening_Question_2`,
 `AI_Screening_Questions`, `Notice_Period_Requirement`,
 `Salary_Expectation_Guidance`, `Application_Link`, `Posting_Confirmed`,
 `Posted_At`, `Posted_By`,
 `AI_System_Prompt`, `Initial_Interview_Booking_Link`,
 `HOD_Interview_Booking_Link`, `Posting_Channels`,
+`Evaluation_Fields`,
 `Recruitment_Setup_Updated_At`, `Recruitment_Setup_Updated_By_Name`,
 `Recruitment_Setup_Updated_By_Email`.
 
@@ -34,6 +35,10 @@ workflow after the role criteria values are inserted. If the live workbook
 does not yet have that column, n8n may keep the resolved value in its own
 workflow payload, but it must use the editable template as the source of
 truth.
+
+`Evaluation_Fields` stores a JSON array containing the always-included score,
+recommendation, strengths, and concerns fields plus any selected catalog or
+custom fields.
 
 Stage-based Recruitment Setup also uses these exact Role_Requests columns:
 `Recruitment_Setup_Status`, `Salary_Disclosure_Status`,
@@ -58,6 +63,12 @@ New writes use only `Status` and `Last_Updated_At`. `Request_Status` and
 `Updated_At` are read-only migration fallbacks and must not be added to new
 workflow writes.
 
+`HOD_Availability_Slots` stores a JSON array of structured windows containing
+`date`, `startTime`, `endTime`, and `timezone`. The legacy availability columns
+remain human-readable compatibility fields. Final interview slots are checked
+against these structured windows when they exist; older roles without them
+continue to support manual scheduling.
+
 ## Role_Status_History
 
 `History_ID`, `Role_ID`, `Changed_At`, `Changed_By_Name`, `Changed_By_Email`,
@@ -80,7 +91,17 @@ The portal reads and writes these candidate fields in `High_Match_Profile`:
 `Application_Source`, `Final_Status`, `Resume_HR_Comments`,
 `Voice_HR_Comments`, `Resume_File_Id`, `Resume_File_Name`,
 `Resume_File_Mime_Type`, `Resume_File_Size`, `Resume_File_SHA256`,
-`Resume_File_Expires_At`, `Last_Updated`.
+`Resume_File_Expires_At`, `Voice_Interview_Booking_Link`,
+`Booking_Token_Status`, `Booking_Token_Expires_At`,
+`Final_Interview_Booking_Link`, `Final_Interview_Booking_Token`,
+`Final_Interview_Booking_Token_Hash`, `Final_Interview_Booking_Token_Expires_At`,
+`Final_Interview_Booking_Token_Status`, `Final_Interview_Booking_Token_Used_At`,
+`Last_Updated`.
+
+Final booking tokens are issued when HR approves the voice interview. The
+portal writes a link using the current public app URL and marks the token
+`Used` immediately after a final slot is booked. The booking page rejects
+`Used`, `Booked`, `Expired`, and `Revoked` tokens.
 
 ## Interview_Slots
 
@@ -89,6 +110,9 @@ The booking calendar uses `Slot_ID`, `Interview_Type`, `Role_ID`, `Date`,
 `Candidate_Name`, `Candidate_Email`, `Booked_At`, and `Last_Updated`.
 `Status` may be `Available`, `Booked`, or `No Show`. Rescheduling clears the
 candidate fields on the old booked row and returns it to `Available`.
+Final-interview rows also use `Google_Calendar_Event_ID`,
+`Google_Calendar_Event_Link`, `Google_Calendar_Event_Status`, and
+`Google_Calendar_Event_Error` for Calendar lifecycle tracking.
 
 HR may mark a booked slot `No Show` only after its start time in the slot
 timezone. The portal also updates the corresponding voice/final status in

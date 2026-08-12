@@ -3,6 +3,38 @@ import { z } from "zod";
 const optionalUrl = z.string().trim().max(2000).refine((value) => value === "" || /^https?:\/\//i.test(value), "Enter a valid http(s) URL.");
 const editableExperience = z.preprocess((value) => value === null || value === undefined ? "" : String(value), z.string().trim().max(100).default(""));
 
+// Always included for every role - not a toggle, just labeled consistently
+// for the UI and the prompt template.
+export const BASELINE_EVALUATION_FIELDS = [
+  { key: "score", label: "Score", description: "Overall numeric fit score for the role." },
+  { key: "recommendation", label: "Recommendation", description: "Proceed / hold / reject recommendation." },
+  { key: "strengths", label: "Strengths", description: "Candidate's strongest points for this role." },
+  { key: "concerns", label: "Concerns", description: "Gaps or risks HR should be aware of." },
+] as const;
+
+// HR toggles these on per role, in addition to the baseline above.
+export const EVALUATION_FIELD_CATALOG = [
+  { key: "communication_quality", label: "Communication quality", description: "How clearly and professionally the candidate communicates." },
+  { key: "culture_fit", label: "Culture fit", description: "Alignment with McLink's values and working style." },
+  { key: "leadership_potential", label: "Leadership potential", description: "Evidence of leadership or people-management capability." },
+  { key: "customer_service_orientation", label: "Customer service orientation", description: "Evidence of a service-first, customer-facing mindset." },
+  { key: "technical_depth", label: "Technical depth", description: "Depth of understanding of the required technical stack." },
+  { key: "problem_solving", label: "Problem solving", description: "Ability to reason through role-relevant problems." },
+  { key: "attention_to_detail", label: "Attention to detail", description: "Carefulness and accuracy in work and communication." },
+  { key: "reliability", label: "Reliability / consistency", description: "Track record of dependable, consistent work history." },
+] as const;
+
+const catalogKeys = EVALUATION_FIELD_CATALOG.map((field) => field.key);
+type CatalogKey = (typeof catalogKeys)[number];
+
+const evaluationFieldKey = z.string().trim().toLowerCase().regex(/^[a-z][a-z0-9_]{1,39}$/, "Use lowercase letters, numbers, and underscores only.");
+
+const customEvaluationField = z.object({
+  key: evaluationFieldKey,
+  label: z.string().trim().min(1, "Field name is required.").max(60),
+  description: z.string().trim().min(1, "Description is required.").max(200),
+});
+
 export const recruitmentSetupSchema = z.object({
   jobDescription: z.string().trim().min(1, "Job Description is required.").max(20000),
   screeningCriteria: z.string().trim().min(1, "Screening Criteria is required.").max(10000),
@@ -16,6 +48,14 @@ export const recruitmentSetupSchema = z.object({
   initialInterviewBookingLink: optionalUrl,
   hodInterviewBookingLink: optionalUrl,
   postingChannels: z.union([z.string(), z.array(z.string())]).transform((value) => (Array.isArray(value) ? value : value.split(/[\n,]/)).map((item) => item.trim()).filter(Boolean).slice(0, 30)),
+  evaluationFieldToggles: z.union([z.string(), z.array(z.string())])
+    .transform((value) => (Array.isArray(value) ? value : value.split(/[\n,]/)).map((item) => item.trim().toLowerCase()).filter(Boolean))
+    .transform((value) => [...new Set(value)].filter((key): key is CatalogKey => catalogKeys.includes(key as CatalogKey)))
+    .default([]),
+  customEvaluationFields: z.array(customEvaluationField).max(3, "Up to 3 custom fields are allowed.")
+    .default([])
+    .refine((fields) => new Set(fields.map((field) => field.key)).size === fields.length, "Custom field keys must be unique.")
+    .refine((fields) => fields.every((field) => !catalogKeys.includes(field.key as CatalogKey)), "Custom field keys must not duplicate a catalog field."),
   licenseOrCertificateRequired: z.string().trim().max(5000).default(""),
   keywordsToLookFor: z.string().trim().max(5000).default(""),
   minimumYearsOfExperience: editableExperience,

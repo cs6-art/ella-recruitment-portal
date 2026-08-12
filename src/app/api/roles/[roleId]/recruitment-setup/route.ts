@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 
 import { canEditRecruitmentSetup, canUseRecruitmentSetup, canViewRole } from "@/lib/access-control";
 import { getRoleRequestById } from "@/lib/google-sheets";
-import { recruitmentSetupSchema } from "@/lib/recruitment-setup-schema";
+import { BASELINE_EVALUATION_FIELDS, EVALUATION_FIELD_CATALOG, recruitmentSetupSchema } from "@/lib/recruitment-setup-schema";
 import { getSetupReadiness, setupStatusForAction } from "@/lib/recruitment-setup-readiness";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
 
@@ -81,6 +81,11 @@ export async function POST(request: Request, context: Context) {
       Required_Interview_Question_5: setup.requiredInterviewQuestion5,
       AI_System_Prompt: setup.aiSystemPrompt,
       VAPI_Resolved_System_Prompt: setup.resolvedAiSystemPrompt || "",
+      Evaluation_Fields: JSON.stringify([
+        ...BASELINE_EVALUATION_FIELDS,
+        ...setup.evaluationFieldToggles.map((key) => EVALUATION_FIELD_CATALOG.find((field) => field.key === key)).filter(Boolean),
+        ...setup.customEvaluationFields,
+      ]),
       Initial_Interview_Booking_Link: role.initialInterviewBookingLink || setup.initialInterviewBookingLink,
       HOD_Interview_Booking_Link: role.hodInterviewBookingLink || setup.hodInterviewBookingLink,
       Posting_Channels: setup.postingChannels.join(", "),
@@ -99,6 +104,8 @@ export async function POST(request: Request, context: Context) {
       Notice_Period_Requirement: role.noticePeriodRequirement,
       HOD_Availability_Dates: role.hodAvailabilityDates,
       HOD_Availability_Times: role.hodAvailabilityTimes,
+      HOD_Availability_Slots: role.hodAvailabilitySlots,
+      HOD_Email: role.hodEmail,
       Recruitment_Setup_Status: setupStatusForAction(setupAction, role.recruitmentSetupStatus || "Draft"),
       Salary_Disclosure_Status: setup.salaryDisclosureStatus,
       Experience_Requirement_Status: setup.experienceRequirementStatus,

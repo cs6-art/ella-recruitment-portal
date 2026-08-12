@@ -18,7 +18,11 @@ The portal sends this payload to `N8N_RECRUITMENT_SETUP_WEBHOOK_URL`, or to
     "resolvedAiSystemPrompt": "Rendered prompt for the current role",
     "initialInterviewBookingLink": "https://...",
     "hodInterviewBookingLink": "https://...",
-    "postingChannels": "LinkedIn, careers page"
+    "postingChannels": "LinkedIn, careers page",
+    "evaluationFieldToggles": ["technical_depth"],
+    "customEvaluationFields": [
+      { "key": "domain_fluency", "label": "Domain fluency", "description": "Assess fluency in the required domain." }
+    ]
   },
   "Job_Description": "...",
   "Screening_Criteria": "...",
@@ -28,6 +32,7 @@ The portal sends this payload to `N8N_RECRUITMENT_SETUP_WEBHOOK_URL`, or to
   "Initial_Interview_Booking_Link": "https://...",
   "HOD_Interview_Booking_Link": "https://...",
   "Posting_Channels": "LinkedIn, careers page",
+  "Evaluation_Fields": "[{\"key\":\"score\",\"label\":\"Score\",\"description\":\"Overall numeric fit score for the role.\"}]",
   "Recruitment_Setup_Updated_At": "2026-07-25T00:00:00.000Z",
   "Recruitment_Setup_Updated_By_Name": "HR User",
   "Recruitment_Setup_Updated_By_Email": "hr@mclinkgroup.com",
@@ -56,7 +61,25 @@ placeholder must be replaced with the structured HR criteria at call setup;
 the editable template must remain available for later HR changes. Return HTTP
 200 JSON with `{ "success": true }`.
 
+For candidate final-interview invitations, the portal creates or normalizes
+`Final_Interview_Booking_Link` when HR approves the voice interview. n8n
+should send that exact sheet value in the invitation email; it should not
+replace the host with a hard-coded `ellaimclinkgroup.com` or `localhost`.
+The portal uses `NEXT_PUBLIC_APP_URL` when configured, otherwise the forwarded
+request host, so local development produces `http://localhost:3000/book/final/...`.
+After the candidate books a slot, the portal sets
+`Final_Interview_Booking_Token_Status` to `Used`, and the same token must not
+be accepted again.
+
 ## Events and responses
+
+Role-request payloads include `role.hodEmail` and
+`role.hodAvailabilitySlots`. The workflow should map these to
+`HOD_Email` and `HOD_Availability_Slots`; the portal also sends the legacy
+human-readable `HOD_Availability_Dates` and `HOD_Availability_Times` fields.
+`HOD_Availability_Slots` is a JSON array of `{ date, startTime, endTime,
+timezone }` objects and is used by the portal when validating final interview
+slots.
 
 The existing role-request webhook accepts `role_request_created`,
 `role_status_transition`, and `recruitment_setup_updated`. Every write carries

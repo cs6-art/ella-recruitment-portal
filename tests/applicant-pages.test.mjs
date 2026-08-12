@@ -96,3 +96,17 @@ test("candidate screening contract is role-bound and HR-owned", () => {
   assert.match(n8nContract, /portal accepts either pasted resume text or one validated PDF\/DOCX file/);
   assert.match(n8nContract, /Binary or base64 resume content is\s+never sent/);
 });
+
+test("final booking links use the public portal host and final tokens are single-use", () => {
+  const workflow = read("src/lib/applicant-workflow.ts");
+  const decisionRoute = read("src/app/api/applicants/[applicationId]/decision/route.ts");
+  const publicUrl = read("src/lib/public-url.ts");
+  assert.match(workflow, /Final_Interview_Booking_Token_Status/);
+  assert.match(workflow, /Final_Interview_Booking_Token_Used_At/);
+  assert.match(workflow, /bookingLink\(baseUrl, "final", token\)/);
+  assert.match(workflow, /Final_Interview_Booking_Token_Hash/);
+  assert.match(workflow, /\["used", "booked", "expired", "revoked"\]/);
+  assert.match(decisionRoute, /getPublicAppBaseUrl\(request\)/);
+  assert.match(publicUrl, /NEXT_PUBLIC_APP_URL/);
+  assert.match(publicUrl, /x-forwarded-host/);
+});

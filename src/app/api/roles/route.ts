@@ -145,6 +145,7 @@ export async function POST(request: Request) {
       ...clientInput,
       requesterName: user.name,
       requesterEmail: sessionEmail,
+      hodEmail: clientInput.hodEmail || sessionEmail,
       replacementEmployee: clientInput.requestType === "Staff Replacement"
         ? clientInput.replacementEmployee
         : "",
@@ -256,8 +257,10 @@ export async function POST(request: Request) {
           input.replacementEmployee,
         targetHiringDate:
           input.targetHiringDate,
+        hodEmail: input.hodEmail || performerEmail,
         hodAvailabilityDates: input.hodAvailabilityDates,
         hodAvailabilityTimes: input.hodAvailabilityTimes,
+        hodAvailabilitySlots: input.hodAvailabilitySlots,
         customScreeningQuestion1: input.customScreeningQuestion1,
         customScreeningQuestion2: input.customScreeningQuestion2,
         aiGeneratedScreeningQuestions: input.aiGeneratedScreeningQuestions,

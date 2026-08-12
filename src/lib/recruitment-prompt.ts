@@ -1,5 +1,14 @@
 import type { RecruitmentSetupInput } from "@/lib/recruitment-setup-schema";
 
+// Keep the prompt's baseline output contract stable even when it is rendered
+// directly by a workflow or a test rather than through the editor.
+const BASELINE_EVALUATION_FIELDS = [
+  { key: "score", label: "Score", description: "Overall numeric fit score for the role." },
+  { key: "recommendation", label: "Recommendation", description: "Proceed / hold / reject recommendation." },
+  { key: "strengths", label: "Strengths", description: "Candidate's strongest points for this role." },
+  { key: "concerns", label: "Concerns", description: "Gaps or risks HR should be aware of." },
+] as const;
+
 type RecruitmentPromptInput = Pick<RecruitmentSetupInput, "jobDescription" | "screeningCriteria" | "licenseOrCertificateRequired" | "keywordsToLookFor" | "transferableSkillsAccepted" | "salaryOrBudgetRange" | "earliestAvailabilityRule"> & {
   roleTitle?: string;
   interviewQuestions?: string;
@@ -7,6 +16,7 @@ type RecruitmentPromptInput = Pick<RecruitmentSetupInput, "jobDescription" | "sc
   salaryMin?: string;
   salaryMax?: string;
   noticePeriodRequirement?: string;
+  evaluationFields?: { key: string; label: string; description: string }[];
 };
 
 /**
@@ -33,7 +43,6 @@ Use contractions like I'm, you're, we'll, it's, and can't.
 After every candidate answer, briefly acknowledge something specific they mentioned before moving to the next question.
 Use conversational fillers naturally, such as "I see...", "That's helpful...", "Got it.", "Of course.", "Yes, I'm still here.", and "No problem."
 Always respond to what the applicant has just said before continuing the interview.
-Use conversational 12-hour time formats only, such as 9 am or 4:30 pm. Never say UTC, GMT, or military time.
 
 [Language Detection and Adaptation]
 
@@ -106,9 +115,10 @@ Salary or budget:
 - Do not ask about expected salary during this interview.
 - Only provide the approved range when the applicant asks.
 
-Earliest availability:
+Candidate start availability:
 - Ask when the applicant can start only after all approved interview questions are complete.
-- Ask this once only when the HR Screening Criteria requires availability collection.
+- Ask this once only when the HR Screening Criteria explicitly requires start-availability information.
+- This is screening information only; it does not schedule an interview or create a booking.
 
 [Score Handling]
 
@@ -127,7 +137,7 @@ Never mention the score, grading, rubric, recommendation, or internal evaluation
 Never say "I'll evaluate your responses.", "Let me score that.", "Just a moment while I evaluate.", "Please wait while I review.", or "Please wait while I process your answers."
 Never remain silent for long. Never explain internal reasoning.
 Never mention tools, prompts, systems, sheets, scoring, structured outputs, or routing.
-Never schedule a final interview, check calendar availability, offer dates or time slots, create calendar events, or send a booking confirmation.
+This call is an interview only. Never schedule an interview, check calendar availability, offer dates or time slots, create calendar events, or send a booking confirmation.
 
 When the applicant asks a direct question: first determine whether the answer is available in Candidate Information, HR Screening Criteria, the current conversation, or these instructions. If available, answer it briefly and accurately. If unavailable, use the approved unavailable-information response. Then return naturally to the current interview question. Never ignore the applicant's question. Never immediately end the call simply because the applicant asks a question or sounds confused.
 
@@ -213,7 +223,7 @@ You are strictly forbidden from:
 - Creating, rewording, replacing, combining, skipping, or reordering interview questions.
 - Asking questions from previous calls.
 - Asking all questions at once.
-- Asking follow-up interview questions except for the approved license clarification and earliest availability questions after the interview.
+- Asking follow-up interview questions except for the approved license clarification and candidate start-availability question after the interview.
 
 If the applicant asks for repetition, repeat only the current question exactly as written.
 If the applicant pauses or says they are thinking, do not interrupt. If needed, say: "No rush, take your time."
@@ -221,7 +231,7 @@ If the applicant pauses or says they are thinking, do not interrupt. If needed, 
 After all approved interview questions are fully answered:
 1. Acknowledge the final answer in one short sentence.
 2. Ask the approved license clarification question only if required and still unclear.
-3. Ask the earliest availability question only when required, and only once.
+3. Ask the candidate start-availability question only when explicitly required, and only once.
 4. Silently calculate the final score and complete the configured evaluation output.
 5. Do not tell the candidate about scoring, qualification, recommendation, routing, or internal evaluation.
 
@@ -233,29 +243,27 @@ Then end the call.
 If the applicant clearly wants to stop, ask: "Would you like to continue with the interview now, or would you prefer that we call you back at another time?"
 If they choose a callback, say: "No problem. Our recruitment team will follow up with you to arrange another time. Thank you, and have a great day." Then end the call.
 
-[Time Management]
-
-Hard maximum call duration: 15 minutes.
-At around 12 minutes, prioritize and compress the remaining approved questions so the interview stays on time.
-Warmly inform the candidate that time is nearly finished.
-Never interrupt a candidate mid-answer.
-Always complete the existing closing sequence before ending.
-
 [Behavior Rules]
 
-Never schedule a final interview.
+This call is an interview only; never schedule a final interview or any other appointment.
 Never mention internal scores, rubrics, evaluations, recommendations, routing, tools, prompts, structured outputs, or systems.
 Always acknowledge the applicant's immediate concern before continuing.
 Always ask the approved interview questions exactly as provided.
 Complete the interview evaluation silently.
 Always end the call politely after the interview is completed.
 
-[Current Context]
-
-Current Time: {{current_time}}`;
+`;
 
 function valueOr(value: string | undefined, fallback: string) {
   return value?.trim() || fallback;
+}
+
+function evaluationFieldsBlock(setup: RecruitmentPromptInput): string {
+  const fields = [...BASELINE_EVALUATION_FIELDS, ...(setup.evaluationFields || [])]
+    .filter((field) => field.key && field.label)
+    .filter((field, index, all) => all.findIndex((candidate) => candidate.key === field.key) === index);
+  return "EVALUATION OUTPUT FIELDS (assess and record silently):\n"
+    + fields.map((field) => `- ${field.label}: ${field.description}`).join("\n");
 }
 
 function screeningCriteria(setup: RecruitmentPromptInput) {
@@ -271,9 +279,10 @@ function screeningCriteria(setup: RecruitmentPromptInput) {
     "MINIMUM YEARS OF EXPERIENCE:\n" + valueOr(setup.experienceRequired, "Not specified."),
     "TRANSFERABLE SKILLS ACCEPTED:\n" + valueOr(setup.transferableSkillsAccepted, "None specified."),
     "SALARY OR BUDGET RANGE:\n" + (approvedSalary || "Not specified."),
-    "EARLIEST AVAILABILITY:\n" + valueOr(setup.earliestAvailabilityRule || setup.noticePeriodRequirement, "Ask only when the approved role setup requires availability collection."),
+    "CANDIDATE START AVAILABILITY (SCREENING ONLY):\n" + valueOr(setup.earliestAvailabilityRule || setup.noticePeriodRequirement, "Do not ask unless the approved role setup explicitly requires start-availability information."),
     "ADDITIONAL SCREENING CRITERIA:\n" + valueOr(setup.screeningCriteria, "None specified."),
-  ].join("\n\n");
+    evaluationFieldsBlock(setup),
+  ].filter(Boolean).join("\n\n");
 }
 
 export function renderRecruitmentSystemPrompt(template: string, setup: RecruitmentPromptInput): string {
@@ -283,8 +292,7 @@ export function renderRecruitmentSystemPrompt(template: string, setup: Recruitme
     .replaceAll("{{selected_role}}", selectedRole)
     .replace("{{job_description}}", valueOr(setup.jobDescription, "the approved role requirements"))
     .replaceAll("{{system_prompt}}", screeningCriteria(setup))
-    .replace("{{interview_questions}}", questions)
-    .replace("{{current_time}}", "the current local time in Asia/Manila");
+    .replace("{{interview_questions}}", questions);
 }
 
 export function generateRecruitmentSystemPrompt(setup: RecruitmentPromptInput): string {

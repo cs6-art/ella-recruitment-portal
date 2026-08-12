@@ -2,8 +2,12 @@ import crypto from "node:crypto";
 import { google } from "googleapis";
 
 import { getCalendarConnection, saveCalendarConnection } from "@/lib/calendar-tokens";
+import { scheduledInstant } from "@/lib/interview-time";
 
-const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.events";
+const CALENDAR_SCOPES = [
+  "https://www.googleapis.com/auth/calendar.events",
+  "https://www.googleapis.com/auth/calendar.freebusy",
+];
 
 // Reuses the same OAuth 2.0 Web application client already registered for
 // "Sign in with Google" (NEXT_PUBLIC_GOOGLE_CLIENT_ID / GOOGLE_CLIENT_ID).
@@ -60,7 +64,7 @@ export function getGoogleConsentUrl(email: string): string {
   return client.generateAuthUrl({
     access_type: "offline",
     prompt: "consent", // forces a refresh_token on every connect, not just the first
-    scope: [CALENDAR_SCOPE],
+    scope: CALENDAR_SCOPES,
     state: createOAuthState(email),
     login_hint: email,
   });
@@ -74,7 +78,7 @@ export async function exchangeCodeAndStore(code: string, email: string): Promise
     accessToken: tokens.access_token || "",
     refreshToken: tokens.refresh_token || undefined,
     tokenExpiresAt: tokens.expiry_date ? new Date(tokens.expiry_date).toISOString() : "",
-    scope: tokens.scope || CALENDAR_SCOPE,
+    scope: tokens.scope || CALENDAR_SCOPES.join(" "),
   });
 }
 
@@ -95,7 +99,7 @@ async function getAuthorizedClient(email: string) {
       email,
       accessToken: credentials.access_token || "",
       tokenExpiresAt: credentials.expiry_date ? new Date(credentials.expiry_date).toISOString() : "",
-      scope: credentials.scope || CALENDAR_SCOPE,
+      scope: credentials.scope || CALENDAR_SCOPES.join(" "),
     });
     client.setCredentials(credentials);
   } else {
@@ -119,6 +123,11 @@ export type CalendarEventInput = {
 export type CalendarEventResult =
   | { created: true; eventId: string; htmlLink: string }
   | { created: false; reason: "not_connected" | "error"; error?: string };
+
+export type CalendarAvailabilityResult =
+  | { available: true; checked: true }
+  | { available: false; checked: true; reason: "conflict"; busyUntil?: string }
+  | { available: false; checked: false; reason: "not_connected" | "error"; error?: string };
 
 /**
  * Creates the final-interview event on the HOD's own connected Google
@@ -147,5 +156,42 @@ export async function createFinalInterviewEvent(input: CalendarEventInput): Prom
     return { created: true, eventId: response.data.id || "", htmlLink: response.data.htmlLink || "" };
   } catch (error) {
     return { created: false, reason: "error", error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+export async function checkCalendarAvailability(input: Pick<CalendarEventInput, "hodEmail" | "date" | "startTime" | "endTime" | "timezone">): Promise<CalendarAvailabilityResult> {
+  try {
+    const client = await getAuthorizedClient(input.hodEmail);
+    if (!client) return { available: false, checked: false, reason: "not_connected" };
+
+    const start = scheduledInstant(input.date, input.startTime, input.timezone);
+    const end = scheduledInstant(input.date, input.endTime, input.timezone);
+    const calendar = google.calendar({ version: "v3", auth: client });
+    const response = await calendar.freebusy.query({
+      requestBody: {
+        timeMin: start.toISOString(),
+        timeMax: end.toISOString(),
+        items: [{ id: "primary" }],
+      },
+    });
+    const busy = response.data.calendars?.primary?.busy || [];
+    const conflict = busy.find((window) => window.start && window.end);
+    if (conflict) return { available: false, checked: true, reason: "conflict", busyUntil: conflict.end || undefined };
+    return { available: true, checked: true };
+  } catch (error) {
+    return { available: false, checked: false, reason: "error", error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+export async function deleteFinalInterviewEvent(hodEmail: string, eventId: string): Promise<{ deleted: true } | { deleted: false; reason: "not_connected" | "error"; error?: string }> {
+  if (!eventId) return { deleted: true };
+  try {
+    const client = await getAuthorizedClient(hodEmail);
+    if (!client) return { deleted: false, reason: "not_connected" };
+    const calendar = google.calendar({ version: "v3", auth: client });
+    await calendar.events.delete({ calendarId: "primary", eventId, sendUpdates: "all" });
+    return { deleted: true };
+  } catch (error) {
+    return { deleted: false, reason: "error", error: error instanceof Error ? error.message : String(error) };
   }
 }

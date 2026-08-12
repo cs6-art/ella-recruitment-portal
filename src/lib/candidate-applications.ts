@@ -105,6 +105,10 @@ export type InterviewBooking = {
   candidateEmail: string;
   bookedAt: string;
   lastUpdated: string;
+  calendarEventId: string;
+  calendarEventLink: string;
+  calendarEventStatus: string;
+  calendarEventError: string;
 };
 
 type SheetRow = Record<string, string>;
@@ -254,7 +258,7 @@ export async function getApplicantMetrics(): Promise<ApplicantMetrics> {
 }
 
 export async function getInterviewBookings(): Promise<InterviewBooking[]> {
-  const { rows } = await readTab("Interview_Slots", "P");
+  const { rows } = await readTab("Interview_Slots", "T");
   return rows.map((record) => ({
     slotId: field(record, "Slot_ID", "Slot ID"),
     interviewType: field(record, "Interview_Type", "Interview Type"),
@@ -269,6 +273,10 @@ export async function getInterviewBookings(): Promise<InterviewBooking[]> {
     candidateEmail: field(record, "Candidate_Email", "Candidate Email"),
     bookedAt: field(record, "Booked_At", "Booked At"),
     lastUpdated: field(record, "Last_Updated", "Last Updated"),
+    calendarEventId: field(record, "Google_Calendar_Event_ID"),
+    calendarEventLink: field(record, "Google_Calendar_Event_Link"),
+    calendarEventStatus: field(record, "Google_Calendar_Event_Status"),
+    calendarEventError: field(record, "Google_Calendar_Event_Error"),
   })).filter((booking) => booking.slotId).sort((left, right) => `${left.date} ${left.startTime}`.localeCompare(`${right.date} ${right.startTime}`));
 }
 
@@ -278,7 +286,7 @@ export async function getApplicantById(id: string): Promise<ApplicantDetails | n
     readTab("Voice_Interview_Results", "AF"),
     readTab("Voice_Call_Logs", "AD"),
     readTab("Final_Interview_Tracking", "AE"),
-    readTab("Interview_Slots", "P"),
+    readTab("Interview_Slots", "T"),
   ]);
   const normalizedId = text(id).toLowerCase();
   const record = applicantRows.find((row) => applicationId(row).toLowerCase() === normalizedId);

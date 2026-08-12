@@ -71,7 +71,11 @@ test("role creation only renders the requisition and HOD screening fields", () =
     "customScreeningQuestion1",
     "customScreeningQuestion2",
   ]) {
-    assert.match(formSource, new RegExp(`id=\\"${field}\\"`));
+    if (field === "hodAvailabilityDates" || field === "hodAvailabilityTimes") {
+      assert.match(formSource, new RegExp(field));
+    } else {
+      assert.match(formSource, new RegExp(`id=\\"${field}\\"`));
+    }
   }
 
   for (const removedField of [
@@ -91,4 +95,11 @@ test("role creation only renders the requisition and HOD screening fields", () =
   ]) {
     assert.doesNotMatch(formSource, new RegExp(`id=\\"${removedField}\\"`));
   }
+});
+
+test("HOD scheduling data is structured and server payloads carry the explicit HOD", () => {
+  assert.match(formSource, /id=\"hodEmail\"/);
+  assert.match(formSource, /hodAvailabilitySlots/);
+  assert.match(apiSource, /hodEmail: clientInput\.hodEmail \|\| sessionEmail/);
+  assert.match(apiSource, /hodAvailabilitySlots: input\.hodAvailabilitySlots/);
 });

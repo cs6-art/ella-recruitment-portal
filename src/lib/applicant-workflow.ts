@@ -2,8 +2,11 @@ import crypto from "node:crypto";
 import { google } from "googleapis";
 import { z } from "zod";
 
-import { createFinalInterviewEvent } from "@/lib/google-calendar";
+import { createFinalInterviewEvent, deleteFinalInterviewEvent, checkCalendarAvailability } from "@/lib/google-calendar";
 import { getRoleRequestById } from "@/lib/google-sheets";
+import { parseHodAvailabilitySlots, slotMatchesHodAvailability } from "@/lib/hod-availability";
+import { isValidTimezone, scheduledInstant } from "@/lib/interview-time";
+import { bookingLink } from "@/lib/public-url";
 import { cachedSheetsRead, invalidateSheetsCache } from "@/lib/sheets-cache";
 import type { ResumeFileRecord } from "@/lib/resume-files";
 
@@ -126,6 +129,10 @@ export type BookingSlot = {
   timezone: string;
   status?: string;
   applicationId?: string;
+  calendarEventId?: string;
+  calendarEventLink?: string;
+  calendarEventStatus?: string;
+  calendarEventError?: string;
 };
 
 export type BookingContext = {
@@ -161,6 +168,38 @@ function normalize(value: unknown) { return text(value).toLowerCase().replace(/[
 function field(row: Row, ...names: string[]) { for (const name of names) { const key = normalize(name); if (key in row) return row[key]; } return ""; }
 function columnName(index: number) { let name = ""; let value = index + 1; while (value > 0) { const remainder = (value - 1) % 26; name = String.fromCharCode(65 + remainder) + name; value = Math.floor((value - 1) / 26); } return name; }
 function hashToken(token: string) { return crypto.createHash("sha256").update(token).digest("hex"); }
+function tokenFromBookingLink(link: string) {
+  try {
+    const path = new URL(link, "http://localhost").pathname.split("/").filter(Boolean);
+    if (path.at(-2) !== "final" || !path.at(-1)) return "";
+    return decodeURIComponent(path.at(-1) || "");
+  } catch {
+    return "";
+  }
+}
+
+function finalBookingTokenExpiry(existing: string) {
+  const existingTime = Date.parse(existing);
+  if (Number.isFinite(existingTime) && existingTime > Date.now()) return existing;
+  const configuredDays = Number(process.env.BOOKING_LINK_EXPIRY_DAYS || 7);
+  const expiryDays = Number.isFinite(configuredDays) ? Math.min(Math.max(configuredDays, 1), 30) : 7;
+  return new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000).toISOString();
+}
+
+function finalBookingInvitation(row: Row, baseUrl: string) {
+  const existingStatus = field(row, "Final_Interview_Booking_Token_Status").toLowerCase();
+  const mustIssueNewToken = ["used", "booked", "expired", "revoked"].includes(existingStatus);
+  const existingLink = field(row, "Final_Interview_Booking_Link");
+  const existingToken = mustIssueNewToken ? "" : field(row, "Final_Interview_Booking_Token") || tokenFromBookingLink(existingLink);
+  const token = existingToken || crypto.randomBytes(32).toString("hex");
+  return {
+    token,
+    tokenHash: hashToken(token),
+    expiresAt: finalBookingTokenExpiry(mustIssueNewToken ? "" : field(row, "Final_Interview_Booking_Token_Expires_At")),
+    link: bookingLink(baseUrl, "final", token),
+  };
+}
+
 function normalizeEmail(value: string) { return text(value).toLowerCase(); }
 export function normalizePreferredMobile(value: string) {
   return text(value).replace(/[\s().-]+/g, "");
@@ -222,6 +261,10 @@ function slotFrom(row: Row): BookingSlot {
     timezone: field(row, "Timezone", "Time Zone"),
     status: field(row, "Status"),
     applicationId: field(row, "Application_ID", "Application ID"),
+    calendarEventId: field(row, "Google_Calendar_Event_ID"),
+    calendarEventLink: field(row, "Google_Calendar_Event_Link"),
+    calendarEventStatus: field(row, "Google_Calendar_Event_Status"),
+    calendarEventError: field(row, "Google_Calendar_Event_Error"),
   };
 }
 
@@ -391,19 +434,21 @@ export async function getCandidateStatusHistory(applicationId: string): Promise<
 }
 
 export async function getBookingContext(kind: BookingKind, token: string): Promise<BookingContext | null> {
-  const [applicantData, slotsData] = await Promise.all([readSheet("High_Match_Profile", "BH"), readSheet("Interview_Slots", "P")]);
+  const [applicantData, slotsData] = await Promise.all([readSheet("High_Match_Profile", "BH"), readSheet("Interview_Slots", "T")]);
   const cleanToken = text(token);
   const tokenHash = hashToken(cleanToken);
   const applicantIndex = applicantData.rows.findIndex((row) => kind === "voice"
     ? field(row, "Booking_Token") === cleanToken || field(row, "Booking_Token_Hash") === tokenHash
-    : field(row, "Final_Interview_Booking_Token_Hash") === tokenHash);
+    : field(row, "Final_Interview_Booking_Token") === cleanToken || field(row, "Final_Interview_Booking_Token_Hash") === tokenHash);
   if (applicantIndex < 0) return null;
 
   const row = applicantData.rows[applicantIndex];
   const expiry = kind === "voice" ? field(row, "Booking_Token_Expires_At") : field(row, "Final_Interview_Booking_Token_Expires_At");
   if (expiry && Date.parse(expiry) < Date.now()) return null;
   const roleId = field(row, "Role_ID", "Role ID");
-  const status = kind === "voice" ? field(row, "Booking_Token_Status") : field(row, "Status 3 (Final Interview)");
+  const tokenStatus = kind === "voice" ? field(row, "Booking_Token_Status") : field(row, "Final_Interview_Booking_Token_Status");
+  if (["used", "booked", "expired", "revoked"].includes(tokenStatus.toLowerCase())) return null;
+  const status = tokenStatus || (kind === "voice" ? field(row, "Booking_Token_Status") : field(row, "Status 3 (Final Interview)"));
   const currentSlot = slotsData.rows
     .map((slot, index) => ({ slot: slotFrom(slot), index }))
     .find(({ slot }) => slot.applicationId === field(row, "Application ID", "Application_ID")
@@ -442,12 +487,18 @@ async function updateCells(updates: CellUpdate[]) {
   for (const [tab, tabUpdates] of grouped) {
     const data = await readSheet(tab,
       tab === "High_Match_Profile" ? "BH" :
-        tab === "Interview_Slots" ? "P" :
+        tab === "Interview_Slots" ? "T" :
           tab === "Voice_Call_Queue" ? "X" : "AE");
-    const requests = tabUpdates.map((update) => {
-      let index = data.headers.findIndex((header) => normalize(header) === normalize(update.header));
-      if (index < 0) index = data.headers.length;
-      return { range: `'${tab}'!${columnName(index)}${update.row}`, values: [[update.value]] };
+    const requests: { range: string; values: string[][] }[] = [];
+    const headers = [...data.headers];
+    tabUpdates.forEach((update) => {
+      let index = headers.findIndex((header) => normalize(header) === normalize(update.header));
+      if (index < 0) {
+        index = headers.length;
+        headers.push(update.header);
+        requests.push({ range: `'${tab}'!${columnName(index)}1`, values: [[update.header]] });
+      }
+      requests.push({ range: `'${tab}'!${columnName(index)}${update.row}`, values: [[update.value]] });
     });
     await sheets.spreadsheets.values.batchUpdate({ spreadsheetId, requestBody: { valueInputOption: "USER_ENTERED", data: requests } });
     invalidateSheetsCache(tab);
@@ -459,7 +510,7 @@ export async function reserveBooking(kind: BookingKind, token: string, slotId: s
   if (!cleanSlotId) throw new Error("Choose an interview slot.");
   const confirmedMobile = normalizePreferredMobile(preferredMobile);
   if (!isPreferredMobileValid(confirmedMobile)) throw new Error("Confirm a valid preferred mobile number in international format.");
-  const [context, slotsData, applicantData] = await Promise.all([getBookingContext(kind, token), readSheet("Interview_Slots", "P"), readSheet("High_Match_Profile", "BH")]);
+  const [context, slotsData, applicantData] = await Promise.all([getBookingContext(kind, token), readSheet("Interview_Slots", "T"), readSheet("High_Match_Profile", "BH")]);
   if (!context) throw new Error("This booking link is invalid or expired.");
   const matchingSlotIndex = slotsData.rows.findIndex((row) => field(row, "Slot_ID", "Slot ID") === cleanSlotId);
   if (matchingSlotIndex < 0) throw new Error("The selected interview slot is no longer available.");
@@ -475,6 +526,13 @@ export async function reserveBooking(kind: BookingKind, token: string, slotId: s
     ? slotsData.rows.findIndex((row) => field(row, "Slot_ID", "Slot ID") === context.currentSlot?.slotId)
     : -1;
   if (oldSlotIndex === matchingSlotIndex) throw new Error("Choose a different interview slot to reschedule.");
+  const role = kind === "final" ? await getRoleRequestById(context.roleId) : null;
+  const calendarHodEmail = (role?.hodEmail || role?.requesterEmail || "").trim();
+  let oldCalendarEventCleanup: { deleted: true } | { deleted: false; reason: "not_connected" | "error"; error?: string } | null = null;
+  if (kind === "final" && oldSlotIndex >= 0 && calendarHodEmail) {
+    const oldEventId = field(slotsData.rows[oldSlotIndex], "Google_Calendar_Event_ID");
+    if (oldEventId) oldCalendarEventCleanup = await deleteFinalInterviewEvent(calendarHodEmail, oldEventId);
+  }
   const updates: CellUpdate[] = [
     { tab: "Interview_Slots", row: slotRow, header: "Status", value: "Booked" },
     { tab: "Interview_Slots", row: slotRow, header: "Application_ID", value: context.applicationId },
@@ -493,6 +551,12 @@ export async function reserveBooking(kind: BookingKind, token: string, slotId: s
       { tab: "Interview_Slots", row: oldSlotRow, header: "Booked_At", value: "" },
       { tab: "Interview_Slots", row: oldSlotRow, header: "Last_Updated", value: now },
     );
+    if (kind === "final") {
+      updates.push(
+        { tab: "Interview_Slots", row: oldSlotRow, header: "Google_Calendar_Event_Status", value: oldCalendarEventCleanup?.deleted ? "Cancelled" : oldCalendarEventCleanup ? "Cancellation Failed" : "Not Tracked" },
+        { tab: "Interview_Slots", row: oldSlotRow, header: "Google_Calendar_Event_Error", value: oldCalendarEventCleanup && !oldCalendarEventCleanup.deleted ? (oldCalendarEventCleanup.error || oldCalendarEventCleanup.reason) : "" },
+      );
+    }
   }
   updates.push(
     { tab: "High_Match_Profile", row: applicantRow, header: "Preferred_Mobile", value: confirmedMobile },
@@ -550,6 +614,8 @@ export async function reserveBooking(kind: BookingKind, token: string, slotId: s
     updates.push(
       { tab: "High_Match_Profile", row: applicantRow, header: "Status 3 (Final Interview)", value: "Interview Scheduled" },
       { tab: "High_Match_Profile", row: applicantRow, header: "Final_Status", value: "Final Interview Scheduled" },
+      { tab: "High_Match_Profile", row: applicantRow, header: "Final_Interview_Booking_Token_Status", value: "Used" },
+      { tab: "High_Match_Profile", row: applicantRow, header: "Final_Interview_Booking_Token_Used_At", value: now },
       { tab: "High_Match_Profile", row: applicantRow, header: "Last_Updated", value: now },
     );
   }
@@ -564,11 +630,9 @@ export async function reserveBooking(kind: BookingKind, token: string, slotId: s
     // calendar yet, or a transient Calendar API error, must never fail the
     // candidate's booking — this runs after updateCells and only logs.
     try {
-      const role = await getRoleRequestById(context.roleId);
-      const hodEmail = role?.requesterEmail?.trim();
-      if (hodEmail) {
+      if (calendarHodEmail) {
         const result = await createFinalInterviewEvent({
-          hodEmail,
+          hodEmail: calendarHodEmail,
           summary: `Final Interview: ${context.candidateName} — ${context.selectedRole}`,
           description: `Final interview for ${context.candidateName} (${context.applicationId}) applying for ${context.selectedRole}.\n\nCandidate email: ${context.email}`,
           date: field(matchingSlot, "Date"),
@@ -577,10 +641,26 @@ export async function reserveBooking(kind: BookingKind, token: string, slotId: s
           timezone: field(matchingSlot, "Timezone", "Time Zone"),
           attendeeEmails: [context.email],
         });
+        const calendarUpdates: CellUpdate[] = result.created
+          ? [
+            { tab: "Interview_Slots", row: slotRow, header: "Google_Calendar_Event_ID", value: result.eventId },
+            { tab: "Interview_Slots", row: slotRow, header: "Google_Calendar_Event_Link", value: result.htmlLink },
+            { tab: "Interview_Slots", row: slotRow, header: "Google_Calendar_Event_Status", value: "Created" },
+            { tab: "Interview_Slots", row: slotRow, header: "Google_Calendar_Event_Error", value: "" },
+          ]
+          : [
+            { tab: "Interview_Slots", row: slotRow, header: "Google_Calendar_Event_Status", value: result.reason === "not_connected" ? "HOD Calendar Not Connected" : "Creation Failed" },
+            { tab: "Interview_Slots", row: slotRow, header: "Google_Calendar_Event_Error", value: result.error || result.reason },
+          ];
+        await updateCells(calendarUpdates);
         if (result.created) console.log("[Final Interview Calendar] Event created:", result.htmlLink);
         else console.log("[Final Interview Calendar] Not created:", result.reason, "error" in result ? result.error : "");
       } else {
-        console.log("[Final Interview Calendar] No requester email found for role:", context.roleId);
+        await updateCells([
+          { tab: "Interview_Slots", row: slotRow, header: "Google_Calendar_Event_Status", value: "HOD Email Not Configured" },
+          { tab: "Interview_Slots", row: slotRow, header: "Google_Calendar_Event_Error", value: "No HOD email is configured for this role." },
+        ]);
+        console.log("[Final Interview Calendar] No HOD email found for role:", context.roleId);
       }
     } catch (error) {
       console.error("[Final Interview Calendar] Unexpected failure:", error);
@@ -590,27 +670,10 @@ export async function reserveBooking(kind: BookingKind, token: string, slotId: s
   return { ...context, bookingStatus: kind === "voice" ? "Scheduled" : "Interview Scheduled", scheduledDate: field(matchingSlot, "Date"), scheduledTime: field(matchingSlot, "Start_Time", "Start Time"), timezone: field(matchingSlot, "Timezone", "Time Zone"), slots: [] };
 }
 
-function scheduledInstant(date: string, time: string, timeZone: string) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hourCycle: "h23",
-  }).formatToParts(new Date(`${date}T${time}:00Z`));
-  const values = Object.fromEntries(parts.filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
-  const desired = Date.UTC(Number(date.slice(0, 4)), Number(date.slice(5, 7)) - 1, Number(date.slice(8, 10)), Number(time.slice(0, 2)), Number(time.slice(3, 5)));
-  const shown = Date.UTC(Number(values.year), Number(values.month) - 1, Number(values.day), Number(values.hour), Number(values.minute), Number(values.second));
-  return new Date(desired - (shown - Date.parse(`${date}T${time}:00Z`)));
-}
-
 export async function markInterviewNoShow(slotId: string) {
   const cleanSlotId = text(slotId);
   if (!cleanSlotId) throw new Error("Interview slot is required.");
-  const [slotsData, applicantsData] = await Promise.all([readSheet("Interview_Slots", "P"), readSheet("High_Match_Profile", "BH")]);
+  const [slotsData, applicantsData] = await Promise.all([readSheet("Interview_Slots", "T"), readSheet("High_Match_Profile", "BH")]);
   const slotIndex = slotsData.rows.findIndex((row) => field(row, "Slot_ID", "Slot ID") === cleanSlotId);
   if (slotIndex < 0) throw new Error("Interview slot not found.");
   const slot = slotsData.rows[slotIndex];
@@ -658,7 +721,23 @@ export async function createInterviewSlot(input: CreateInterviewSlotInput) {
   if (!roleId || !date || !startTime || !endTime) throw new Error("Role, date, start time, and end time are required.");
   if (input.interviewType !== "AI Voice Interview" && input.interviewType !== "Final Interview") throw new Error("Choose a valid interview type.");
   if (Number.isNaN(Date.parse(`${date}T${startTime}:00`)) || Number.isNaN(Date.parse(`${date}T${endTime}:00`)) || startTime >= endTime) throw new Error("Choose a valid interview time range.");
-  const data = await readSheet("Interview_Slots", "P");
+  if (!isValidTimezone(timezone)) throw new Error("Choose a valid interview timezone.");
+  const role = input.interviewType === "Final Interview" ? await getRoleRequestById(roleId) : null;
+  if (input.interviewType === "Final Interview" && !role) throw new Error("Role request not found.");
+  if (input.interviewType === "Final Interview" && role) {
+    const availability = parseHodAvailabilitySlots(role.hodAvailabilitySlots);
+    if (availability.length > 0 && !slotMatchesHodAvailability({ date, startTime, endTime, timezone }, availability)) {
+      throw new Error("This final-interview slot is outside the HOD availability submitted for the role.");
+    }
+
+    const hodEmail = (role.hodEmail || role.requesterEmail).trim();
+    if (hodEmail) {
+      const calendar = await checkCalendarAvailability({ hodEmail, date, startTime, endTime, timezone });
+      if (calendar.checked && !calendar.available) throw new Error("The HOD Google Calendar is busy during this final-interview slot.");
+      if (!calendar.checked && calendar.reason === "error") throw new Error("Unable to verify the HOD Google Calendar for this final-interview slot.");
+    }
+  }
+  const data = await readSheet("Interview_Slots", "T");
   const duplicate = data.rows.some((row) => field(row, "Interview_Type", "Interview Type") === input.interviewType && field(row, "Role_ID", "Role ID").toLowerCase() === roleId.toLowerCase() && field(row, "Date") === date && field(row, "Start_Time", "Start Time") === startTime);
   if (duplicate) throw new Error("This role already has the same interview slot.");
   const slotId = `SLOT-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
@@ -698,7 +777,7 @@ export async function createInterviewSlot(input: CreateInterviewSlotInput) {
  * The final stage has no active n8n owner (Phase 6 is not in production), so the
  * portal still records that outcome itself.
  */
-export async function recordApplicantDecision(applicationId: string, stage: ApplicantDecisionStage, decision: ApplicantDecision, reviewer: { name: string; email: string }, comments: string) {
+export async function recordApplicantDecision(applicationId: string, stage: ApplicantDecisionStage, decision: ApplicantDecision, reviewer: { name: string; email: string }, comments: string, publicAppBaseUrl = "") {
   const data = await readSheet("High_Match_Profile", "BH");
   const found = findApplicant(data, applicationId);
   if (!found) throw new Error("Applicant not found.");
@@ -722,6 +801,16 @@ export async function recordApplicantDecision(applicationId: string, stage: Appl
     } else {
       newFinalStatus = decision === "Approve" ? "Approved for Final Interview" : "Voice Interview Rejected";
       updates.push(set("Voice_HR_Decision", decision), set("Voice_HR_Comments", comments), set("Final_Status", newFinalStatus));
+      if (decision === "Approve" && publicAppBaseUrl) {
+        const invitation = finalBookingInvitation(found.row, publicAppBaseUrl);
+        updates.push(
+          set("Final_Interview_Booking_Token", invitation.token),
+          set("Final_Interview_Booking_Token_Hash", invitation.tokenHash),
+          set("Final_Interview_Booking_Token_Expires_At", invitation.expiresAt),
+          set("Final_Interview_Booking_Token_Status", "Pending"),
+          set("Final_Interview_Booking_Link", invitation.link),
+        );
+      }
     }
   } else {
     if (decision === "Manual Review") {

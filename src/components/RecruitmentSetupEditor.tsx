@@ -8,7 +8,11 @@ import {
   renderRecruitmentSystemPromptSample,
   STANDARD_VAPI_SYSTEM_PROMPT_TEMPLATE,
 } from "@/lib/recruitment-prompt";
-import { recruitmentSetupSchema } from "@/lib/recruitment-setup-schema";
+import {
+  BASELINE_EVALUATION_FIELDS,
+  EVALUATION_FIELD_CATALOG,
+  recruitmentSetupSchema,
+} from "@/lib/recruitment-setup-schema";
 import {
   getSetupReadiness,
   type SetupReadinessInput,
@@ -29,6 +33,8 @@ type Setup = {
   initialInterviewBookingLink: string;
   hodInterviewBookingLink: string;
   postingChannels: string[] | string;
+  evaluationFieldToggles?: string[] | string;
+  customEvaluationFields?: { key: string; label: string; description: string }[];
   licenseOrCertificateRequired: string;
   keywordsToLookFor: string;
   minimumYearsOfExperience?: number | string;
@@ -109,8 +115,18 @@ function buildInitialValues(setup: Setup): Setup {
     requiredInterviewQuestion4: questions[3],
     requiredInterviewQuestion5: questions[4],
     postingChannels: normalizeChannels(setup.postingChannels),
+    evaluationFieldToggles: normalizeChannels(setup.evaluationFieldToggles),
+    customEvaluationFields: Array.isArray(setup.customEvaluationFields) ? setup.customEvaluationFields.slice(0, 3) : [],
     recruitmentSetupStatus: setup.recruitmentSetupStatus || "Draft",
   };
+}
+
+function getEvaluationFields(values: Setup) {
+  const toggled = normalizeChannels(values.evaluationFieldToggles)
+    .map((key) => EVALUATION_FIELD_CATALOG.find((field) => field.key === key))
+    .filter((field): field is (typeof EVALUATION_FIELD_CATALOG)[number] => Boolean(field));
+  const custom = (values.customEvaluationFields || []).filter((field) => field.key && field.label);
+  return [...toggled, ...custom];
 }
 
 function promptRenderInput(values: Setup) {
@@ -128,6 +144,7 @@ function promptRenderInput(values: Setup) {
     salaryOrBudgetRange: values.salaryOrBudgetRange,
     noticePeriodRequirement: values.noticePeriodRequirement || values.earliestAvailabilityRule,
     earliestAvailabilityRule: values.earliestAvailabilityRule,
+    evaluationFields: getEvaluationFields(values),
   };
 }
 
@@ -287,6 +304,33 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
   const toggleChannel = (channel: string) => {
     const selected = normalizeChannels(values.postingChannels);
     update("postingChannels", selected.includes(channel) ? selected.filter((item) => item !== channel) : [...selected, channel]);
+  };
+
+  const toggleEvaluationField = (key: string) => {
+    const selected = normalizeChannels(values.evaluationFieldToggles);
+    update("evaluationFieldToggles", selected.includes(key) ? selected.filter((item) => item !== key) : [...selected, key]);
+  };
+
+  const customFieldKey = (label: string) => label.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40);
+
+  const updateCustomField = (index: number, patch: Partial<{ key: string; label: string; description: string }>) => {
+    setValues((current) => {
+      const fields = [...(current.customEvaluationFields || [])];
+      fields[index] = { ...fields[index], ...patch };
+      return { ...current, customEvaluationFields: fields };
+    });
+    setMessage("");
+    setWarning("");
+    setError("");
+  };
+
+  const addCustomField = () => {
+    setValues((current) => ((current.customEvaluationFields || []).length >= 3 ? current
+      : { ...current, customEvaluationFields: [...(current.customEvaluationFields || []), { key: "", label: "", description: "" }] }));
+  };
+
+  const removeCustomField = (index: number) => {
+    setValues((current) => ({ ...current, customEvaluationFields: (current.customEvaluationFields || []).filter((_, itemIndex) => itemIndex !== index) }));
   };
 
   const applyTemplate = (template: RecruitmentTemplate) => {
@@ -514,6 +558,45 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
            <Field id="vapi-experience" label="Minimum relevant experience" value={values.minimumYearsOfExperience} onChange={(value) => update("minimumYearsOfExperience", value)} disabled={!editable || saving} placeholder="Example: None, 3 years, or 5+ years" hint="Use None when no experience threshold applies." />
            <Field id="vapi-salary" label="Approved salary or budget range" value={values.salaryOrBudgetRange} onChange={(value) => update("salaryOrBudgetRange", value)} disabled={!editable || saving} placeholder="Example: PHP 45,000 to PHP 60,000 per month" />
            <Field id="vapi-availability" label="Earliest availability instructions" value={values.earliestAvailabilityRule} onChange={(value) => update("earliestAvailabilityRule", value)} disabled={!editable || saving} placeholder="Example: Ask whether the candidate can start within 30 days." />
+        </div>
+      </div>
+
+      <div className="vapi-builder">
+        <div className="vapi-section-heading">
+          <div><span className="vapi-kicker">EVALUATION FIELDS</span><h3>What should Ella score or note for this role?</h3><p>Score, recommendation, strengths, and concerns are always included. Add anything extra this role needs — the same list is used for both resume screening and the voice interview.</p></div>
+        </div>
+        <div className="vapi-baseline-fields">
+          <span className="vapi-kicker">Always included</span>
+          <div className="vapi-baseline-chip-row">
+            {BASELINE_EVALUATION_FIELDS.map((field) => <span className="vapi-chip" key={field.key}>{field.label}</span>)}
+          </div>
+        </div>
+        <fieldset className="vapi-channel-fieldset">
+          <legend>Optional fields</legend>
+          <div className="vapi-channel-options">
+            {EVALUATION_FIELD_CATALOG.map((field) => (
+              <label key={field.key} className="vapi-channel-option" title={field.description}>
+                <input type="checkbox" checked={normalizeChannels(values.evaluationFieldToggles).includes(field.key)} disabled={!editable || saving} onChange={() => toggleEvaluationField(field.key)} />
+                <span>{field.label}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        <div className="vapi-custom-fields">
+          <div className="vapi-section-heading">
+            <div><span className="vapi-kicker">CUSTOM FIELDS</span><h4>Add up to 3 fields specific to this role</h4></div>
+            <span className="vapi-count-badge">{(values.customEvaluationFields || []).length} of 3</span>
+          </div>
+          {(values.customEvaluationFields || []).map((customField, index) => (
+            <div className="vapi-custom-field-row" key={index}>
+              <Field id={`vapi-custom-label-${index}`} label="Field name" value={customField.label} onChange={(value) => updateCustomField(index, { label: value, key: customFieldKey(value) })} disabled={!editable || saving} placeholder="Example: Technical depth" />
+              <Field id={`vapi-custom-desc-${index}`} label="What should Ella assess?" value={customField.description} onChange={(value) => updateCustomField(index, { description: value })} disabled={!editable || saving} placeholder="One plain-English sentence, e.g. Assess how deeply the candidate understands the required technical stack." />
+              <button type="button" className="btn btn-secondary" disabled={!editable || saving} onClick={() => removeCustomField(index)}>Remove</button>
+            </div>
+          ))}
+          {(values.customEvaluationFields || []).length < 3 && (
+            <button type="button" className="btn btn-secondary" disabled={!editable || saving} onClick={addCustomField}>Add custom field</button>
+          )}
         </div>
       </div>
 

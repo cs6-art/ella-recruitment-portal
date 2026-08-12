@@ -7,6 +7,7 @@ import {
   type ApplicantDecision,
   type ApplicantDecisionStage,
 } from "@/lib/applicant-workflow";
+import { getPublicAppBaseUrl } from "@/lib/public-url";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
 
 const stages = new Set<ApplicantDecisionStage>(["resume", "voice", "final"]);
@@ -36,6 +37,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ app
       body.decision,
       { name: user.name, email: user.email },
       body.comments,
+      getPublicAppBaseUrl(request),
     );
 
     return NextResponse.json({ success: true, result });

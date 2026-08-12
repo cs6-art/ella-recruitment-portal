@@ -1,5 +1,16 @@
 import { z } from "zod";
 
+const hodAvailabilitySlotSchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Select a valid availability date."),
+  startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Enter a valid start time."),
+  endTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Enter a valid end time."),
+  timezone: z.string().trim().min(1).max(100),
+}).superRefine((slot, context) => {
+  if (slot.startTime >= slot.endTime) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["endTime"], message: "End time must be after start time." });
+  }
+});
+
 const optionalMoney = z.preprocess(
   (value) => {
     if (value === "" || value === null || value === undefined) return undefined;
@@ -19,6 +30,7 @@ export const roleRequestSchema = z.object({
   targetHiringDate: z.string().trim().min(1, "Select a target hiring date."),
   hodAvailabilityDates: z.string().trim().max(5000).default(""),
   hodAvailabilityTimes: z.string().trim().max(5000).default(""),
+  hodAvailabilitySlots: z.array(hodAvailabilitySlotSchema).max(30).default([]),
   customScreeningQuestion1: z.string().trim().max(1000).default(""),
   customScreeningQuestion2: z.string().trim().max(1000).default(""),
   aiGeneratedScreeningQuestions: z.array(z.string().trim().min(1).max(1000)).max(5).default([]),
@@ -43,6 +55,10 @@ export const roleRequestSchema = z.object({
     (value) => value.endsWith("@mclinkgroup.com"),
     "Requester email must use the McLink email domain.",
   ),
+  hodEmail: z.string().trim().toLowerCase().email().refine(
+    (value) => value.endsWith("@mclinkgroup.com"),
+    "HOD email must use the McLink email domain.",
+  ).default(""),
 }).superRefine((value, context) => {
   if (value.requestType === "Staff Replacement" && !value.replacementEmployee) {
     context.addIssue({

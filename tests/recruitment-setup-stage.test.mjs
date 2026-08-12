@@ -70,12 +70,87 @@ test("recruitment setup uses one guided editor with simple HR-facing fields", ()
   assert.doesNotMatch(roleDetails, /EllaSetupFields/);
 });
 
-test("VAPI prompt includes time management guardrails", () => {
+test("VAPI prompt is interview-only and has no scheduling context", () => {
   const prompt = fs.readFileSync("src/lib/recruitment-prompt.ts", "utf8");
-  assert.match(prompt, /\[Time Management\]/);
-  assert.match(prompt, /Hard maximum call duration: 15 minutes\./);
-  assert.match(prompt, /At around 12 minutes, prioritize and compress the remaining approved questions/);
-  assert.match(prompt, /Warmly inform the candidate that time is nearly finished\./);
-  assert.match(prompt, /Never interrupt a candidate mid-answer\./);
-  assert.match(prompt, /Always complete the existing closing sequence before ending\./);
+  assert.match(prompt, /This call is an interview only/);
+  assert.doesNotMatch(prompt, /\[Time Management\]/);
+  assert.doesNotMatch(prompt, /Current Time: \{\{current_time\}\}/);
+  assert.match(prompt, /Never schedule an interview/);
+});
+
+test("evaluation field catalog is shared between the schema, editor, and n8n payload", async () => {
+  const schemaSource = fs.readFileSync("src/lib/recruitment-setup-schema.ts", "utf8");
+  assert.match(schemaSource, /BASELINE_EVALUATION_FIELDS/);
+  assert.match(schemaSource, /EVALUATION_FIELD_CATALOG/);
+  assert.match(schemaSource, /evaluationFieldToggles/);
+  assert.match(schemaSource, /customEvaluationFields/);
+  assert.match(schemaSource, /max\(3, "Up to 3 custom fields are allowed\."\)/);
+
+  assert.match(editor, /toggleEvaluationField/);
+  assert.match(editor, /addCustomField/);
+  assert.match(editor, /EVALUATION_FIELD_CATALOG\.map/);
+  assert.match(editor, /Always included/);
+
+  assert.match(route, /Evaluation_Fields: JSON\.stringify/);
+  assert.match(route, /BASELINE_EVALUATION_FIELDS/);
+
+  const { recruitmentSetupSchema } = await import("../src/lib/recruitment-setup-schema.ts");
+  const base = {
+    jobDescription: "Job",
+    screeningCriteria: "Criteria",
+    aiSystemPrompt: "Prompt",
+    postingChannels: [],
+    initialInterviewBookingLink: "",
+    hodInterviewBookingLink: "",
+  };
+
+  const withCustomFields = recruitmentSetupSchema.safeParse({
+    ...base,
+    evaluationFieldToggles: ["technical_depth", "not-a-real-key"],
+    customEvaluationFields: [{ key: "domain_fluency", label: "Domain fluency", description: "Assess fluency in the required domain." }],
+  });
+  assert.equal(withCustomFields.success, true);
+  assert.deepEqual(withCustomFields.data.evaluationFieldToggles, ["technical_depth"]);
+  assert.equal(withCustomFields.data.customEvaluationFields[0].key, "domain_fluency");
+
+  const invalidKeyFormat = recruitmentSetupSchema.safeParse({
+    ...base,
+    customEvaluationFields: [{ key: "Weird Key!!", label: "Domain fluency", description: "Assess fluency in the required domain." }],
+  });
+  assert.equal(invalidKeyFormat.success, false);
+
+  const tooManyCustomFields = recruitmentSetupSchema.safeParse({
+    ...base,
+    customEvaluationFields: [
+      { key: "a", label: "A", description: "First." },
+      { key: "b", label: "B", description: "Second." },
+      { key: "c", label: "C", description: "Third." },
+      { key: "d", label: "D", description: "Fourth." },
+    ],
+  });
+  assert.equal(tooManyCustomFields.success, false);
+
+  const duplicateCatalogKey = recruitmentSetupSchema.safeParse({
+    ...base,
+    customEvaluationFields: [{ key: "technical_depth", label: "Dup", description: "Duplicates a catalog key." }],
+  });
+  assert.equal(duplicateCatalogKey.success, false);
+});
+
+test("evaluation fields flow into the rendered voice interview prompt", async () => {
+  const { renderRecruitmentSystemPrompt, STANDARD_VAPI_SYSTEM_PROMPT_TEMPLATE } = await import("../src/lib/recruitment-prompt.ts");
+  const rendered = renderRecruitmentSystemPrompt(STANDARD_VAPI_SYSTEM_PROMPT_TEMPLATE, {
+    jobDescription: "Job",
+    screeningCriteria: "Criteria",
+    evaluationFields: [{ key: "technical_depth", label: "Technical depth", description: "Assess how deeply the candidate understands the required technical stack." }],
+  });
+  assert.match(rendered, /EVALUATION OUTPUT FIELDS/);
+  assert.match(rendered, /Score: Overall numeric fit score for the role\./);
+  assert.match(rendered, /Technical depth: Assess how deeply the candidate understands the required technical stack\./);
+
+  const withoutEvaluationFields = renderRecruitmentSystemPrompt(STANDARD_VAPI_SYSTEM_PROMPT_TEMPLATE, {
+    jobDescription: "Job",
+    screeningCriteria: "Criteria",
+  });
+  assert.doesNotMatch(withoutEvaluationFields, /ADDITIONAL EVALUATION FIELDS/);
 });
