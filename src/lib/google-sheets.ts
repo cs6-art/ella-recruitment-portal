@@ -1,6 +1,6 @@
 import { google } from "googleapis";
 
-import { cachedSheetsRead } from "@/lib/sheets-cache";
+import { cachedSheetsRead, invalidateSheetsCache } from "@/lib/sheets-cache";
 
 const spreadsheetId =
   process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
@@ -525,7 +525,7 @@ async function getRoleRequestRecords(): Promise<
     "[Role Requests] Reading Role_Requests sheet",
   );
 
-  const rows = await cachedSheetsRead("Role_Requests:ZZ", async () => {
+  const rows = await cachedSheetsRead(`Role_Requests:ZZ:${spreadsheetId}`, async () => {
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId,
       // Role_Requests contains workflow and requester fields beyond column
@@ -570,7 +570,7 @@ export async function findDirectoryUser(
   // Cached: this runs on essentially every authenticated request, so it is
   // the single hottest read in the app. A short cache turns repeated
   // per-request permission checks into one real API read per TTL window.
-  const rows = await cachedSheetsRead("User_Directory:I", async () => {
+  const rows = await cachedSheetsRead(`User_Directory:I:${spreadsheetId}`, async () => {
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId,
       range: "User_Directory!A2:I",
@@ -745,12 +745,13 @@ export async function getRoleStatusHistory(
     .trim()
     .toLowerCase();
 
-  const response = await sheets.spreadsheets.values.get({
-    spreadsheetId,
-    range: "Role_Status_History!A1:O",
+  const rows = await cachedSheetsRead(`Role_Status_History:O:${spreadsheetId}`, async () => {
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: "Role_Status_History!A1:O",
+    });
+    return response.data.values ?? [];
   });
-
-  const rows = response.data.values ?? [];
 
   if (rows.length < 2) {
     return [];
@@ -798,11 +799,13 @@ export async function getRoleStatusHistory(
 }
 
 export async function getRecruitmentTemplates(): Promise<RecruitmentTemplateRecord[]> {
-  const response = await sheets.spreadsheets.values.get({
-    spreadsheetId,
-    range: "Recruitment_Templates!A:G",
+  const rows = await cachedSheetsRead(`Recruitment_Templates:G:${spreadsheetId}`, async () => {
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: "Recruitment_Templates!A:G",
+    });
+    return response.data.values ?? [];
   });
-  const rows = response.data.values ?? [];
   if (rows.length < 2) return [];
 
   const [headers, ...dataRows] = rows;
@@ -865,14 +868,17 @@ export async function upsertRecruitmentTemplate(template: RecruitmentTemplateRec
       requestBody: { values: [templateValues(template)] },
     });
   }
+  invalidateSheetsCache("Recruitment_Templates");
 }
 
 export async function deleteRecruitmentTemplate(id: string): Promise<void> {
-  const response = await sheets.spreadsheets.values.get({
-    spreadsheetId,
-    range: "Recruitment_Templates!A:G",
+  const rows = await cachedSheetsRead(`Recruitment_Templates:G:${spreadsheetId}`, async () => {
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: "Recruitment_Templates!A:G",
+    });
+    return response.data.values ?? [];
   });
-  const rows = response.data.values ?? [];
   const rowIndex = rows.slice(1).findIndex((row) => toText(row[0]) === id);
   if (rowIndex < 0) return;
 
@@ -880,6 +886,7 @@ export async function deleteRecruitmentTemplate(id: string): Promise<void> {
     spreadsheetId,
     range: `Recruitment_Templates!A${rowIndex + 2}:G${rowIndex + 2}`,
   });
+  invalidateSheetsCache("Recruitment_Templates");
 }
 
 /**
@@ -896,11 +903,13 @@ function findSettingsHeaderRow(rows: string[][]): number {
 }
 
 export async function getPortalSettings(): Promise<PortalSetting[]> {
-  const response = await sheets.spreadsheets.values.get({
-    spreadsheetId,
-    range: "Settings!A1:F",
+  const rows = await cachedSheetsRead(`Settings:F:${spreadsheetId}`, async () => {
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: "Settings!A1:F",
+    });
+    return (response.data.values ?? []) as string[][];
   });
-  const rows = (response.data.values ?? []) as string[][];
   const headerIndex = findSettingsHeaderRow(rows);
   const headers = rows[headerIndex] ?? [];
   const dataRows = rows.slice(headerIndex + 1);
@@ -920,11 +929,13 @@ export async function getPortalSettings(): Promise<PortalSetting[]> {
 }
 
 export async function upsertPortalSettings(settings: PortalSetting[]): Promise<void> {
-  const response = await sheets.spreadsheets.values.get({
-    spreadsheetId,
-    range: "Settings!A1:F",
+  const existingRows = await cachedSheetsRead(`Settings:F:${spreadsheetId}`, async () => {
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: "Settings!A1:F",
+    });
+    return (response.data.values ?? []) as string[][];
   });
-  const existingRows = (response.data.values ?? []) as string[][];
   const headerIndex = findSettingsHeaderRow(existingRows);
   const hasData = existingRows.slice(headerIndex + 1).some((row) => row.some((cell) => toText(cell) !== ""));
   const rows = settings.map((setting) => [
@@ -944,6 +955,7 @@ export async function upsertPortalSettings(settings: PortalSetting[]): Promise<v
       insertDataOption: "INSERT_ROWS",
       requestBody: { values: rows },
     });
+    invalidateSheetsCache("Settings");
     return;
   }
 
@@ -956,5 +968,6 @@ export async function upsertPortalSettings(settings: PortalSetting[]): Promise<v
     valueInputOption: "RAW",
     requestBody: { values: rows },
   });
+  invalidateSheetsCache("Settings");
 }
 

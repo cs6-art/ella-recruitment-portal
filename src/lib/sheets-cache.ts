@@ -17,7 +17,34 @@
 type CacheEntry<T> = { value: T; expiresAt: number; cachedAt: number };
 
 const TTL_MS = 20_000;
+// Leave headroom below Google's default 60 reads/minute/user quota. This is
+// process-local; deployments with multiple instances need a shared limiter.
+const MIN_READ_INTERVAL_MS = 1_200;
 const cache = new Map<string, CacheEntry<unknown>>();
+const inFlight = new Map<string, Promise<unknown>>();
+let readQueue = Promise.resolve();
+let nextReadAt = 0;
+
+function wait(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function waitForReadSlot(): Promise<void> {
+  const previous = readQueue;
+  let release!: () => void;
+  readQueue = new Promise((resolve) => {
+    release = resolve;
+  });
+
+  await previous;
+  try {
+    const delay = Math.max(0, nextReadAt - Date.now());
+    if (delay > 0) await wait(delay);
+    nextReadAt = Date.now() + MIN_READ_INTERVAL_MS;
+  } finally {
+    release();
+  }
+}
 
 function isQuotaError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
@@ -32,8 +59,8 @@ async function withBackoff<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
     } catch (error) {
       lastError = error;
       if (!isQuotaError(error) || attempt === attempts - 1) throw error;
-      const delay = 500 * 2 ** attempt + Math.random() * 250;
-      await new Promise((resolve) => setTimeout(resolve, delay));
+      const delay = 1_000 * 2 ** attempt + Math.random() * 1_000;
+      await wait(delay);
     }
   }
   throw lastError;
@@ -50,17 +77,29 @@ export async function cachedSheetsRead<T>(key: string, fetcher: () => Promise<T>
   const entry = cache.get(key) as CacheEntry<T> | undefined;
   if (entry && entry.expiresAt > now) return entry.value;
 
-  try {
-    const value = await withBackoff(fetcher);
-    cache.set(key, { value, expiresAt: now + TTL_MS, cachedAt: now });
-    return value;
-  } catch (error) {
-    if (entry && isQuotaError(error)) {
-      console.warn(`[Sheets Cache] Quota error reading "${key}"; serving stale cache (age ${Math.round((now - entry.cachedAt) / 1000)}s).`);
-      return entry.value;
+  const existingRead = inFlight.get(key) as Promise<T> | undefined;
+  if (existingRead) return existingRead;
+
+  const read = (async () => {
+    try {
+      await waitForReadSlot();
+      const value = await withBackoff(fetcher);
+      const cachedAt = Date.now();
+      cache.set(key, { value, expiresAt: cachedAt + TTL_MS, cachedAt });
+      return value;
+    } catch (error) {
+      if (entry && isQuotaError(error)) {
+        console.warn(`[Sheets Cache] Quota error reading "${key}"; serving stale cache (age ${Math.round((Date.now() - entry.cachedAt) / 1000)}s).`);
+        return entry.value;
+      }
+      throw error;
+    } finally {
+      inFlight.delete(key);
     }
-    throw error;
-  }
+  })();
+
+  inFlight.set(key, read);
+  return read;
 }
 
 /** Call after any write to a tab so the next read reflects it, instead of

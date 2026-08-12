@@ -177,7 +177,7 @@ async function readSheet(tab: string, endColumn: string): Promise<SheetData> {
   // own Promise.all, then updateCells locating column indices). A short
   // cache turns those into one real API read plus cache hits, instead of
   // burning three read-quota units for identical data.
-  const values = await cachedSheetsRead(`${tab}:${endColumn}`, async () => {
+  const values = await cachedSheetsRead(`${tab}:${endColumn}:${spreadsheetId}`, async () => {
     const response = await sheets.spreadsheets.values.get({ spreadsheetId, range: `'${tab.replace(/'/g, "''")}'!A1:${endColumn}` });
     return response.data.values ?? [];
   });

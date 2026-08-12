@@ -1,4 +1,5 @@
 import { google } from "googleapis";
+import { cachedSheetsRead } from "@/lib/sheets-cache";
 
 export {
   getCandidateStatusHistory,
@@ -133,11 +134,13 @@ function field(record: SheetRow, ...names: string[]) {
 
 async function readTab(tabName: string, endColumn: string): Promise<{ headers: string[]; rows: SheetRow[] }> {
   const escapedTabName = tabName.replace(/'/g, "''");
-  const response = await sheets.spreadsheets.values.get({
-    spreadsheetId,
-    range: `'${escapedTabName}'!A1:${endColumn}`,
+  const values = await cachedSheetsRead(`${tabName}:${endColumn}:${spreadsheetId}`, async () => {
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: `'${escapedTabName}'!A1:${endColumn}`,
+    });
+    return response.data.values ?? [];
   });
-  const values = response.data.values ?? [];
   const headers = (values[0] ?? []).map((value) => text(value));
   const rows = values.slice(1)
     .filter((row) => row.some((value) => text(value) !== ""))

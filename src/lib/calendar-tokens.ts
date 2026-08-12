@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { google } from "googleapis";
+import { cachedSheetsRead, invalidateSheetsCache } from "@/lib/sheets-cache";
 
 const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
 const serviceAccountEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
@@ -64,8 +65,10 @@ export type CalendarConnection = {
 };
 
 async function readRows(): Promise<{ headers: string[]; rows: string[][]; rowNumbers: number[] }> {
-  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `'${TAB}'!A1:G` });
-  const values = res.data.values ?? [];
+  const values = await cachedSheetsRead(`${TAB}:G:${spreadsheetId}`, async () => {
+    const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `'${TAB}'!A1:G` });
+    return res.data.values ?? [];
+  });
   const headers = (values[0] ?? HEADERS).map(text);
   const rows: string[][] = [];
   const rowNumbers: number[] = [];
@@ -130,6 +133,7 @@ export async function saveCalendarConnection(input: { email: string; accessToken
       requestBody: { values: [values] },
     });
   }
+  invalidateSheetsCache(TAB);
 }
 
 export async function deleteCalendarConnection(email: string): Promise<void> {
@@ -138,4 +142,5 @@ export async function deleteCalendarConnection(email: string): Promise<void> {
   const index = rows.findIndex((r) => text(r[0]).toLowerCase() === normalized);
   if (index < 0) return;
   await sheets.spreadsheets.values.clear({ spreadsheetId, range: `'${TAB}'!A${rowNumbers[index]}:G${rowNumbers[index]}` });
+  invalidateSheetsCache(TAB);
 }
