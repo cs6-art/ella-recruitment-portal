@@ -760,15 +760,19 @@ export async function createInterviewSlot(input: CreateInterviewSlotInput) {
 }
 
 /**
- * The n8n workflows own candidate email and booking links for the resume and
- * voice stages. Their pollers claim work by writing the same columns this
- * function used to set, so writing them here fought the workflows:
+ * n8n owns candidate email delivery and the resume-stage booking invitation.
+ * The portal owns final-stage token issuance and booking-link construction;
+ * n8n only sends the portal-generated final link after voice approval. Each
+ * poller claims work by writing the same columns this function used to set,
+ * so writing those claim fields here fought the workflows:
  *
  * - Voice stage: setting `Voice_Approval_Processed` to "Yes" on approval left
  *   Phase 5's filter (which only proceeds while that flag is blank/pending/error)
  *   permanently unsatisfied, so the final-interview email was never sent.
  * - Resume stage: the booking token and link written here were immediately
  *   overwritten by Phase 2, leaving a discarded token and a stale link.
+ * - Final stage: the portal creates the single-use token and n8n must not
+ *   generate a second token or replace the local-development booking URL.
  *
  * The portal therefore records the HR decision and the human-facing status only.
  * `Final_Status` is safe to write because neither workflow gates on it, and it

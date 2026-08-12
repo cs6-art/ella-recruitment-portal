@@ -42,6 +42,8 @@
         {"name":"Required_Interview_Question_1","value":"={{ $json.recruitmentSetup?.requiredInterviewQuestion1 || '' }}","type":"string"},
         {"name":"Required_Interview_Question_2","value":"={{ $json.recruitmentSetup?.requiredInterviewQuestion2 || '' }}","type":"string"},
         {"name":"Required_Interview_Question_3","value":"={{ $json.recruitmentSetup?.requiredInterviewQuestion3 || '' }}","type":"string"},
+        {"name":"Required_Interview_Question_4","value":"={{ $json.recruitmentSetup?.requiredInterviewQuestion4 || '' }}","type":"string"},
+        {"name":"Required_Interview_Question_5","value":"={{ $json.recruitmentSetup?.requiredInterviewQuestion5 || '' }}","type":"string"},
         {"name":"Final_AI_Evaluation_Template","value":"={{ $json.recruitmentSetup?.finalAiEvaluationTemplate || '' }}","type":"string"},
         {"name":"AI_System_Prompt","value":"={{ $json.recruitmentSetup?.aiSystemPrompt || '' }}","type":"string"},
         {"name":"VAPI_Resolved_System_Prompt","value":"={{ $json.recruitmentSetup?.resolvedAiSystemPrompt || '' }}","type":"string"},

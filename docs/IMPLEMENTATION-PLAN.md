@@ -29,7 +29,7 @@ Update the AI interview prompt to:
 - Ask whether the candidate has any final questions
 - Close the interview politely
 - Remove the five-minute restriction
-- Set a maximum interview duration of 15 minutes
+- Set a hard maximum interview duration of 10 minutes
 - Add a wrap-up instruction before the maximum duration
 - Add multilingual fallback instructions
 - Improve response depth for role-specific and technical questions
@@ -170,7 +170,7 @@ rules. Support rescheduling. Record no-show status.
 
 ### Step 9: AI phone interview
 Use the correct role-specific questions. Ask required questions exactly
-as configured. Evaluate against defined criteria. Apply the 15-minute
+as configured. Evaluate against defined criteria. Apply the 10-minute
 maximum. Perform proper wrap-up and courtesy closing. Use multilingual
 fallback when needed.
 

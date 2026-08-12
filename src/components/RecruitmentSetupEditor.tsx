@@ -603,7 +603,7 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
       <div className="vapi-builder">
         <div className="vapi-section-heading">
           <div><span className="vapi-kicker">INTERVIEW QUESTIONS</span><h3>What should Ella ask?</h3><p>Write 3 to 5 questions in the order you want them asked. Ella asks them exactly as written, one at a time, and doesn&apos;t make up her own. These questions appear directly in the script preview below.</p></div>
-          <span className={`vapi-count-badge ${questions.length >= 3 ? "complete" : ""}`}>{Math.min(questions.length, 3)} of 3 required</span>
+          <span className={`vapi-count-badge ${questions.length >= 3 ? "complete" : ""}`}>{questions.length} of {questionKeys.length} configured · 3 required</span>
         </div>
         <div className="vapi-question-grid">
           {questionKeys.map((key, index) => (
