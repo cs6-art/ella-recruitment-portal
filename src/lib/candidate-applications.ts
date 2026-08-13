@@ -33,6 +33,7 @@ export type ApplicantSummary = {
   appliedAt: string;
   matchScore: string;
   recommendation: string;
+  cvRecommendation: string;
   resumeStatus: string;
   voiceStatus: string;
   finalInterviewStatus: string;
@@ -72,6 +73,10 @@ export type ApplicantDetails = ApplicantSummary & {
   voiceBookingLink: string;
   bookingTokenStatus: string;
   bookingTokenExpiresAt: string;
+  finalBookingStatus: string;
+  finalScheduledDate: string;
+  finalScheduledTime: string;
+  finalTimezone: string;
   finalBookingLink: string;
   finalBookingTokenExpiresAt: string;
   lastUpdated: string;
@@ -179,9 +184,28 @@ function nextActionFor(record: SheetRow) {
   if (finalStatus.includes("approved for ai voice") || voiceStatus === "awaiting schedule") return "Schedule Voice Interview";
   if (voiceStatus === "scheduled" || finalStatus.includes("voice interview scheduled")) return "Complete Voice Interview";
   if (voiceStatus === "interviewed" && voiceDecision === "pending") return "Review Voice Interview";
+  if (finalInterviewStatus.includes("scheduled") || finalInterviewStatus.includes("booked") || finalStatus.includes("final interview scheduled")) return "Attend Final Interview";
   if (finalStatus.includes("approved for final") || finalInterviewStatus === "awaiting schedule") return "Schedule Final Interview";
-  if (finalInterviewStatus.includes("scheduled") || finalStatus.includes("final interview scheduled")) return "Prepare Final Interview";
   return "Review Application";
+}
+
+function workflowRecommendationFor(record: SheetRow) {
+  const currentStage = stageFor(record);
+  const normalizedStage = currentStage.toLowerCase();
+  const finalStatus = field(record, "Final_Status").toLowerCase();
+  const finalInterviewStatus = field(record, "Status 3 (Final Interview)").toLowerCase();
+
+  if (finalInterviewStatus.includes("scheduled") || finalInterviewStatus.includes("booked") || finalStatus.includes("final interview scheduled")) {
+    return "Final Interview Scheduled";
+  }
+
+  // The summary recommendation must reflect the applicant's current workflow
+  // stage. The original CV recommendation is kept separately for the CV panel.
+  if (currentStage && currentStage !== "Submitted" && normalizedStage !== "processed") {
+    return currentStage;
+  }
+
+  return field(record, "Recommendation") || "Pending HR Review";
 }
 
 function mapApplicant(record: SheetRow): ApplicantSummary {
@@ -198,7 +222,8 @@ function mapApplicant(record: SheetRow): ApplicantSummary {
     department: field(record, "Department"),
     appliedAt: field(record, "Date_of_Application", "Date of Application"),
     matchScore: field(record, "Match_Score", "Match Score"),
-    recommendation: field(record, "Recommendation"),
+    recommendation: workflowRecommendationFor(record),
+    cvRecommendation: field(record, "Recommendation"),
     resumeStatus: field(record, "Status (Resume Processing)"),
     voiceStatus,
     finalInterviewStatus,
@@ -340,6 +365,10 @@ export async function getApplicantById(id: string): Promise<ApplicantDetails | n
     voiceBookingLink: field(record, "Voice_Interview_Booking_Link"),
     bookingTokenStatus: field(record, "Booking_Token_Status"),
     bookingTokenExpiresAt: field(record, "Booking_Token_Expires_At"),
+    finalBookingStatus: field(record, "Final_Interview_Booking_Token_Status"),
+    finalScheduledDate: field(record, "Final_Interview_Scheduled_Date"),
+    finalScheduledTime: field(record, "Final_Interview_Scheduled_Time"),
+    finalTimezone: field(record, "Final_Interview_Timezone"),
     finalBookingLink: field(record, "Final_Interview_Booking_Link"),
     finalBookingTokenExpiresAt: field(record, "Final_Interview_Booking_Token_Expires_At"),
     lastUpdated: field(record, "Last_Updated"),
