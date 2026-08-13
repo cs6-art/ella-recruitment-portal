@@ -203,7 +203,7 @@ export async function checkCalendarAvailability(input: Pick<CalendarEventInput, 
         if (!eventStart || !eventEnd) return false;
         return Date.parse(eventStart) < end.getTime() && Date.parse(eventEnd) > start.getTime();
       });
-      if (conflict) return { available: false, checked: true, reason: "conflict", busyUntil: conflict.end?.dateTime || conflict.end?.date };
+      if (conflict) return { available: false, checked: true, reason: "conflict", busyUntil: conflict.end?.dateTime || conflict.end?.date || undefined };
       return { available: true, checked: true };
     }
   } catch (error) {

@@ -25,6 +25,12 @@ export function canEditRecruitmentSetup(user: SessionUser): boolean {
   return user.canReviewRole === true;
 }
 
+export function canEditHodAvailability(user: Pick<SessionUser, "email" | "canReviewRole">, role: Pick<RoleRequestDetails, "hodEmail" | "requesterEmail">): boolean {
+  if (user.canReviewRole === true) return true;
+  const email = user.email.trim().toLowerCase();
+  return [role.hodEmail, role.requesterEmail].some((value) => value.trim().toLowerCase() === email);
+}
+
 export function canUseRecruitmentSetup(status: string): boolean {
   return status === "Approved" || status === "Recruitment Setup";
 }

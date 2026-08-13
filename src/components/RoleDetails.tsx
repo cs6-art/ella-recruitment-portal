@@ -5,7 +5,9 @@ import { useEffect, useState, type ReactNode } from "react";
 
 import ActionFeedback from "@/components/ActionFeedback";
 import HrReview, { type RoleStatusHistoryEntry } from "@/components/HrReview";
+import HodAvailabilityEditor from "@/components/HodAvailabilityEditor";
 import RecruitmentSetupEditor from "@/components/RecruitmentSetupEditor";
+import { canEditHodAvailability } from "@/lib/access-control";
 import { formatEmail } from "@/lib/formatters";
 import { getStatusActionLabel } from "@/lib/status-actions";
 
@@ -19,7 +21,7 @@ type RoleRequestDetails = {
   preferredQualifications: string; roleExpectations: string; salaryMin: string; salaryMax: string; workSchedule: string;
   noticePeriodRequirement: string; salaryExpectationGuidance: string;
   jobDescription: string; screeningCriteria: string; initialInterviewQuestions: string; aiSystemPrompt: string; aiInterviewerName?: string; aiInterviewerBehavior?: string; requiredInterviewQuestion1?: string; requiredInterviewQuestion2?: string; requiredInterviewQuestion3?: string; requiredInterviewQuestion4?: string; requiredInterviewQuestion5?: string; finalAiEvaluationTemplate?: string;
-  hodAvailabilityDates: string; hodAvailabilityTimes: string; customScreeningQuestion1: string; customScreeningQuestion2: string; aiGeneratedScreeningQuestions: string;
+  hodAvailabilityDates: string; hodAvailabilityTimes: string; hodAvailabilitySlots: string; customScreeningQuestion1: string; customScreeningQuestion2: string; aiGeneratedScreeningQuestions: string;
   voiceInterviewAvailabilityMode: string; voiceInterviewSlots: string; voiceInterviewAutoStartDate: string; voiceInterviewAutoEndDate: string; voiceInterviewTimezone: string; voiceInterviewSlotsGeneratedAt: string;
   initialInterviewBookingLink: string; hodInterviewBookingLink: string; postingChannels: string; licenseOrCertificateRequired: string;
   keywordsToLookFor: string; minimumYearsOfExperience: string; transferableSkillsAccepted: string; salaryOrBudgetRange: string;
@@ -29,7 +31,7 @@ type RoleRequestDetails = {
 };
 
 type ApiResponse = { success?: boolean; role?: RoleRequestDetails; history?: RoleStatusHistoryEntry[]; error?: string };
-type Props = { roleId: string; canReviewRole: boolean; canApproveRole: boolean };
+type Props = { roleId: string; userEmail: string; canReviewRole: boolean; canApproveRole: boolean };
 
 function hasValue(value: string | number | undefined | null) { return value !== undefined && value !== null && String(value).trim() !== ""; }
 function dateValue(value?: string) {
@@ -94,7 +96,7 @@ function HistoryTimeline({ history }: { history: RoleStatusHistoryEntry[] }) {
   })}</div>}</Card>;
 }
 
-export default function RoleDetails({ roleId, canReviewRole, canApproveRole }: Props) {
+export default function RoleDetails({ roleId, userEmail, canReviewRole, canApproveRole }: Props) {
   const [role, setRole] = useState<RoleRequestDetails | null>(null); const [history, setHistory] = useState<RoleStatusHistoryEntry[]>([]);
   const [loading, setLoading] = useState(true); const [refreshing, setRefreshing] = useState(false); const [error, setError] = useState(""); const [successMessage, setSuccessMessage] = useState(""); const [warningMessage, setWarningMessage] = useState("");
   async function loadRole(preserveView = false, expectedStatus = "") { if (!preserveView) setLoading(true); setError(""); try { const response = await fetch(`/api/roles/${encodeURIComponent(roleId)}`, { cache: "no-store", credentials: "same-origin" }); const raw = await response.text(); const data: ApiResponse = raw ? JSON.parse(raw) : {}; if (!response.ok || data.success !== true || !data.role) throw new Error(data.error || "Unable to load the role request."); const refreshedRole = expectedStatus && data.role.status !== expectedStatus ? { ...data.role, status: expectedStatus } : data.role; setRole(refreshedRole); setHistory(Array.isArray(data.history) ? data.history : []); } catch (caught) { setError(caught instanceof Error ? caught.message : "Unable to load the role request."); } finally { if (!preserveView) setLoading(false); } }
@@ -109,8 +111,9 @@ export default function RoleDetails({ roleId, canReviewRole, canApproveRole }: P
     <div className="role-layout"><div className="role-main-column">
       <Card id="overview" title="Request Summary"><DefinitionList><Field label="Role ID" value={role.roleId}/><Field label="Date Submitted" value={dateValue(role.createdAt)}/><Field label="Request Type" value={role.requestType}/><Field label="Department" value={role.department}/><Field label="Job Title" value={role.jobTitle}/><Field label="Number of Vacancies" value={role.numberOfVacancies}/><Field label="Source" value={role.source}/><Field label="Latest Comments" value={role.latestComments} wide/></DefinitionList></Card>
       <Card id="details" title="Employment and Role Requirements"><DefinitionList><Field label="Reporting Manager" value={role.reportingManager}/><Field label="Work Location" value={role.workLocation}/><Field label="Employment Type" value={role.employmentType}/><Field label="Work Schedule" value={role.workSchedule}/><Field label="Target Hiring Date" value={dateValue(role.targetHiringDate)}/>{role.requestType === "Staff Replacement" && <Field label="Replacement Employee" value={role.replacementEmployee}/>}<Field label="Minimum Salary" value={salaryValue(role.salaryMin)}/><Field label="Maximum Salary" value={salaryValue(role.salaryMax)}/><Field label="Reason for Request" value={role.reasonForRequest} wide/><Field label="Job Responsibilities" value={role.jobResponsibilities} wide/><Field label="Required Skills" value={role.requiredSkills} wide/><Field label="Experience Required" value={role.experienceRequired}/><Field label="Education Requirements" value={role.educationRequirements}/><Field label="Preferred Qualifications" value={role.preferredQualifications} wide/><Field label="Role Expectations" value={role.roleExpectations} wide/></DefinitionList></Card>
-      <Card title="Interview Readiness"><DefinitionList><Field label="HOD / Interviewer Email" value={role.hodEmail} wide/><Field label="HOD Availability Dates" value={role.hodAvailabilityDates} wide/><Field label="HOD Availability Times" value={role.hodAvailabilityTimes} wide/><Field label="Notice Period or Availability" value={role.noticePeriodRequirement} wide/><Field label="Booking Link" value="Generated from interview slots after the workflow is connected." wide/></DefinitionList></Card>
+      <Card title="Interview Readiness"><DefinitionList><Field label="HOD / Interviewer Email" value={role.hodEmail} wide/><Field label="Notice Period or Availability" value={role.noticePeriodRequirement} wide/><Field label="Booking Link" value="Generated from interview slots after the workflow is connected." wide/></DefinitionList></Card>
     </div><aside className="role-side-column"><Card title="People and Audit"><DefinitionList><Field label="Requester Name" value={role.requesterName}/><Field label="Requester Email" value={role.requesterEmail}/><Field label="Requester Type" value={role.requesterType}/><Field label="Submitted By" value={role.submittedByName}/><Field label="Submitted By Email" value={role.submittedByEmail}/><Field label="Created At" value={dateValue(role.createdAt)}/><Field label="Last Updated" value={dateValue(role.lastUpdatedAt)}/><Field label="Last Updated By" value={role.lastUpdatedByName}/><Field label="Last Updated By Email" value={role.lastUpdatedByEmail}/></DefinitionList></Card><Card title="Approval Details">{hasValue(role.approvedBy) || hasValue(role.approvedAt) || hasValue(role.managementComments) ? <DefinitionList><Field label="Management Comments" value={role.managementComments} wide/><Field label="Approved By" value={role.approvedBy}/><Field label="Approved At" value={dateValue(role.approvedAt)}/></DefinitionList> : <div className="empty">{role.status === "Rejected" ? "This request was rejected before management approval." : "Not yet approved by management."}</div>}</Card></aside></div>
+    {["Approved", "Recruitment Setup", "Job Posted"].includes(role.status) && <HodAvailabilityEditor roleId={role.roleId} status={role.status} availability={role.hodAvailabilitySlots} editable={canEditHodAvailability({ email: userEmail, canReviewRole }, role)} onSaved={() => void loadRole(true)} />}
     <RecruitmentSetupEditor roleId={role.roleId} status={role.status} editable={canReviewRole} updatedAt={role.recruitmentSetupUpdatedAt} updatedBy={role.recruitmentSetupUpdatedByName} updatedByEmail={role.recruitmentSetupUpdatedByEmail} onSaved={() => void loadRole()} setup={setup}/>
     <HrReview roleId={role.roleId} status={role.status} canReviewRole={canReviewRole} canApproveRole={canApproveRole} history={history} onSuccess={(message, warning, updatedStatus) => { setSuccessMessage(message); setWarningMessage(warning || ""); if (updatedStatus) setRole((current) => current ? { ...current, status: updatedStatus } : current); void loadRole(true, updatedStatus || ""); }} onConflict={() => void loadRole()}/>
     <HistoryTimeline history={history}/>

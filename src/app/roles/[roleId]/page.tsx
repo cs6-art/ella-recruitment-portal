@@ -43,6 +43,7 @@ export default async function RoleDetailsPage({
     <AppShell user={user}>
       <RoleDetails
         roleId={decodeURIComponent(roleId)}
+        userEmail={user.email}
         canReviewRole={user.canReviewRole === true}
         canApproveRole={user.canApproveRole === true}
       />
