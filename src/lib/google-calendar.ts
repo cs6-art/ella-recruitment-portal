@@ -141,14 +141,16 @@ export async function createFinalInterviewEvent(input: CalendarEventInput): Prom
     if (!client) return { created: false, reason: "not_connected" };
 
     const calendar = google.calendar({ version: "v3", auth: client });
+    const start = scheduledInstant(input.date, input.startTime, input.timezone);
+    const end = scheduledInstant(input.date, input.endTime, input.timezone);
     const response = await calendar.events.insert({
       calendarId: "primary",
       sendUpdates: "all",
       requestBody: {
         summary: input.summary,
         description: input.description,
-        start: { dateTime: `${input.date}T${input.startTime}`, timeZone: input.timezone },
-        end: { dateTime: `${input.date}T${input.endTime}`, timeZone: input.timezone },
+        start: { dateTime: start.toISOString(), timeZone: input.timezone },
+        end: { dateTime: end.toISOString(), timeZone: input.timezone },
         attendees: input.attendeeEmails.map((email) => ({ email })),
       },
     });

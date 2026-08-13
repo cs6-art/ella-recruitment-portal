@@ -1,6 +1,9 @@
 /** Convert a local date/time in an IANA timezone to an absolute instant. */
 export function scheduledInstant(date: string, time: string, timeZone: string): Date {
-  const normalizedTime = /^\d{2}:\d{2}$/.test(time) ? `${time}:00` : time;
+  const timeMatch = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(time.trim());
+  const normalizedTime = timeMatch
+    ? `${timeMatch[1].padStart(2, "0")}:${timeMatch[2]}:${timeMatch[3] || "00"}`
+    : time;
   const parsed = new Date(`${date}T${normalizedTime}Z`);
   if (Number.isNaN(parsed.getTime())) throw new Error("Invalid interview date or time.");
 
