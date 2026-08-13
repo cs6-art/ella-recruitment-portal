@@ -182,6 +182,7 @@ function nextActionFor(record: SheetRow) {
   const finalInterviewStatus = field(record, "Status 3 (Final Interview)").toLowerCase();
 
   if (finalStatus.includes("approved for ai voice") || voiceStatus === "awaiting schedule") return "Schedule Voice Interview";
+  if (["calling", "initiated", "in progress"].includes(voiceStatus)) return "Voice Interview In Progress";
   if (voiceStatus === "scheduled" || finalStatus.includes("voice interview scheduled")) return "Complete Voice Interview";
   if (voiceStatus === "interviewed" && voiceDecision === "pending") return "Review Voice Interview";
   if (finalInterviewStatus.includes("scheduled") || finalInterviewStatus.includes("booked") || finalStatus.includes("final interview scheduled")) return "Attend Final Interview";
@@ -193,7 +194,12 @@ function workflowRecommendationFor(record: SheetRow) {
   const currentStage = stageFor(record);
   const normalizedStage = currentStage.toLowerCase();
   const finalStatus = field(record, "Final_Status").toLowerCase();
+  const voiceStatus = field(record, "Status 2 (Voice Interview)").toLowerCase();
   const finalInterviewStatus = field(record, "Status 3 (Final Interview)").toLowerCase();
+
+  if (["calling", "initiated", "in progress"].includes(voiceStatus) || finalStatus.includes("voice interview in progress")) {
+    return "AI Voice Interview In Progress";
+  }
 
   if (finalInterviewStatus.includes("scheduled") || finalInterviewStatus.includes("booked") || finalStatus.includes("final interview scheduled")) {
     return "Final Interview Scheduled";
