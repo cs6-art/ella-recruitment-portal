@@ -1,12 +1,18 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
+
+import ActionFeedback from "@/components/ActionFeedback";
+import { formatMatchScore } from "@/lib/score-format";
 
 type Stage = "resume" | "voice" | "final";
 type Props = {
   applicationId: string;
   resumeDecision: string;
+  resumeComments: string;
   voiceDecision: string;
+  voiceComments: string;
   voiceStatus: string;
   finalInterviewStatus: string;
   voiceBookingLink: string;
@@ -20,7 +26,34 @@ type Props = {
 };
 
 function isDecided(current: string) {
-  return current === "Approve" || current === "Reject" || current.includes("Passed") || current.includes("Rejected");
+  const normalized = current.trim().toLowerCase();
+  return normalized === "approve" || normalized === "approved" ||
+    normalized === "reject" || normalized === "rejected" ||
+    normalized === "manual review" || normalized === "return for review" || normalized === "to review" ||
+    normalized.includes("passed") || normalized.includes("rejected");
+}
+
+function decisionLabel(value: string) {
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "approve" || normalized === "approved") return "Approved";
+  if (normalized === "reject" || normalized === "rejected") return "Rejected";
+  if (normalized === "manual review" || normalized === "return for review" || normalized === "to review") return "Return for review";
+  return value || "Pending";
+}
+
+function isRejectedDecision(value: string) {
+  const normalized = value.trim().toLowerCase();
+  return normalized === "reject" || normalized === "rejected" || normalized.includes("rejected");
+}
+
+function reviewStage(props: Props): Stage {
+  if (/completed/i.test(props.finalInterviewStatus)) return "final";
+  if (/interviewed|completed/i.test(props.voiceStatus)) return "voice";
+  return "resume";
+}
+
+function CompletedDecision({ title, decision, comments }: { title: string; decision: string; comments: string }) {
+  return <div className="applicant-completed-decision"><div className="applicant-decision-title"><strong>{title}</strong><span className={`applicant-decision-badge ${isRejectedDecision(decision) ? "is-rejected" : ""}`}>{decisionLabel(decision)}</span></div>{comments ? <div className="applicant-completed-comments"><span>Comments</span><p>{comments}</p></div> : <p className="applicant-completed-empty">No comments were recorded for this decision.</p>}</div>;
 }
 
 function DecisionRow({ stage, title, description, current, link, enabled = true, applicationId, canReview, evidence, onSaved }: {
@@ -38,6 +71,7 @@ function DecisionRow({ stage, title, description, current, link, enabled = true,
   const [busy, setBusy] = useState(false);
   const [comments, setComments] = useState("");
   const [error, setError] = useState("");
+  const router = useRouter();
   const decided = isDecided(current);
 
   async function decide(decision: "Approve" | "Reject" | "Manual Review") {
@@ -49,6 +83,7 @@ function DecisionRow({ stage, title, description, current, link, enabled = true,
       const data = await response.json();
       if (!response.ok || !data.success) throw new Error(data.error || "Unable to save decision.");
       onSaved(decision === "Approve" ? `${title} approved.` : decision === "Reject" ? `${title} marked rejected.` : `${title} returned for review.`);
+      router.refresh();
       setComments("");
     } catch (decisionError) { setError(decisionError instanceof Error ? decisionError.message : "Unable to save decision."); }
     finally { setBusy(false); }
@@ -56,22 +91,23 @@ function DecisionRow({ stage, title, description, current, link, enabled = true,
 
   return <div className="applicant-decision-row">
     <div className="applicant-decision-copy">
-      <div className="applicant-decision-title"><strong>{title}</strong>{current && <span className={`applicant-decision-badge ${current === "Reject" || current.includes("Rejected") ? "is-rejected" : "is-approved"}`}>{current}</span>}</div>
+      <div className="applicant-decision-title"><strong>{title}</strong>{current && <span className={`applicant-decision-badge ${isRejectedDecision(current) ? "is-rejected" : "is-approved"}`}>{decisionLabel(current)}</span>}</div>
       <p>{description}</p>
-      {evidence && <div className="voice-review-evidence"><div className="voice-review-metrics"><div><span>AI score</span><strong>{evidence.score || "Not provided"}</strong></div><div><span>Recommendation</span><strong>{evidence.recommendation || "Not provided"}</strong></div></div><div className="voice-review-copy"><span>AI summary</span><p>{evidence.summary || "No AI summary is available."}</p></div><div className="voice-review-copy"><span>Concerns</span><p>{evidence.concerns || "No concerns recorded."}</p></div>{evidence.transcript && <details className="voice-review-transcript"><summary>View transcript</summary><pre>{evidence.transcript}</pre></details>}</div>}
+      {evidence && <div className="voice-review-evidence"><div className="voice-review-evidence-heading"><strong>AI review evidence</strong><span>Scroll to review the complete evaluation.</span></div><div className="voice-review-metrics"><div><span>Voice AI score</span><strong>{evidence.score ? formatMatchScore(evidence.score) : "Awaiting AI evaluation"}</strong></div><div><span>Recommendation</span><strong>{evidence.recommendation || "Awaiting AI evaluation"}</strong></div></div><div className="voice-review-copy"><span>AI summary</span><p>{evidence.summary || "No AI summary is available."}</p></div><div className="voice-review-copy"><span>Concerns</span><p>{evidence.concerns || "No concerns recorded."}</p></div>{evidence.transcript && <details className="voice-review-transcript"><summary>View transcript</summary><pre>{evidence.transcript}</pre></details>}</div>}
       {link && <a className="applicant-booking-link" href={link} target="_blank" rel="noreferrer">Open Booking Link</a>}
       <label className="field applicant-decision-comments" htmlFor={`${stage}-decision-comments`}><span>Comments *</span><textarea id={`${stage}-decision-comments`} value={comments} disabled={busy || !canReview || !enabled || decided} minLength={1} maxLength={5000} required placeholder={stage === "voice" ? "Explain the HOD interview decision or return note." : "Explain the decision or provide the review note."} onChange={(event) => { setComments(event.target.value); setError(""); }} /></label>
-      {error && <small className="applicant-decision-error" role="alert">{error}</small>}
+      {error && <ActionFeedback kind="error" className="applicant-decision-error">{error}</ActionFeedback>}
+      {canReview && enabled && !decided && <div className="applicant-decision-actions"><button type="button" className="btn btn-primary" disabled={busy} onClick={() => void decide("Approve")}>{busy ? "Saving..." : "Approve"}</button><button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void decide("Reject")}>Reject</button><button type="button" title="Request Manual Review" className="btn btn-secondary" disabled={busy} onClick={() => void decide("Manual Review")}>Return for review</button></div>}
     </div>
-    {canReview && enabled && !decided && <div className="applicant-decision-actions"><button type="button" className="btn btn-primary" disabled={busy} onClick={() => void decide("Approve")}>{busy ? "Saving..." : stage === "voice" ? "Approve for HOD Interview" : "Approve"}</button><button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void decide("Reject")}>Reject</button><button type="button" title="Request Manual Review" className="btn btn-secondary" disabled={busy} onClick={() => void decide("Manual Review")}>Return for review</button></div>}
   </div>;
 }
 
 export default function ApplicantDecisionPanel(props: Props) {
   const [message, setMessage] = useState("");
-  return <section className="card applicant-decision-card"><div className="card-header"><div><h2>HR workflow decisions</h2><p>Review Ella&apos;s evidence, then approve, reject, or return the voice interview for review. Comments are required.</p></div></div>{message && <div className="applicant-decision-success" role="status">{message}</div>}<div className="applicant-decision-list">
-    <DecisionRow stage="resume" title="AI CV Analysis" description="Applicant applied. HR reviews Ella&apos;s CV analysis recommendation first." current={props.resumeDecision} applicationId={props.applicationId} canReview={props.canReview} onSaved={setMessage} />
-    <DecisionRow stage="voice" title="Voice Interview Review" description="Review the transcript, summary, score, and recommendation before approving the HOD interview." current={props.voiceDecision} link={props.finalBookingLink} enabled={props.voiceStatus === "Interviewed" || props.voiceStatus === "Completed"} evidence={{ summary: props.voiceSummary, score: props.voiceScore, recommendation: props.voiceRecommendation, concerns: props.voiceConcerns, transcript: props.voiceTranscript }} applicationId={props.applicationId} canReview={props.canReview} onSaved={setMessage} />
-    <DecisionRow stage="final" title="Final Interview Decision" description="Record the final interview outcome after the interviewer has completed the meeting." current={props.finalInterviewStatus === "Interview Completed" ? "" : props.finalInterviewStatus} enabled={props.finalInterviewStatus.includes("Scheduled") || props.finalInterviewStatus === "Interview Completed"} applicationId={props.applicationId} canReview={props.canReview} onSaved={setMessage} />
+  const stage = reviewStage(props);
+  return <section className="card applicant-decision-card"><div className="card-header"><div><h2>HR Decisions</h2><p>Review the applicant&apos;s current workflow stage. Comments are required for every decision.</p></div></div>{message && <ActionFeedback kind="success" className="applicant-decision-success">{message}</ActionFeedback>}<div className="applicant-decision-list">
+    {stage === "resume" && (isDecided(props.resumeDecision) ? <CompletedDecision title="AI CV Analysis" decision={props.resumeDecision} comments={props.resumeComments} /> : <DecisionRow stage="resume" title="AI CV Analysis" description="Review Ella&apos;s CV analysis recommendation before moving the applicant to the voice interview." current={props.resumeDecision} applicationId={props.applicationId} canReview={props.canReview} onSaved={setMessage} />)}
+    {stage === "voice" && <><CompletedDecision title="AI CV Analysis" decision={props.resumeDecision} comments={props.resumeComments} />{isDecided(props.voiceDecision) ? <CompletedDecision title="Voice Interview Review" decision={props.voiceDecision} comments={props.voiceComments} /> : <DecisionRow stage="voice" title="Voice Interview Review" description="Review the transcript, summary, score, and recommendation before approving the applicant for the next stage." current={props.voiceDecision} link={props.finalBookingLink} enabled evidence={{ summary: props.voiceSummary, score: props.voiceScore, recommendation: props.voiceRecommendation, concerns: props.voiceConcerns, transcript: props.voiceTranscript }} applicationId={props.applicationId} canReview={props.canReview} onSaved={setMessage} />}</>}
+    {stage === "final" && <><CompletedDecision title="Voice Interview Review" decision={props.voiceDecision} comments={props.voiceComments} />{isDecided(props.finalInterviewStatus) ? <CompletedDecision title="Final Interview Decision" decision={props.finalInterviewStatus} comments="" /> : <DecisionRow stage="final" title="Final Interview Decision" description="Record the final interview outcome after the interviewer has completed the meeting." current={props.finalInterviewStatus === "Interview Completed" ? "" : props.finalInterviewStatus} enabled applicationId={props.applicationId} canReview={props.canReview} onSaved={setMessage} />}</>}
   </div></section>;
 }

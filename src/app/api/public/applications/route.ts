@@ -32,15 +32,15 @@ export async function POST(request: Request) {
     const parsed = candidateApplicationSubmissionSchema.safeParse(candidateBodyForValidation(intake.body, intake.resumeFile));
 
     if (!parsed.success) {
-      return responseError("Name, email, preferred mobile, resume details, and consent are required.", 422);
+      return responseError("Full name, contact number, role, resume, and consent are required.", 422);
     }
 
     if (!parsed.data.consent) {
-      return responseError("Name, email, preferred mobile, resume details, and consent are required.", 422);
+      return responseError("Full name, contact number, role, resume, and consent are required.", 422);
     }
 
     if (!isPreferredMobileValid(parsed.data.preferredMobile)) {
-      return responseError("Preferred mobile must use an international number such as +639171234567 or +6581234567.", 422, { field: "preferredMobile" });
+      return responseError("Contact number must include a valid country code and local number.", 422, { field: "preferredMobile" });
     }
 
     const roleId = parsed.data.roleId.trim();
@@ -69,6 +69,8 @@ export async function POST(request: Request) {
     const payload = buildCandidateApplicationPayload({
       applicationId,
       roleId,
+      jobTitle: role.jobTitle,
+      department: role.department,
       source: "Public Application Page",
       submittedAt,
       candidate: {

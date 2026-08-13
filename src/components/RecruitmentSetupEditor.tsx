@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import ActionFeedback from "@/components/ActionFeedback";
 import { notificationPresentation } from "@/lib/notification-status";
 import {
   renderRecruitmentSystemPrompt,
@@ -18,6 +19,7 @@ import {
   type SetupReadinessInput,
   type SetupReadinessLevel,
 } from "@/lib/recruitment-setup-readiness";
+import { parseVoiceInterviewSlots, type VoiceInterviewSlot } from "@/lib/voice-interview-availability";
 
 type Setup = {
   roleTitle?: string;
@@ -28,6 +30,9 @@ type Setup = {
   requiredInterviewQuestion3?: string;
   requiredInterviewQuestion4?: string;
   requiredInterviewQuestion5?: string;
+  hodScreeningQuestion1?: string;
+  hodScreeningQuestion2?: string;
+  aiGeneratedScreeningQuestions?: string | string[];
   aiSystemPrompt: string;
   resolvedAiSystemPrompt?: string;
   initialInterviewBookingLink: string;
@@ -49,6 +54,12 @@ type Setup = {
   experienceRequirementStatus?: string;
   licenseRequirementStatus?: string;
   hodInterviewRequired?: string;
+  voiceInterviewAvailabilityMode?: string;
+  voiceInterviewSlots?: VoiceInterviewSlot[] | string;
+  voiceInterviewAutoStartDate?: string;
+  voiceInterviewAutoEndDate?: string;
+  voiceInterviewTimezone?: string;
+  voiceInterviewSlotsGeneratedAt?: string;
   recruitmentSetupStatus?: string;
   applicationLink?: string;
 };
@@ -65,6 +76,7 @@ type Props = {
 };
 
 type SetupField = keyof Setup;
+type SetupValue = string | string[] | VoiceInterviewSlot[];
 
 type RecruitmentTemplate = {
   id: string;
@@ -101,22 +113,51 @@ function valueText(value: unknown) {
   return String(value ?? "").trim();
 }
 
+function editorVoiceSlots(value: VoiceInterviewSlot[] | string | undefined): VoiceInterviewSlot[] {
+  return Array.isArray(value) ? value : parseVoiceInterviewSlots(value);
+}
+
 function questionFallbacks(setup: Setup) {
   return questionKeys.map((key) => valueText(setup[key]));
 }
 
+function suggestedQuestionItems(value: string | string[] | undefined) {
+  let source: string[] = Array.isArray(value) ? value.map(String) : String(value || "").split(/\r?\n/);
+  if (source.length === 1 && source[0].trim().startsWith("[")) {
+    try {
+      const parsed = JSON.parse(source[0]);
+      if (Array.isArray(parsed)) source = parsed.map(String);
+    } catch {
+      // Keep the original text when an older workflow stores non-JSON text.
+    }
+  }
+  return source
+    .map((question) => question.replace(/^\s*(?:[-•*]|\d+[.)])\s*/, "").trim())
+    .filter(Boolean)
+    .slice(0, 3);
+}
+
 function buildInitialValues(setup: Setup): Setup {
   const questions = questionFallbacks(setup);
+  const hodQuestion1 = valueText(setup.hodScreeningQuestion1);
+  const hodQuestion2 = valueText(setup.hodScreeningQuestion2);
   return {
     ...setup,
-    requiredInterviewQuestion1: questions[0],
-    requiredInterviewQuestion2: questions[1],
+    // Slots 1-2 are reserved for the HOD's own screening questions from the
+    // role request, when they provided any — HR fills in the remaining slots.
+    requiredInterviewQuestion1: hodQuestion1 || questions[0],
+    requiredInterviewQuestion2: hodQuestion2 || questions[1],
     requiredInterviewQuestion3: questions[2],
     requiredInterviewQuestion4: questions[3],
     requiredInterviewQuestion5: questions[4],
     postingChannels: normalizeChannels(setup.postingChannels),
     evaluationFieldToggles: normalizeChannels(setup.evaluationFieldToggles),
     customEvaluationFields: Array.isArray(setup.customEvaluationFields) ? setup.customEvaluationFields.slice(0, 3) : [],
+    voiceInterviewAvailabilityMode: setup.voiceInterviewAvailabilityMode || "none",
+    voiceInterviewSlots: parseVoiceInterviewSlots(setup.voiceInterviewSlots),
+    voiceInterviewAutoStartDate: setup.voiceInterviewAutoStartDate || "",
+    voiceInterviewAutoEndDate: setup.voiceInterviewAutoEndDate || "",
+    voiceInterviewTimezone: setup.voiceInterviewTimezone || "Asia/Singapore",
     recruitmentSetupStatus: setup.recruitmentSetupStatus || "Draft",
   };
 }
@@ -189,6 +230,7 @@ function Field({
   placeholder,
   multiline = false,
   required = false,
+  type = "text",
 }: {
   id: string;
   label: string;
@@ -199,6 +241,7 @@ function Field({
   placeholder?: string;
   multiline?: boolean;
   required?: boolean;
+  type?: "text" | "date";
 }) {
   return (
     <label className={`field${multiline ? " field-wide" : ""}`} htmlFor={id}>
@@ -206,7 +249,7 @@ function Field({
       {multiline ? (
         <textarea id={id} value={value ?? ""} disabled={disabled} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} />
       ) : (
-        <input id={id} value={value ?? ""} disabled={disabled} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} />
+        <input id={id} type={type} value={value ?? ""} disabled={disabled} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} />
       )}
       {hint && <small>{hint}</small>}
     </label>
@@ -267,6 +310,7 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
   const generated = useMemo(() => generatedPrompt(values, currentPrompt), [currentPrompt, values]);
   const generatedSample = useMemo(() => generatedSamplePrompt(values, currentPrompt), [currentPrompt, values]);
   const questions = getQuestions(values);
+  const suggestedQuestions = useMemo(() => suggestedQuestionItems(values.aiGeneratedScreeningQuestions), [values.aiGeneratedScreeningQuestions]);
   const draftPayload = promptPayload(values, currentPrompt, "save_draft", actionRequestId.current);
   const draftReadiness = getSetupReadiness(draftPayload as SetupReadinessInput, "draft");
   const recruitmentReadiness = getSetupReadiness(draftPayload as SetupReadinessInput, "recruitment-ready");
@@ -277,11 +321,38 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
 
   if (!(status === "Approved" || status === "Recruitment Setup")) return null;
 
-  const update = (key: SetupField, value: string | string[]) => {
+  const update = (key: SetupField, value: SetupValue) => {
     setValues((current) => ({ ...current, [key]: value }));
     setMessage("");
     setWarning("");
     setError("");
+  };
+
+  const updateVoiceSlot = (index: number, key: keyof VoiceInterviewSlot, value: string) => {
+    const slots = [...editorVoiceSlots(values.voiceInterviewSlots)];
+    slots[index] = { ...slots[index], [key]: value };
+    update("voiceInterviewSlots", slots);
+  };
+
+  const addVoiceSlot = () => {
+    const slots = editorVoiceSlots(values.voiceInterviewSlots);
+    if (slots.length >= 100) return;
+    update("voiceInterviewSlots", [...slots, { date: "", startTime: "09:00", endTime: "09:30", timezone: values.voiceInterviewTimezone || "Asia/Singapore" }]);
+  };
+
+  const removeVoiceSlot = (index: number) => update("voiceInterviewSlots", editorVoiceSlots(values.voiceInterviewSlots).filter((_, slotIndex) => slotIndex !== index));
+
+  const applySuggestedQuestion = (question: string) => {
+    const targetIndex = questionKeys.findIndex((key, index) => {
+      const lockedFromHod = index === 0 ? valueText(values.hodScreeningQuestion1) : index === 1 ? valueText(values.hodScreeningQuestion2) : "";
+      return !lockedFromHod && !valueText(values[key]);
+    });
+    if (targetIndex < 0) {
+      setWarning("All editable interview question fields are already filled. Clear one before using this suggestion.");
+      return;
+    }
+    update(questionKeys[targetIndex], question);
+    setMessage(`Suggestion added to Question ${targetIndex + 1}. Review or edit it before saving.`);
   };
 
   const applyStandardTemplate = () => {
@@ -443,7 +514,7 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
       if (!response.ok || result.success !== true) throw new Error(result.message || result.error || "Unable to save recruitment setup.");
       const notification = notificationPresentation(result.notificationStatus || "not_configured", result.notificationError);
       setMessage(result.message || "VAPI setup saved successfully.");
-      setWarning(notification.warning || "");
+      setWarning([notification.warning, typeof result.voiceSlotWarning === "string" ? result.voiceSlotWarning : ""].filter(Boolean).join(" "));
       actionRequestId.current = globalThis.crypto.randomUUID();
       onSaved();
     } catch (caught) {
@@ -458,22 +529,22 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
       <div className="card-header">
         <div>
           <span className="eyebrow-dark">RECRUITMENT SETUP</span>
-          <h2>Interview Setup</h2>
-          <p className="section-subtitle">Fill in what Ella should look for when she screens candidates for this role.</p>
+          <h2>AI Phone Interview Setup</h2>
+          <p className="section-subtitle">Set up what Ella asks and looks for when she calls candidates for this role.</p>
           {updatedAt && <small>Last saved {formatDate(updatedAt)}{updatedBy ? ` by ${updatedBy}` : ""}</small>}
         </div>
         <span className="setup-readonly">{editable ? "Editable by HR reviewers" : "Read-only"}</span>
       </div>
 
-      {error && <div className="error-box vapi-message" role="alert">{error}</div>}
-      {message && <div className="success-box vapi-message" role="status">{message}</div>}
-      {warning && <div className="warning-box vapi-message" role="status">{warning}</div>}
+      {error && <ActionFeedback kind="error" className="vapi-message">{error}</ActionFeedback>}
+      {message && <ActionFeedback kind="success" className="vapi-message">{message}</ActionFeedback>}
+      {warning && <ActionFeedback kind="warning" className="vapi-message">{warning}</ActionFeedback>}
 
       <div className="vapi-template-bar">
         <div>
-          <span className="vapi-kicker">INTERVIEW SCRIPT</span>
-          <strong>Ella's standard interview script</strong>
-           <small>The fields below plug directly into Ella's script for this role — no prompt-writing needed.</small>
+          <span className="vapi-kicker">CALL SCRIPT</span>
+          <strong>Using the standard call script</strong>
+           <small>Everything you fill in below goes straight into Ella's phone script — nothing technical to write.</small>
         </div>
         <div className="vapi-template-actions">
           <button type="button" className="btn btn-secondary" disabled={!editable || saving} onClick={applyStandardTemplate}>Load standard script</button>
@@ -489,12 +560,12 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
         <div className="vapi-section-heading">
           <div>
             <span className="vapi-kicker">SAVED TEMPLATES</span>
-            <h3>Load a saved setup</h3>
-            <p>Selecting a saved template copies it into the editor without saving anything back to the sheet.</p>
+            <h3>Reuse a saved setup</h3>
+            <p>Loading a template fills in the form below so you can adjust it. Nothing is saved until you click one of the save buttons.</p>
           </div>
           <span className="vapi-readonly-badge">{templateLoading ? "Loading..." : `${savedTemplates.length} saved`}</span>
         </div>
-        {templateError && <div className="error-box vapi-message" role="alert">{templateError}</div>}
+        {templateError && <ActionFeedback kind="error" className="vapi-message">{templateError}</ActionFeedback>}
         <div className="vapi-template-picker">
           <label className="field">
             <span>Saved template</span>
@@ -602,17 +673,49 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
 
       <div className="vapi-builder">
         <div className="vapi-section-heading">
-          <div><span className="vapi-kicker">INTERVIEW QUESTIONS</span><h3>What should Ella ask?</h3><p>Write 3 to 5 questions in the order you want them asked. Ella asks them exactly as written, one at a time, and doesn&apos;t make up her own. These questions appear directly in the script preview below.</p></div>
+          <div><span className="vapi-kicker">INTERVIEW QUESTIONS</span><h3>What should Ella ask?</h3><p>{(valueText(values.hodScreeningQuestion1) || valueText(values.hodScreeningQuestion2)) ? "The hiring manager's questions from the role request come first and can't be edited here. Add your own questions after that, in order — Ella asks all of them exactly as written." : "Write 3 to 5 questions in the order you want them asked. Ella asks them exactly as written, one at a time, and doesn't make up her own."} These questions appear directly in the script preview below.</p></div>
           <span className={`vapi-count-badge ${questions.length >= 3 ? "complete" : ""}`}>{questions.length} of {questionKeys.length} configured · 3 required</span>
         </div>
+        {suggestedQuestions.length > 0 && (
+          <div className="vapi-suggested-questions">
+            <div className="vapi-section-heading">
+              <div><span className="vapi-kicker">AI SUGGESTIONS</span><h4>Suggested interview questions</h4><p>Use these as ideas for HR and the hiring manager. Choose a suggestion to copy it into the next available editable question field.</p></div>
+              <span className="vapi-readonly-badge">For review</span>
+            </div>
+            <ol>
+              {suggestedQuestions.map((question, index) => <li key={`${question}-${index}`}><p>{question}</p><button type="button" className="btn btn-secondary" disabled={!editable || saving} onClick={() => applySuggestedQuestion(question)}>Use suggestion</button></li>)}
+            </ol>
+          </div>
+        )}
         <div className="vapi-question-grid">
-          {questionKeys.map((key, index) => (
-            <label className="vapi-question" htmlFor={`vapi-question-${index + 1}`} key={key}>
-              <span><strong>{index + 1}</strong>{`Question ${index + 1}`}{index < 3 ? " *" : " (optional)"}</span>
-              <textarea id={`vapi-question-${index + 1}`} value={values[key] ?? ""} disabled={!editable || saving} placeholder="Write the exact question Ella should ask." onChange={(event) => update(key, event.target.value)} />
-            </label>
-          ))}
+          {questionKeys.map((key, index) => {
+            const lockedFromHod = index === 0 ? valueText(values.hodScreeningQuestion1) : index === 1 ? valueText(values.hodScreeningQuestion2) : "";
+            return (
+              <label className={`vapi-question${lockedFromHod ? " vapi-question-locked" : ""}`} htmlFor={`vapi-question-${index + 1}`} key={key}>
+                <span><strong>{index + 1}</strong>{`Question ${index + 1}`}{lockedFromHod ? " · from the hiring manager" : index < 3 ? " *" : " (optional)"}</span>
+                {lockedFromHod ? (
+                  <p className="vapi-question-locked-text">{lockedFromHod}</p>
+                ) : (
+                  <textarea id={`vapi-question-${index + 1}`} value={values[key] ?? ""} disabled={!editable || saving} placeholder="Write the exact question Ella should ask." onChange={(event) => update(key, event.target.value)} />
+                )}
+              </label>
+            );
+          })}
         </div>
+      </div>
+
+      <div className="vapi-builder vapi-voice-availability-builder">
+        <div className="vapi-section-heading">
+          <div><span className="vapi-kicker">AI VOICE INTERVIEW AVAILABILITY</span><h3>How should candidates book the voice interview?</h3><p>This is an additional role-level schedule. Publishing creates these AI Voice Interview slots in the existing booking calendar; the separate Bookings page remains available for extra availability.</p></div>
+          {values.voiceInterviewSlotsGeneratedAt && <span className="vapi-readonly-badge">Generated on publish</span>}
+        </div>
+        <label className="field vapi-voice-availability-mode" htmlFor="vapi-voice-availability-mode"><span>Voice interview availability</span><select id="vapi-voice-availability-mode" value={values.voiceInterviewAvailabilityMode || "none"} disabled={!editable || saving} onChange={(event) => update("voiceInterviewAvailabilityMode", event.target.value)}><option value="none">Set later in Bookings</option><option value="manual">Enter specific slots now</option><option value="automatic">Generate weekday slots · 9:00 AM–5:00 PM</option></select></label>
+        {values.voiceInterviewAvailabilityMode === "manual" && <div className="vapi-voice-slot-list">
+          {editorVoiceSlots(values.voiceInterviewSlots).map((slot, index) => <div className="vapi-voice-slot-row" key={`${index}-${slot.date}`}><label><span>Date</span><input type="date" value={slot.date} disabled={!editable || saving} onChange={(event) => updateVoiceSlot(index, "date", event.target.value)} /></label><label><span>Start</span><input type="time" value={slot.startTime} disabled={!editable || saving} onChange={(event) => updateVoiceSlot(index, "startTime", event.target.value)} /></label><label><span>End</span><input type="time" value={slot.endTime} disabled={!editable || saving} onChange={(event) => updateVoiceSlot(index, "endTime", event.target.value)} /></label><label><span>Timezone</span><input value={slot.timezone} disabled={!editable || saving} onChange={(event) => updateVoiceSlot(index, "timezone", event.target.value)} /></label><button type="button" className="btn btn-secondary" disabled={!editable || saving} onClick={() => removeVoiceSlot(index)}>Remove</button></div>)}
+          <button type="button" className="btn btn-secondary" disabled={!editable || saving || editorVoiceSlots(values.voiceInterviewSlots).length >= 100} onClick={addVoiceSlot}>Add voice interview slot</button>
+          {editorVoiceSlots(values.voiceInterviewSlots).length === 0 && <small className="vapi-voice-availability-help">Add at least one date and time before saving this option.</small>}
+        </div>}
+        {values.voiceInterviewAvailabilityMode === "automatic" && <div className="vapi-voice-automatic-grid"><Field id="vapi-voice-auto-start" type="date" label="First date" value={values.voiceInterviewAutoStartDate} onChange={(value) => update("voiceInterviewAutoStartDate", value)} disabled={!editable || saving} /><Field id="vapi-voice-auto-end" type="date" label="Last date" value={values.voiceInterviewAutoEndDate} onChange={(value) => update("voiceInterviewAutoEndDate", value)} disabled={!editable || saving} /><Field id="vapi-voice-timezone" label="Timezone" value={values.voiceInterviewTimezone} onChange={(value) => update("voiceInterviewTimezone", value)} disabled={!editable || saving} /><p className="vapi-voice-availability-help">Weekdays only, 9:00 AM–5:00 PM. Slots use the configured Voice Interview duration and are generated when the role is published.</p></div>}
       </div>
 
       <div className="vapi-preview">

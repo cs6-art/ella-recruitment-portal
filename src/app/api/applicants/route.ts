@@ -19,8 +19,6 @@ import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const allowedStatuses = new Set(["Approved", "Recruitment Setup", "Job Posted"]);
-
 function responseError(error: string, status: number, extra: Record<string, unknown> = {}) {
   return NextResponse.json({ success: false, error, ...extra }, { status });
 }
@@ -43,12 +41,12 @@ export async function POST(request: Request) {
     }
 
     if (!isPreferredMobileValid(parsed.data.preferredMobile)) {
-      return responseError("Preferred mobile must use an international number such as +639171234567 or +6581234567.", 422, { field: "preferredMobile" });
+      return responseError("Contact number must include a valid country code and local number.", 422, { field: "preferredMobile" });
     }
 
     const roleId = parsed.data.roleId.trim();
     const role = await getRoleRequestById(roleId);
-    if (!role || !allowedStatuses.has(role.status)) {
+    if (!role || role.status !== "Job Posted" || role.recruitmentSetupStatus !== "Published") {
       return responseError("The selected role is not available for manual candidate intake.", 409);
     }
 
@@ -72,6 +70,8 @@ export async function POST(request: Request) {
     const payload = buildCandidateApplicationPayload({
       applicationId,
       roleId,
+      jobTitle: role.jobTitle,
+      department: role.department,
       source: "HR Manual Intake",
       submittedAt,
       candidate: {

@@ -19,6 +19,11 @@ The portal sends this payload to `N8N_RECRUITMENT_SETUP_WEBHOOK_URL`, or to
     "initialInterviewBookingLink": "https://...",
     "hodInterviewBookingLink": "https://...",
     "postingChannels": "LinkedIn, careers page",
+    "voiceInterviewAvailabilityMode": "automatic",
+    "voiceInterviewSlots": [],
+    "voiceInterviewAutoStartDate": "2026-08-17",
+    "voiceInterviewAutoEndDate": "2026-08-28",
+    "voiceInterviewTimezone": "Asia/Singapore",
     "evaluationFieldToggles": ["technical_depth"],
     "customEvaluationFields": [
       { "key": "domain_fluency", "label": "Domain fluency", "description": "Assess fluency in the required domain." }
@@ -81,6 +86,13 @@ human-readable `HOD_Availability_Dates` and `HOD_Availability_Times` fields.
 timezone }` objects and is used by the portal when validating final interview
 slots.
 
+Recruitment setup payloads also include the optional HR-owned voice availability
+configuration. The workflow should preserve `voiceInterviewAvailabilityMode`,
+`voiceInterviewSlots`, `voiceInterviewAutoStartDate`,
+`voiceInterviewAutoEndDate`, and `voiceInterviewTimezone` in the role row.
+Publishing the role creates the configured AI Voice Interview slots in the
+portal's `Interview_Slots` tab; the existing booking workflow then uses them.
+
 The existing role-request webhook accepts `role_request_created`,
 `role_status_transition`, and `recruitment_setup_updated`. Every write carries
 an `actionRequestId`; n8n must treat it as an idempotency key and return JSON
@@ -101,6 +113,8 @@ application route and the HR manual intake route:
   "applicationId": "APP-...",
   "roleId": "ROLE-...",
   "Role_ID": "ROLE-...",
+  "jobTitle": "Sales Manager",
+  "department": "Commercial",
   "candidate": {
     "name": "Candidate Name",
     "email": "candidate@example.com",
@@ -130,6 +144,14 @@ application route and the HR manual intake route:
   "applicationSource": "Direct Application"
 }
 ```
+
+The portal presents one contact-number control to HR and candidates: a country
+code plus a local number. It sends the normalized international number through
+the legacy `phone` and `preferredMobile` aliases so existing voice-booking
+workflows continue to work. n8n should write the same value to the candidate
+sheet's contact-number fields. The selected role is carried in `jobTitle` and
+`department` so CV analysis can populate `Selected_Role` and `Department` in
+`High_Match_Profile`; the portal reads those fields when rendering applicants.
 
 The HR intake route uses the same schema, but the `source` value is
 `HR Manual Intake` and `consent` is omitted. The allowed `applicationSource`

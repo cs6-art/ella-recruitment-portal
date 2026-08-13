@@ -2,20 +2,24 @@
 
 import { useEffect, useState } from "react";
 
+import ActionFeedback from "@/components/ActionFeedback";
+
 type Status = "loading" | "connected" | "not_connected" | "error";
+type NoticeKind = "success" | "warning" | "error";
 
 export default function GoogleCalendarConnect() {
   const [status, setStatus] = useState<Status>("loading");
   const [disconnecting, setDisconnecting] = useState(false);
   const [notice, setNotice] = useState("");
+  const [noticeKind, setNoticeKind] = useState<NoticeKind>("success");
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const calendarResult = params.get("calendar");
     if (calendarResult) {
-      if (calendarResult === "connected") setNotice("Google Calendar connected.");
-      else if (calendarResult === "denied") setNotice("Google Calendar connection was cancelled.");
-      else setNotice("Could not connect Google Calendar. Please try again.");
+      if (calendarResult === "connected") { setNotice("Google Calendar connected."); setNoticeKind("success"); }
+      else if (calendarResult === "denied") { setNotice("Google Calendar connection was cancelled."); setNoticeKind("warning"); }
+      else { setNotice("Could not connect Google Calendar. Please try again."); setNoticeKind("error"); }
       const url = new URL(window.location.href);
       url.searchParams.delete("calendar");
       window.history.replaceState({}, "", url.toString());
@@ -24,14 +28,15 @@ export default function GoogleCalendarConnect() {
     fetch("/api/auth/google-calendar/status")
       .then((res) => res.json())
       .then((data) => setStatus(data.success && data.connected ? "connected" : "not_connected"))
-      .catch(() => setStatus("error"));
+      .catch(() => { setStatus("error"); setNotice("Unable to check Google Calendar connection status."); setNoticeKind("error"); });
   }, []);
 
   async function handleDisconnect() {
     setDisconnecting(true);
     try {
       const res = await fetch("/api/auth/google-calendar/disconnect", { method: "POST" });
-      if (res.ok) setStatus("not_connected");
+      if (res.ok) { setStatus("not_connected"); setNotice("Google Calendar disconnected successfully."); setNoticeKind("success"); }
+      else { setNotice("Could not disconnect Google Calendar. Please try again."); setNoticeKind("error"); }
     } finally {
       setDisconnecting(false);
     }
@@ -46,7 +51,7 @@ export default function GoogleCalendarConnect() {
         {status === "connected" ? <span className="calendar-status-pill calendar-status-connected">Connected</span> : null}
       </div>
       <div className="calendar-connect-body">
-        {notice ? <p className="calendar-connect-notice">{notice}</p> : null}
+        {notice ? <ActionFeedback kind={noticeKind} className="calendar-connect-notice">{notice}</ActionFeedback> : null}
         {status === "connected" ? (
           <>
             <p>Final interviews you&apos;re assigned to will be added to your primary Google Calendar automatically.</p>

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import type { FormEvent } from "react";
 
+import ActionFeedback from "@/components/ActionFeedback";
 import UiIcon from "@/components/UiIcon";
 import {
   legacyAvailabilityDates,
@@ -223,11 +224,11 @@ export default function RoleRequestForm({ user }: RoleRequestFormProps) {
       <div className="form-card">
         {success && (
           <div className="section">
-            <div className="success-box">
+            <ActionFeedback kind="success">
               <strong>Role request submitted.</strong><br />
               Role ID: {success.roleId}<br />
               Status: {success.status}
-            </div>
+            </ActionFeedback>
           </div>
         )}
 

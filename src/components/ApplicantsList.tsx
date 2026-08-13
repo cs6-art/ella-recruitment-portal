@@ -5,12 +5,14 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import type { ApplicantSummary } from "@/lib/candidate-applications";
 import Pagination from "@/components/Pagination";
+import { formatMatchScore } from "@/lib/score-format";
 
 type Props = {
   applicants: ApplicantSummary[];
   title?: string;
   description?: string;
   topContent?: ReactNode;
+  publishedRoles?: { roleId: string; label: string }[];
 };
 
 function stageClass(stage: string) {
@@ -24,29 +26,37 @@ function formatDate(value: string) {
 
 function scoreValue(value: string) {
   if (!value) return "—";
-  const numeric = Number(value);
-  return Number.isFinite(numeric) ? `${numeric % 1 === 0 ? numeric : numeric.toFixed(1)}%` : value;
+  return formatMatchScore(value);
 }
 
-export default function ApplicantsList({ applicants, title = "Applicants", description = "Review candidates across every published role.", topContent }: Props) {
+export default function ApplicantsList({ applicants, title = "Applicants", description = "Review candidates across every published role.", topContent, publishedRoles }: Props) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("All Roles");
   const [stageFilter, setStageFilter] = useState("All Stages");
 
-  const roles = useMemo(() => [...new Set(applicants.map((applicant) => applicant.selectedRole || applicant.roleId).filter(Boolean))].sort(), [applicants]);
+  const publishedRoleKeys = useMemo(() => new Set((publishedRoles || []).flatMap((role) => [role.roleId, role.label])), [publishedRoles]);
+  const hasPublishedRoleScope = publishedRoles !== undefined;
+  const publishedRoleByLabel = useMemo(() => new Map((publishedRoles || []).map((role) => [role.label, role])), [publishedRoles]);
+  const roles = useMemo(() => {
+    if (hasPublishedRoleScope) return (publishedRoles || []).map((role) => role.label).sort();
+    return [...new Set(applicants.map((applicant) => applicant.selectedRole || applicant.roleId).filter(Boolean))].sort();
+  }, [applicants, hasPublishedRoleScope, publishedRoles]);
   const stages = useMemo(() => [...new Set(applicants.map((applicant) => applicant.currentStage).filter(Boolean))].sort(), [applicants]);
 
   const visibleApplicants = useMemo(() => {
     const query = search.trim().toLowerCase();
+    const selectedRole = publishedRoleByLabel.get(roleFilter);
     return applicants.filter((applicant) => {
+      const applicantRole = applicant.selectedRole || applicant.roleId;
       const searchable = `${applicant.applicationId} ${applicant.candidateName} ${applicant.email} ${applicant.roleId} ${applicant.selectedRole} ${applicant.department}`.toLowerCase();
       return (!query || searchable.includes(query)) &&
-        (roleFilter === "All Roles" || (applicant.selectedRole || applicant.roleId) === roleFilter) &&
+        (!hasPublishedRoleScope || publishedRoleKeys.has(applicantRole) || publishedRoleKeys.has(applicant.roleId)) &&
+        (roleFilter === "All Roles" || applicantRole === roleFilter || applicant.roleId === selectedRole?.roleId) &&
         (stageFilter === "All Stages" || applicant.currentStage === stageFilter);
     });
-  }, [applicants, roleFilter, search, stageFilter]);
+  }, [applicants, hasPublishedRoleScope, publishedRoleByLabel, publishedRoleKeys, roleFilter, search, stageFilter]);
 
   const totalPages = Math.max(1, Math.ceil(visibleApplicants.length / pageSize));
   const pagedApplicants = visibleApplicants.slice((page - 1) * pageSize, page * pageSize);
@@ -68,7 +78,7 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
         <div className="applicants-header-meta"><strong>{applicants.length}</strong><span>Total applications</span></div>
       </div>
 
-      {topContent}
+      {topContent && <div className="applicants-intake-section">{topContent}</div>}
 
       <div className="applicant-stat-grid">
         <div className="applicant-stat"><span>Applications</span><strong>{applicants.length}</strong><small>All records in High_Match_Profile</small></div>

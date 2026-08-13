@@ -44,6 +44,7 @@ export default function AppShell({ user, children }: AppShellProps) {
   // Role-specific applicant pages live under /roles/.../applicants. Keep them
   // under Role Requests so the sidebar never highlights two sections at once.
   const isApplicants = pathname === "/applicants" || pathname.startsWith("/applicants/");
+  const isResumeScreening = pathname === "/resume-screening";
   const isApplicantDetails = pathname.startsWith("/applicants/");
   const isBookings = pathname === "/bookings" || pathname.startsWith("/bookings/");
   const isProfile = pathname === "/profile";
@@ -66,6 +67,7 @@ export default function AppShell({ user, children }: AppShellProps) {
         <nav className={styles.navigation} aria-label="Main navigation">
           <Link href="/dashboard" onClick={closeSidebar} className={`${styles.navLink} ${isDashboard ? styles.navLinkActive : ""}`}><span className={styles.navIcon}><UiIcon name="dashboard" /></span><span>Dashboard</span></Link>
           {showRoleRequests && <Link href="/roles" onClick={closeSidebar} className={`${styles.navLink} ${isRoleList || isRoleDetails || isRoleCreate ? styles.navLinkActive : ""}`}><span className={styles.navIcon}><UiIcon name="roles" /></span><span>Role Requests</span></Link>}
+          {showRoleRequests && <Link href="/resume-screening" onClick={closeSidebar} className={`${styles.navLink} ${isResumeScreening ? styles.navLinkActive : ""}`}><span className={styles.navIcon}><UiIcon name="document" /></span><span>Resume Screening</span></Link>}
           {showRoleRequests && <Link href="/applicants" onClick={closeSidebar} className={`${styles.navLink} ${isApplicants ? styles.navLinkActive : ""}`}><span className={styles.navIcon}><UiIcon name="applicants" /></span><span>Applicants</span></Link>}
           {showRoleRequests && <Link href="/bookings" onClick={closeSidebar} className={`${styles.navLink} ${isBookings ? styles.navLinkActive : ""}`}><span className={styles.navIcon}><UiIcon name="calendar" /></span><span>Bookings</span></Link>}
           {user.canEditSettings === true && <Link href="/settings" onClick={closeSidebar} className={`${styles.navLink} ${isSettings ? styles.navLinkActive : ""}`}><span className={styles.navIcon}><UiIcon name="settings" /></span><span>Settings</span></Link>}

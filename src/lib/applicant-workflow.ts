@@ -3,12 +3,13 @@ import { google } from "googleapis";
 import { z } from "zod";
 
 import { createFinalInterviewEvent, deleteFinalInterviewEvent, checkCalendarAvailability } from "@/lib/google-calendar";
-import { getRoleRequestById } from "@/lib/google-sheets";
+import { getPortalSettings, getRoleRequestById } from "@/lib/google-sheets";
 import { parseHodAvailabilitySlots, slotMatchesHodAvailability } from "@/lib/hod-availability";
 import { isValidTimezone, scheduledInstant } from "@/lib/interview-time";
 import { bookingLink } from "@/lib/public-url";
 import { cachedSheetsRead, invalidateSheetsCache } from "@/lib/sheets-cache";
 import type { ResumeFileRecord } from "@/lib/resume-files";
+import { generateAutomaticVoiceInterviewSlots, type VoiceInterviewSlot } from "@/lib/voice-interview-availability";
 
 export type BookingKind = "voice" | "final";
 export type ApplicantDecisionStage = "resume" | "voice" | "final";
@@ -27,6 +28,7 @@ export type CandidateApplicationInput = {
   email: string;
   phone: string;
   preferredMobile: string;
+  applicantCountry: string;
   resumeText: string;
   salaryExpectation: string;
   noticePeriod: string;
@@ -49,11 +51,14 @@ export type CandidateApplicationWebhookPayload = {
   applicationId: string;
   roleId: string;
   Role_ID: string;
+  jobTitle: string;
+  department: string;
   candidate: {
     name: string;
     email: string;
     phone: string;
     preferredMobile: string;
+    applicantCountry: string;
     resumeText: string;
     salaryExpectation: string;
     noticePeriod: string;
@@ -84,6 +89,7 @@ export const candidateApplicationSubmissionSchema = z.object({
   email: z.string().trim().email().max(320),
   phone: z.string().trim().max(50).default(""),
   preferredMobile: z.string().trim().min(1).max(50),
+  applicantCountry: z.string().trim().max(4).default(""),
   resumeText: z.string().trim().min(20).max(50000),
   salaryExpectation: z.string().trim().max(1000).default(""),
   noticePeriod: z.string().trim().max(1000).default(""),
@@ -192,6 +198,7 @@ function finalBookingInvitation(row: Row, baseUrl: string) {
   const existingLink = field(row, "Final_Interview_Booking_Link");
   const existingToken = mustIssueNewToken ? "" : field(row, "Final_Interview_Booking_Token") || tokenFromBookingLink(existingLink);
   const token = existingToken || crypto.randomBytes(32).toString("hex");
+
   return {
     token,
     tokenHash: hashToken(token),
@@ -202,7 +209,19 @@ function finalBookingInvitation(row: Row, baseUrl: string) {
 
 function normalizeEmail(value: string) { return text(value).toLowerCase(); }
 export function normalizePreferredMobile(value: string) {
-  return text(value).replace(/[\s().-]+/g, "");
+  const normalized = text(value).replace(/[\s().-]+/g, "");
+  if (/^00[1-9]\d{7,14}$/.test(normalized)) return `+${normalized.slice(2)}`;
+  if (/^\d{8,15}$/.test(normalized)) return `+${normalized}`;
+  return normalized;
+}
+
+function inferApplicantCountry(value: string) {
+  const digits = text(value).replace(/\D/g, "").replace(/^00/, "");
+  if (digits.startsWith("63")) return "PH";
+  if (digits.startsWith("65")) return "SG";
+  if (digits.startsWith("60")) return "MY";
+  if (digits.startsWith("966")) return "SA";
+  return "";
 }
 
 export function isPreferredMobileValid(value: string) {
@@ -297,6 +316,8 @@ export async function findDuplicateCandidateApplication(roleId: string, email: s
 export function buildCandidateApplicationPayload(input: {
   applicationId: string;
   roleId: string;
+  jobTitle?: string;
+  department?: string;
   source: string;
   candidate: CandidateApplicationInput & { consent?: boolean };
   submittedAt: string;
@@ -307,11 +328,14 @@ export function buildCandidateApplicationPayload(input: {
     applicationId: input.applicationId,
     roleId: input.roleId,
     Role_ID: input.roleId,
+    jobTitle: text(input.jobTitle),
+    department: text(input.department),
     candidate: {
       name: text(input.candidate.candidateName),
       email,
       phone: text(input.candidate.phone),
       preferredMobile: normalizePreferredMobile(input.candidate.preferredMobile),
+      applicantCountry: text(input.candidate.applicantCountry) || inferApplicantCountry(input.candidate.preferredMobile),
       resumeText: text(input.candidate.resumeText),
       salaryExpectation: text(input.candidate.salaryExpectation),
       noticePeriod: text(input.candidate.noticePeriod),
@@ -461,6 +485,15 @@ export async function getBookingContext(kind: BookingKind, token: string): Promi
     .map(slotFrom)
     .filter((slot) => slot.slotId)
     .sort(slotSort);
+  const scheduledDate = currentSlot?.slot.date || (kind === "voice"
+    ? field(row, "Voice_Interview_Scheduled_Date")
+    : field(row, "Final_Interview_Scheduled_Date"));
+  const scheduledTime = currentSlot?.slot.startTime || (kind === "voice"
+    ? field(row, "Voice_Interview_Scheduled_Time")
+    : field(row, "Final_Interview_Scheduled_Time"));
+  const timezone = currentSlot?.slot.timezone || (kind === "voice"
+    ? field(row, "Voice_Interview_Timezone")
+    : field(row, "Final_Interview_Timezone"));
 
   return {
     kind,
@@ -471,9 +504,9 @@ export async function getBookingContext(kind: BookingKind, token: string): Promi
     roleId,
     bookingStatus: status,
     preferredMobile: field(row, "Preferred_Mobile", "Preferred Mobile", "Contact_Number", "Contact Number", "Phone"),
-    scheduledDate: currentSlot?.slot.date || field(row, "Voice_Interview_Scheduled_Date", "Final_Interview_Scheduled_Date"),
-    scheduledTime: currentSlot?.slot.startTime || field(row, "Voice_Interview_Scheduled_Time", "Final_Interview_Scheduled_Time"),
-    timezone: currentSlot?.slot.timezone || field(row, "Voice_Interview_Timezone", "Final_Interview_Timezone"),
+    scheduledDate,
+    scheduledTime,
+    timezone,
     currentSlot: currentSlot?.slot,
     slots,
   };
@@ -561,6 +594,8 @@ export async function reserveBooking(kind: BookingKind, token: string, slotId: s
   updates.push(
     { tab: "High_Match_Profile", row: applicantRow, header: "Preferred_Mobile", value: confirmedMobile },
     { tab: "High_Match_Profile", row: applicantRow, header: "Contact_Number", value: confirmedMobile },
+    { tab: "High_Match_Profile", row: applicantRow, header: "Contact Number", value: confirmedMobile },
+    { tab: "High_Match_Profile", row: applicantRow, header: "Applicant_Country", value: field(applicantData.rows[applicantIndex], "Applicant_Country") || inferApplicantCountry(confirmedMobile) },
   );
   let queueValues: string[] | null = null;
   if (kind === "voice") {
@@ -588,9 +623,9 @@ export async function reserveBooking(kind: BookingKind, token: string, slotId: s
       if (key === normalize("Voice_Interview_Scheduled_Date")) return field(matchingSlot, "Date");
       if (key === normalize("Voice_Interview_Scheduled_Time")) return field(matchingSlot, "Start_Time", "Start Time");
       if (key === normalize("Voice_Interview_Timezone")) return field(matchingSlot, "Timezone", "Time Zone");
-      if (key === normalize("Applicant_Country")) return field(applicantRecord, "Applicant_Country");
+      if (key === normalize("Applicant_Country")) return field(applicantRecord, "Applicant_Country") || inferApplicantCountry(confirmedMobile);
       if (key === normalize("Preferred_Mobile")) return confirmedMobile;
-      if (key === normalize("Contact_Number")) return confirmedMobile;
+      if (key === normalize("Contact_Number") || key === normalize("Contact Number")) return confirmedMobile;
       if (key === normalize("Role_ID")) return context.roleId;
       if (key === normalize("Voice_Call_Status")) return "Scheduled";
       if (key === normalize("Voice_Call_Attempts")) return "0";
@@ -759,6 +794,47 @@ export async function createInterviewSlot(input: CreateInterviewSlotInput) {
   return { slotId, interviewType: input.interviewType, roleId, date, startTime, endTime, timezone, status: "Available", applicationId: "", candidateName: "", candidateEmail: "", bookedAt: "", lastUpdated: new Date().toISOString() };
 }
 
+export async function createConfiguredVoiceInterviewSlots({ roleId, mode, manualSlots, autoStartDate, autoEndDate, timezone }: { roleId: string; mode: "none" | "manual" | "automatic"; manualSlots: VoiceInterviewSlot[]; autoStartDate: string; autoEndDate: string; timezone: string }): Promise<{ created: number; skipped: number; slots: VoiceInterviewSlot[] }> {
+  if (mode === "none") return { created: 0, skipped: 0, slots: [] };
+  const settings = await getPortalSettings();
+  const durationMinutes = Number(settings.find((setting) => setting.key === "Voice_Interview_Duration_Minutes")?.value || 30);
+  const slots = mode === "automatic"
+    ? generateAutomaticVoiceInterviewSlots({ startDate: autoStartDate, endDate: autoEndDate, timezone, durationMinutes })
+    : manualSlots;
+  if (slots.length === 0) throw new Error("No AI Voice Interview slots were generated from the selected availability.");
+  if (slots.some((slot) => !isValidTimezone(slot.timezone))) throw new Error("Choose a valid timezone for every AI Voice Interview slot.");
+
+  const data = await readSheet("Interview_Slots", "T");
+  const existing = new Set(data.rows.map((row) => `${field(row, "Interview_Type", "Interview Type").toLowerCase()}|${field(row, "Role_ID", "Role ID").toLowerCase()}|${field(row, "Date")}|${field(row, "Start_Time", "Start Time")}`));
+  const uniqueSlots = slots.filter((slot, index) => {
+    const key = `ai voice interview|${roleId.toLowerCase()}|${slot.date}|${slot.startTime}`;
+    if (existing.has(key) || slots.findIndex((candidate) => candidate.date === slot.date && candidate.startTime === slot.startTime && candidate.endTime === slot.endTime && candidate.timezone === slot.timezone) !== index) return false;
+    existing.add(key);
+    return true;
+  });
+  if (uniqueSlots.length === 0) return { created: 0, skipped: slots.length, slots: [] };
+
+  const rows = uniqueSlots.map((slot) => {
+    const slotId = `SLOT-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+    return data.headers.map((header) => {
+      const key = normalize(header);
+      if (key === normalize("Slot_ID")) return slotId;
+      if (key === normalize("Interview_Type")) return "AI Voice Interview";
+      if (key === normalize("Role_ID")) return roleId;
+      if (key === normalize("Date")) return slot.date;
+      if (key === normalize("Start_Time")) return slot.startTime;
+      if (key === normalize("End_Time")) return slot.endTime;
+      if (key === normalize("Timezone")) return slot.timezone;
+      if (key === normalize("Status")) return "Available";
+      if (key === normalize("Last_Updated")) return new Date().toISOString();
+      return "";
+    });
+  });
+  await sheets.spreadsheets.values.append({ spreadsheetId, range: "'Interview_Slots'!A1", valueInputOption: "USER_ENTERED", insertDataOption: "INSERT_ROWS", requestBody: { values: rows } });
+  invalidateSheetsCache("Interview_Slots");
+  return { created: uniqueSlots.length, skipped: slots.length - uniqueSlots.length, slots: uniqueSlots };
+}
+
 /**
  * n8n owns candidate email delivery and the resume-stage booking invitation.
  * The portal owns final-stage token issuance and booking-link construction;
@@ -793,7 +869,7 @@ export async function recordApplicantDecision(applicationId: string, stage: Appl
   if (stage === "resume") {
     if (decision === "Manual Review") {
       newFinalStatus = "Pending Manual Review";
-      updates.push(set("Resume_HR_Comments", comments), set("Final_Status", newFinalStatus));
+      updates.push(set("Resume_HR_Decision", decision), set("Resume_HR_Decision_Date", now), set("Resume_HR_Reviewer", reviewer.name), set("Resume_HR_Comments", comments), set("Final_Status", newFinalStatus));
     } else {
       newFinalStatus = decision === "Approve" ? "Approved for AI Voice Interview" : "Resume Rejected";
       updates.push(set("Resume_HR_Decision", decision), set("Resume_HR_Decision_Date", now), set("Resume_HR_Reviewer", reviewer.name), set("Resume_HR_Comments", comments), set("Final_Status", newFinalStatus));
@@ -801,7 +877,7 @@ export async function recordApplicantDecision(applicationId: string, stage: Appl
   } else if (stage === "voice") {
     if (decision === "Manual Review") {
       newFinalStatus = "Pending Manual Review";
-      updates.push(set("Voice_HR_Comments", comments), set("Final_Status", newFinalStatus));
+      updates.push(set("Voice_HR_Decision", decision), set("Voice_HR_Comments", comments), set("Final_Status", newFinalStatus));
     } else {
       newFinalStatus = decision === "Approve" ? "Approved for Final Interview" : "Voice Interview Rejected";
       updates.push(set("Voice_HR_Decision", decision), set("Voice_HR_Comments", comments), set("Final_Status", newFinalStatus));

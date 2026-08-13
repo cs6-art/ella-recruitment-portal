@@ -3,11 +3,13 @@ import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 
 import { canEditRecruitmentSetup, canUseRecruitmentSetup, canViewRole } from "@/lib/access-control";
-import { getRoleRequestById } from "@/lib/google-sheets";
+import { getRoleRequestById, updateRoleRequestFields } from "@/lib/google-sheets";
 import { consumeRateLimit, rateLimitHeaders, requestClientKey } from "@/lib/rate-limit";
 import { BASELINE_EVALUATION_FIELDS, EVALUATION_FIELD_CATALOG, recruitmentSetupSchema } from "@/lib/recruitment-setup-schema";
 import { getSetupReadiness, setupStatusForAction } from "@/lib/recruitment-setup-readiness";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
+import { createConfiguredVoiceInterviewSlots } from "@/lib/applicant-workflow";
+import { serializeVoiceInterviewSlots } from "@/lib/voice-interview-availability";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -46,6 +48,7 @@ export async function POST(request: Request, context: Context) {
     const forwardedHost = request.headers.get("x-forwarded-host") || request.headers.get("host");
       const appBaseUrl = configuredAppUrl || (forwardedHost ? `${request.headers.get("x-forwarded-proto") || "https"}://${forwardedHost}` : "");
     const applicationLink = appBaseUrl ? `${appBaseUrl}/apply/${encodeURIComponent(role.roleId)}` : `/apply/${encodeURIComponent(role.roleId)}`;
+    const nextRecruitmentSetupStatus = setupStatusForAction(setupAction, role.recruitmentSetupStatus || "Draft");
     const initialInterviewQuestions = [
       setup.requiredInterviewQuestion1,
       setup.requiredInterviewQuestion2,
@@ -55,6 +58,10 @@ export async function POST(request: Request, context: Context) {
     ].filter((question) => question.trim());
     const canonicalSetup = {
       ...setup,
+      // Keep the nested and legacy top-level status fields in sync. The
+      // deployed n8n mapper may read either shape during the migration from
+      // the original role-request payload.
+      recruitmentSetupStatus: nextRecruitmentSetupStatus,
       // The active n8n workflow still consumes its historical aggregate field;
       // keep it as a compatibility projection of the five canonical questions.
       initialInterviewQuestions,
@@ -71,7 +78,7 @@ export async function POST(request: Request, context: Context) {
       actionRequestId,
       expectedCurrentStatus: role.status,
       setupAction,
-      recruitmentSetupStatus: setupStatusForAction(setupAction, role.recruitmentSetupStatus || "Draft"),
+      recruitmentSetupStatus: nextRecruitmentSetupStatus,
       targetRoleStatus: setupAction === "publish_role" ? "Job Posted" : role.status === "Approved" ? "Recruitment Setup" : role.status,
       Status: setupAction === "publish_role" ? "Job Posted" : role.status === "Approved" ? "Recruitment Setup" : role.status,
       recruitmentSetup: canonicalSetup,
@@ -109,6 +116,12 @@ export async function POST(request: Request, context: Context) {
       HOD_Availability_Dates: role.hodAvailabilityDates,
       HOD_Availability_Times: role.hodAvailabilityTimes,
       HOD_Availability_Slots: role.hodAvailabilitySlots,
+      Voice_Interview_Availability_Mode: setup.voiceInterviewAvailabilityMode,
+      Voice_Interview_Slots: serializeVoiceInterviewSlots(setup.voiceInterviewSlots),
+      Voice_Interview_Auto_Start_Date: setup.voiceInterviewAutoStartDate,
+      Voice_Interview_Auto_End_Date: setup.voiceInterviewAutoEndDate,
+      Voice_Interview_Timezone: setup.voiceInterviewTimezone,
+      Voice_Interview_Slots_Generated_At: setup.voiceInterviewSlotsGeneratedAt,
       HOD_Email: role.hodEmail,
       Recruitment_Setup_Status: setupStatusForAction(setupAction, role.recruitmentSetupStatus || "Draft"),
       Salary_Disclosure_Status: setup.salaryDisclosureStatus,
@@ -144,6 +157,13 @@ export async function POST(request: Request, context: Context) {
       Department: user.department,
       portalUrl: appBaseUrl ? `${appBaseUrl}/roles/${encodeURIComponent(role.roleId)}` : "",
     };
+    await updateRoleRequestFields(role.roleId, {
+      Voice_Interview_Availability_Mode: setup.voiceInterviewAvailabilityMode,
+      Voice_Interview_Slots: serializeVoiceInterviewSlots(setup.voiceInterviewSlots),
+      Voice_Interview_Auto_Start_Date: setup.voiceInterviewAutoStartDate,
+      Voice_Interview_Auto_End_Date: setup.voiceInterviewAutoEndDate,
+      Voice_Interview_Timezone: setup.voiceInterviewTimezone,
+    });
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
     let response: Response;
@@ -163,7 +183,31 @@ export async function POST(request: Request, context: Context) {
     try { result = raw ? JSON.parse(raw) as Record<string, unknown> : {}; } catch { /* handled below */ }
     if (!response.ok || result.success !== true) {
       console.error("[API Recruitment Setup] n8n rejected update:", response.status, result);
-      return NextResponse.json({ success: false, error: "The recruitment setup could not be saved." }, { status: response.status === 409 ? 409 : 502 });
+      const workflowMessage = typeof result.message === "string"
+        ? result.message
+        : typeof result.error === "string"
+          ? result.error
+          : "The recruitment setup could not be saved.";
+      return NextResponse.json({ success: false, error: workflowMessage }, { status: response.status === 409 ? 409 : 502 });
+    }
+    let voiceSlotWarning = "";
+    let voiceSlotsGeneratedAt = setup.voiceInterviewSlotsGeneratedAt || "";
+    if (setupAction === "publish_role" && setup.voiceInterviewAvailabilityMode !== "none") {
+      try {
+        const voiceSlots = await createConfiguredVoiceInterviewSlots({
+          roleId: role.roleId,
+          mode: setup.voiceInterviewAvailabilityMode,
+          manualSlots: setup.voiceInterviewSlots,
+          autoStartDate: setup.voiceInterviewAutoStartDate,
+          autoEndDate: setup.voiceInterviewAutoEndDate,
+          timezone: setup.voiceInterviewTimezone,
+        });
+        voiceSlotsGeneratedAt = voiceSlots.created > 0 || voiceSlots.skipped > 0 ? updatedAt : voiceSlotsGeneratedAt;
+        await updateRoleRequestFields(role.roleId, { Voice_Interview_Slots_Generated_At: voiceSlotsGeneratedAt });
+      } catch (voiceSlotError) {
+        voiceSlotWarning = voiceSlotError instanceof Error ? `Role published, but AI Voice Interview slots could not be generated: ${voiceSlotError.message}` : "Role published, but AI Voice Interview slots could not be generated.";
+        console.error("[API Recruitment Setup] Voice slot generation failed:", voiceSlotError);
+      }
     }
     return NextResponse.json({
       success: true,
@@ -175,7 +219,9 @@ export async function POST(request: Request, context: Context) {
       actionRequestId,
       notificationStatus: typeof result.notificationStatus === "string" ? result.notificationStatus : "not_configured",
       notificationError: typeof result.notificationError === "string" ? result.notificationError : "",
-      message: "Recruitment setup saved successfully.",
+      message: voiceSlotWarning || "Recruitment setup saved successfully.",
+      voiceSlotWarning,
+      voiceSlotsGeneratedAt,
     });
   } catch (error) {
     if (error instanceof Error && error.name === "ZodError") return NextResponse.json({ success: false, error: "Please check the recruitment setup fields." }, { status: 400 });

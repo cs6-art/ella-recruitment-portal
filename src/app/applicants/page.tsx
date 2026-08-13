@@ -2,7 +2,6 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import AppShell from "@/components/AppShell";
-import CandidateApplicationForm from "@/components/CandidateApplicationForm";
 import ApplicantsList from "@/components/ApplicantsList";
 import { getApplicants } from "@/lib/candidate-applications";
 import { getRoleRequests } from "@/lib/google-sheets";
@@ -16,32 +15,18 @@ export default async function ApplicantsPage() {
   if (user.canReviewRole !== true && user.canApproveRole !== true) redirect("/dashboard");
 
   const [applicants, roles] = await Promise.all([getApplicants(), getRoleRequests()]);
-  const roleOptions = roles
-    .filter((role) => ["Approved", "Recruitment Setup", "Job Posted"].includes(role.status))
+  const publishedRoles = roles
+    .filter((role) => role.status === "Job Posted" && role.recruitmentSetupStatus === "Published")
     .map((role) => ({
       roleId: role.roleId,
-      label: `${role.jobTitle || role.roleId} (${role.roleId})`,
-      status: role.status,
+      label: role.jobTitle || role.roleId,
     }));
-
   return (
     <AppShell user={user}>
       <ApplicantsList
         applicants={applicants}
-        description="Review candidate workflows and add manual intake records when HR needs to capture an application directly."
-        topContent={(
-          <CandidateApplicationForm
-            submitUrl="/api/applicants"
-            title="Add candidate"
-            description="Create a manual HR candidate record against an approved or active role."
-            submitLabel="Add Candidate"
-            requireConsent={false}
-            defaultApplicationSource="HR Invitation"
-            applicationSourceOptions={["Referral", "Walk-in", "Agency", "Existing Database", "HR Invitation"]}
-            showRoleSelect
-            roleOptions={roleOptions}
-          />
-        )}
+        publishedRoles={publishedRoles}
+        description="Review every applicant as they move through the recruitment workflow."
       />
     </AppShell>
   );

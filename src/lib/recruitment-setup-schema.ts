@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+
 const optionalUrl = z.string().trim().max(2000).refine((value) => value === "" || /^https?:\/\//i.test(value), "Enter a valid http(s) URL.");
 const editableExperience = z.preprocess((value) => value === null || value === undefined ? "" : String(value), z.string().trim().max(100).default(""));
 
@@ -35,6 +36,13 @@ const customEvaluationField = z.object({
   description: z.string().trim().min(1, "Description is required.").max(200),
 });
 
+const setupVoiceInterviewSlotSchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Select a valid voice interview date."),
+  startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Select a valid voice interview start time."),
+  endTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Select a valid voice interview end time."),
+  timezone: z.string().trim().min(1, "Select a voice interview timezone.").max(100),
+}).refine((slot) => slot.startTime < slot.endTime, "Voice interview start time must be before the end time.");
+
 export const recruitmentSetupSchema = z.object({
   jobDescription: z.string().trim().min(1, "Job Description is required.").max(20000),
   screeningCriteria: z.string().trim().min(1, "Screening Criteria is required.").max(10000),
@@ -66,10 +74,31 @@ export const recruitmentSetupSchema = z.object({
   experienceRequirementStatus: z.string().trim().max(30).default(""),
   licenseRequirementStatus: z.string().trim().max(30).default(""),
   hodInterviewRequired: z.string().trim().max(30).default(""),
+  voiceInterviewAvailabilityMode: z.enum(["none", "manual", "automatic"]).default("none"),
+  voiceInterviewSlots: z.preprocess((value) => {
+    if (typeof value === "string") {
+      try { return JSON.parse(value); } catch { return []; }
+    }
+    return value;
+  }, z.array(setupVoiceInterviewSlotSchema).max(100, "Up to 100 voice interview slots are allowed.").default([])),
+  voiceInterviewAutoStartDate: z.string().trim().max(10).default(""),
+  voiceInterviewAutoEndDate: z.string().trim().max(10).default(""),
+  voiceInterviewTimezone: z.string().trim().max(100).default("Asia/Singapore"),
+  voiceInterviewSlotsGeneratedAt: z.string().trim().max(40).default(""),
   recruitmentSetupStatus: z.string().trim().max(40).default("Draft"),
   setupAction: z.string().trim().max(60).default("save_draft"),
   comments: z.string().trim().max(5000).optional().default(""),
   actionRequestId: z.string().trim().min(1).max(200).optional(),
+}).superRefine((setup, context) => {
+  if (setup.voiceInterviewAvailabilityMode === "manual" && setup.voiceInterviewSlots.length === 0) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["voiceInterviewSlots"], message: "Add at least one manual AI Voice Interview slot or choose automatic availability." });
+  }
+  if (setup.voiceInterviewAvailabilityMode === "automatic" && (!/^\d{4}-\d{2}-\d{2}$/.test(setup.voiceInterviewAutoStartDate) || !/^\d{4}-\d{2}-\d{2}$/.test(setup.voiceInterviewAutoEndDate))) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["voiceInterviewAutoStartDate"], message: "Choose an automatic AI Voice Interview start and end date." });
+  }
+  if (setup.voiceInterviewAvailabilityMode === "automatic" && !setup.voiceInterviewTimezone.trim()) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["voiceInterviewTimezone"], message: "Choose a timezone for automatic AI Voice Interview availability." });
+  }
 });
 
 export type RecruitmentSetupInput = z.infer<typeof recruitmentSetupSchema>;

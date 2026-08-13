@@ -6,7 +6,9 @@ import { z } from "zod";
 import {
   getRoleRequestById,
   getRoleStatusHistory,
+  updateRoleRequestFields,
 } from "@/lib/google-sheets";
+import { invalidateSheetsCache } from "@/lib/sheets-cache";
 import {
   COOKIE_NAME,
   verifySessionToken,
@@ -366,11 +368,37 @@ export async function POST(
       return jsonError("The role status workflow returned an invalid response.", 502);
     }
 
+    // Keep the portal's source row synchronized even when the deployed n8n
+    // workflow only records the transition in status history. This also
+    // invalidates the short-lived read cache before the detail page refreshes.
+    const persistedStatus = typeof result.status === "string" && result.status.trim()
+      ? result.status
+      : transition.target;
+    try {
+      await updateRoleRequestFields(role.roleId, {
+        Status: persistedStatus,
+        Last_Updated_At: timestamp,
+        Last_Updated_By_Name: user.name,
+        Last_Updated_By_Email: user.email.trim().toLowerCase(),
+        Latest_Comments: comments,
+        ...(action === "approve_role"
+          ? {
+              Management_Comments: comments,
+              Approved_By: user.name,
+              Approved_At: timestamp,
+            }
+          : {}),
+      });
+    } catch (persistenceError) {
+      console.error("[API Role Status] Could not synchronize the Role_Requests row:", persistenceError);
+    }
+    invalidateSheetsCache("Role_Status_History");
+
     return NextResponse.json({
       success: true,
       roleId: role.roleId,
       previousStatus: role.status,
-      status: typeof result.status === "string" ? result.status : transition.target,
+      status: persistedStatus,
       action,
       notificationStatus:
         typeof result.notificationStatus === "string"

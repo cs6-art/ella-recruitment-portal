@@ -1,6 +1,10 @@
 "use client";
 
 import { useMemo, useRef, useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
+
+import ActionFeedback from "@/components/ActionFeedback";
+import { countryOptions, CountryFlag } from "@/components/CountryOptions";
 
 type RoleOption = {
   roleId: string;
@@ -16,43 +20,16 @@ type Props = {
   description?: string;
   submitLabel?: string;
   requireConsent?: boolean;
-  defaultApplicationSource?: string;
-  applicationSourceOptions?: string[];
   showRoleSelect?: boolean;
 };
 
 type FormState = {
   candidateName: string;
   email: string;
-  phone: string;
-  preferredMobile: string;
-  resumeText: string;
-  salaryExpectation: string;
-  noticePeriod: string;
-  availability: string;
-  skillsAssessment: string;
-  roleExpectations: string;
-  applicationSource: string;
-  roleId: string;
-  consent: boolean;
+  countryCode: string;
+  localContactNumber: string;
+  resumeRoleId: string;
 };
-
-const defaultSources = [
-  "Direct Application",
-  "Referral",
-  "Walk-in",
-  "Agency",
-  "Existing Database",
-  "HR Invitation",
-];
-
-function normalizePreferredMobile(value: string) {
-  return value.trim().replace(/[\s().-]+/g, "");
-}
-
-function isPreferredMobileValid(value: string) {
-  return /^\+[1-9]\d{7,14}$/.test(normalizePreferredMobile(value));
-}
 
 const maxResumeFileBytes = 10 * 1024 * 1024;
 const resumeMimeTypes = new Set([
@@ -61,7 +38,20 @@ const resumeMimeTypes = new Set([
   "application/octet-stream",
 ]);
 
-function readFieldError(errors: Partial<Record<keyof FormState, string>>, key: keyof FormState) {
+function cleanDigits(value: string) {
+  return value.replace(/\D/g, "");
+}
+
+function normalizeCountryCode(value: string) {
+  const digits = cleanDigits(value).slice(0, 4);
+  return digits ? `+${digits}` : "";
+}
+
+function normalizedContactNumber(countryCode: string, localNumber: string) {
+  return `${normalizeCountryCode(countryCode)}${cleanDigits(localNumber)}`;
+}
+
+function readFieldError(errors: Partial<Record<keyof FormState | "resumeFile", string>>, key: keyof FormState | "resumeFile") {
   return errors[key] || "";
 }
 
@@ -69,41 +59,33 @@ export default function CandidateApplicationForm({
   roleId = "",
   roleOptions = [],
   submitUrl = "/api/public/applications",
-  title = "Apply for this role",
-  description = "Share a few details so the recruitment team can review your application.",
-  submitLabel = "Submit Application",
+  title = "Start a resume screening",
+  description = "Upload the candidate resume to begin the automated screening process.",
+  submitLabel = "Submit My Application",
   requireConsent = true,
-  defaultApplicationSource = "Direct Application",
-  applicationSourceOptions = defaultSources,
   showRoleSelect = false,
 }: Props) {
+  const router = useRouter();
   const [form, setForm] = useState<FormState>({
     candidateName: "",
     email: "",
-    phone: "",
-    preferredMobile: "",
-    resumeText: "",
-    salaryExpectation: "",
-    noticePeriod: "",
-    availability: "",
-    skillsAssessment: "",
-    roleExpectations: "",
-    applicationSource: defaultApplicationSource,
-    roleId,
-    consent: false,
+    countryCode: "+63",
+    localContactNumber: "",
+    resumeRoleId: roleId,
   });
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof FormState, string>>>({});
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof FormState | "resumeFile", string>>>({});
   const [saving, setSaving] = useState(false);
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [fileInputKey, setFileInputKey] = useState(0);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const selectedRoleLabel = useMemo(
-    () => roleOptions.find((option) => option.roleId === form.roleId)?.label || "",
-    [form.roleId, roleOptions],
+    () => roleOptions.find((option) => option.roleId === form.resumeRoleId)?.label || "",
+    [form.resumeRoleId, roleOptions],
   );
+  const selectedCountry = countryOptions.find((country) => country.code === form.countryCode) || countryOptions[0];
 
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -113,18 +95,14 @@ export default function CandidateApplicationForm({
   };
 
   function validate() {
-    const nextErrors: Partial<Record<keyof FormState, string>> = {};
+    const nextErrors: Partial<Record<keyof FormState | "resumeFile", string>> = {};
+    const contactNumber = normalizedContactNumber(form.countryCode, form.localContactNumber);
 
-    if (!form.candidateName.trim()) nextErrors.candidateName = "Candidate name is required.";
+    if (!form.candidateName.trim()) nextErrors.candidateName = "Full name is required.";
     if (!/^\S+@\S+\.\S+$/.test(form.email.trim().toLowerCase())) nextErrors.email = "Enter a valid email address.";
-    if (!form.preferredMobile.trim()) {
-      nextErrors.preferredMobile = "Preferred mobile is required.";
-    } else if (!isPreferredMobileValid(form.preferredMobile)) {
-      nextErrors.preferredMobile = "Use an international mobile number such as +639171234567 or +6581234567.";
-    }
-    if (!resumeFile && (!form.resumeText.trim() || form.resumeText.trim().length < 20)) nextErrors.resumeText = "Upload a PDF/DOCX file or enter at least 20 characters of resume text.";
-    if (showRoleSelect && !form.roleId.trim()) nextErrors.roleId = "Choose a role.";
-    if (requireConsent && !form.consent) nextErrors.consent = "Please confirm consent before submitting.";
+    if (!/^\+[1-9]\d{7,14}$/.test(contactNumber)) nextErrors.localContactNumber = "Enter a valid local contact number.";
+    if (!resumeFile) nextErrors.resumeFile = "Choose a PDF or DOCX resume file.";
+    if (showRoleSelect && !form.resumeRoleId.trim()) nextErrors.resumeRoleId = "Choose a role.";
 
     setFieldErrors(nextErrors);
     return nextErrors;
@@ -132,16 +110,16 @@ export default function CandidateApplicationForm({
 
   function selectResumeFile(file: File | null) {
     setResumeFile(null);
-    setFieldErrors((current) => ({ ...current, resumeText: "" }));
+    setFieldErrors((current) => ({ ...current, resumeFile: "" }));
     if (!file) return;
     const extension = file.name.toLowerCase().split(".").pop();
     if (!extension || !["pdf", "docx"].includes(extension) || !resumeMimeTypes.has(file.type || "application/octet-stream")) {
-      setFieldErrors((current) => ({ ...current, resumeText: "Choose a valid PDF or DOCX resume file." }));
+      setFieldErrors((current) => ({ ...current, resumeFile: "Choose a valid PDF or DOCX resume file." }));
       setError("The selected resume file is not supported.");
       return;
     }
     if (file.size > maxResumeFileBytes) {
-      setFieldErrors((current) => ({ ...current, resumeText: "Resume files must be 10 MB or smaller." }));
+      setFieldErrors((current) => ({ ...current, resumeFile: "Resume files must be 10 MB or smaller." }));
       setError("The selected resume file is too large.");
       return;
     }
@@ -164,37 +142,32 @@ export default function CandidateApplicationForm({
     }
 
     try {
+      const contactNumber = normalizedContactNumber(form.countryCode, form.localContactNumber);
       const body = new FormData();
-      Object.entries({ ...form, roleId: form.roleId || roleId, preferredMobile: normalizePreferredMobile(form.preferredMobile) }).forEach(([key, value]) => {
-        if (key === "resumeText" && !String(value).trim()) return;
-        body.append(key, typeof value === "boolean" ? String(value) : String(value));
-      });
+      body.append("candidateName", form.candidateName.trim());
+      body.append("email", form.email.trim().toLowerCase());
+      body.append("roleId", form.resumeRoleId || roleId);
+      // Keep the two existing backend/sheet aliases identical while the UI
+      // exposes one contact number only.
+      body.append("contactNumber", contactNumber);
+      body.append("phone", contactNumber);
+      body.append("preferredMobile", contactNumber);
+      body.append("applicantCountry", selectedCountry.country);
+      body.append("applicationSource", "Direct Application");
+      body.append("consent", String(requireConsent));
       if (resumeFile) body.append("resumeFile", resumeFile, resumeFile.name);
+
       const response = await fetch(submitUrl, { method: "POST", body });
       const result = await response.json();
-      if (!response.ok || result.success !== true) {
-        throw new Error(result.error || "Unable to submit application.");
-      }
+      if (!response.ok || result.success !== true) throw new Error(result.error || "Unable to submit application.");
+
       setMessage(result.message || `Application submitted. Application ID: ${result.applicationId}`);
-      setForm({
-        candidateName: "",
-        email: "",
-        phone: "",
-        preferredMobile: "",
-        resumeText: "",
-        salaryExpectation: "",
-        noticePeriod: "",
-        availability: "",
-        skillsAssessment: "",
-        roleExpectations: "",
-        applicationSource: defaultApplicationSource,
-        roleId: roleId || "",
-        consent: false,
-      });
+      setForm({ candidateName: "", email: "", countryCode: "+63", localContactNumber: "", resumeRoleId: roleId || "" });
       setResumeFile(null);
       setFileInputKey((value) => value + 1);
       if (fileInput.current) fileInput.current.value = "";
       setFieldErrors({});
+      router.refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to submit application.");
     } finally {
@@ -203,151 +176,86 @@ export default function CandidateApplicationForm({
   }
 
   return (
-    <form className="form-layout candidate-form-layout" onSubmit={submit}>
+    <form className="form-layout candidate-form-layout resume-screening-form" onSubmit={submit}>
       <div className="form-card candidate-form-card">
         <div className="card-header">
           <div>
+            <span className="form-eyebrow">RESUME SCREENING</span>
             <h2>{title}</h2>
             <p>{description}</p>
             {selectedRoleLabel && <small>{selectedRoleLabel}</small>}
           </div>
         </div>
 
-        {error && <div className="error-box" role="alert">{error}</div>}
-        {message && <div className="success-box" role="status">{message}</div>}
+        {error && <ActionFeedback kind="error">{error}</ActionFeedback>}
+        {message && <ActionFeedback kind="success">{message}</ActionFeedback>}
 
-        <div className="grid-2 candidate-form-grid">
-          {showRoleSelect ? (
-            <label className="field">
-              <span>Role *</span>
-              <select required value={form.roleId} disabled={saving} onChange={(event) => update("roleId", event.target.value)}>
-                <option value="">Choose a role</option>
-                {roleOptions.map((option) => (
-                  <option key={option.roleId} value={option.roleId}>
-                    {option.label}{option.status ? ` (${option.status})` : ""}
-                  </option>
-                ))}
-              </select>
-              {readFieldError(fieldErrors, "roleId") && <small>{readFieldError(fieldErrors, "roleId")}</small>}
-            </label>
-          ) : (
-            <input type="hidden" name="roleId" value={form.roleId || roleId} />
-          )}
-
+        <div className="candidate-form-fields">
           <label className="field">
-            <span>Application source</span>
-            <select value={form.applicationSource} disabled={saving} onChange={(event) => update("applicationSource", event.target.value)}>
-              {applicationSourceOptions.map((source) => <option key={source}>{source}</option>)}
-            </select>
-          </label>
-
-          <label className="field">
-            <span>Candidate name *</span>
+            <span>Full Name *</span>
             <input required value={form.candidateName} disabled={saving} onChange={(event) => update("candidateName", event.target.value)} />
             {readFieldError(fieldErrors, "candidateName") && <small>{readFieldError(fieldErrors, "candidateName")}</small>}
           </label>
 
+          <div className="field contact-number-field">
+            <span>Contact Number *</span>
+            <div className="contact-number-controls">
+              <label>
+                <span>Country code</span>
+                <div className="country-code-control">
+                  <CountryFlag country={selectedCountry} />
+                  <select aria-label="Country code" value={form.countryCode} disabled={saving} onChange={(event) => update("countryCode", event.target.value)}>
+                    {countryOptions.map((country) => <option key={country.code} value={country.code}>{country.code} {country.label}</option>)}
+                  </select>
+                </div>
+              </label>
+              <label>
+                <span className="sr-only">Local contact number</span>
+                <input required aria-label="Local contact number" inputMode="numeric" placeholder={selectedCountry.placeholder} value={form.localContactNumber} disabled={saving} onChange={(event) => update("localContactNumber", cleanDigits(event.target.value))} />
+              </label>
+            </div>
+            <small>Enter the local number only, without the country code.</small>
+            {readFieldError(fieldErrors, "localContactNumber") && <small>{readFieldError(fieldErrors, "localContactNumber")}</small>}
+          </div>
+
           <label className="field">
-            <span>Email *</span>
+            <span>Email Address *</span>
             <input required type="email" value={form.email} disabled={saving} onChange={(event) => update("email", event.target.value)} />
             {readFieldError(fieldErrors, "email") && <small>{readFieldError(fieldErrors, "email")}</small>}
           </label>
 
-          <label className="field">
-            <span>Phone</span>
-            <input value={form.phone} disabled={saving} onChange={(event) => update("phone", event.target.value)} />
-          </label>
-
-          <label className="field">
-            <span>Preferred mobile *</span>
-            <input
-              required
-              value={form.preferredMobile}
-              disabled={saving}
-              placeholder="+639171234567"
-              onChange={(event) => update("preferredMobile", event.target.value)}
-            />
-            {readFieldError(fieldErrors, "preferredMobile") && <small>{readFieldError(fieldErrors, "preferredMobile")}</small>}
-          </label>
-
-          <label className="field">
-            <span>Salary expectation</span>
-            <input value={form.salaryExpectation} disabled={saving} onChange={(event) => update("salaryExpectation", event.target.value)} />
-          </label>
-
-          <label className="field">
-            <span>Notice period</span>
-            <input value={form.noticePeriod} disabled={saving} onChange={(event) => update("noticePeriod", event.target.value)} />
-          </label>
-
-          <label className="field">
-            <span>Availability</span>
-            <input value={form.availability} disabled={saving} onChange={(event) => update("availability", event.target.value)} />
-          </label>
-
-          <label className="field full">
-            <span>Resume / CV *</span>
-            <input
-              key={fileInputKey}
-              ref={fileInput}
-              type="file"
-              accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-              disabled={saving}
-              onChange={(event) => selectResumeFile(event.target.files?.[0] || null)}
-            />
-            {resumeFile && <small>Selected file: {resumeFile.name} ({Math.ceil(resumeFile.size / 1024)} KB)</small>}
-            <span className="field-help">Upload one PDF or DOCX file (maximum 10 MB), or use the text fallback below.</span>
-            <textarea
-              value={form.resumeText}
-              disabled={saving}
-              placeholder="Optional fallback: paste the resume text or a concise summary."
-              onChange={(event) => update("resumeText", event.target.value)}
-            />
-            {readFieldError(fieldErrors, "resumeText") && <small>{readFieldError(fieldErrors, "resumeText")}</small>}
-          </label>
-
-          <label className="field full">
-            <span>Skills assessment</span>
-            <textarea
-              value={form.skillsAssessment}
-              disabled={saving}
-              placeholder="Optional notes about the candidate's skills."
-              onChange={(event) => update("skillsAssessment", event.target.value)}
-            />
-          </label>
-
-          <label className="field full">
-            <span>Role expectations</span>
-            <textarea
-              value={form.roleExpectations}
-              disabled={saving}
-              placeholder="What the candidate expects from the role."
-              onChange={(event) => update("roleExpectations", event.target.value)}
-            />
-          </label>
-
-          {requireConsent && (
-            <label className="field full">
-              <span>
-                <input
-                  required
-                  type="checkbox"
-                  checked={form.consent}
-                  disabled={saving}
-                  onChange={(event) => update("consent", event.target.checked)}
-                />
-                {" "}
-                I consent to the processing of my application.
-              </span>
-              {readFieldError(fieldErrors, "consent") && <small>{readFieldError(fieldErrors, "consent")}</small>}
+          {showRoleSelect ? (
+            <label className="field">
+              <span>Role Applied For *</span>
+              <select required value={form.resumeRoleId} disabled={saving} onChange={(event) => update("resumeRoleId", event.target.value)}>
+                <option value="">Select a role</option>
+                {roleOptions.map((option) => <option key={option.roleId} value={option.roleId}>{option.label}</option>)}
+              </select>
+              {readFieldError(fieldErrors, "resumeRoleId") && <small>{readFieldError(fieldErrors, "resumeRoleId")}</small>}
             </label>
-          )}
+          ) : <input type="hidden" name="roleId" value={form.resumeRoleId || roleId} />}
+
+          <div className="field full resume-upload-field">
+            <span>Resume Upload *</span>
+            <label className="resume-file-picker">
+              <input
+                key={fileInputKey}
+                ref={fileInput}
+                type="file"
+                accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                disabled={saving}
+                onChange={(event) => selectResumeFile(event.target.files?.[0] || null)}
+              />
+              <span className="resume-file-button">Choose a resume file</span>
+              <span className="resume-file-name">{resumeFile?.name || "No file selected"}</span>
+            </label>
+            <small>PDF or DOCX · up to 10 MB</small>
+            {readFieldError(fieldErrors, "resumeFile") && <small>{readFieldError(fieldErrors, "resumeFile")}</small>}
+          </div>
         </div>
 
         <div className="candidate-form-actions">
-          <button className="btn btn-primary" type="submit" disabled={saving}>
-            {saving ? "Submitting..." : submitLabel}
-          </button>
+          <button className="btn btn-primary" type="submit" disabled={saving}>{saving ? "Submitting..." : submitLabel}</button>
         </div>
       </div>
     </form>

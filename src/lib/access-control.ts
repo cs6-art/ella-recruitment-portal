@@ -28,3 +28,7 @@ export function canEditRecruitmentSetup(user: SessionUser): boolean {
 export function canUseRecruitmentSetup(status: string): boolean {
   return status === "Approved" || status === "Recruitment Setup";
 }
+
+export function canManageInterviewAvailability(status: string): boolean {
+  return ["Approved", "Recruitment Setup", "Job Posted"].includes(status.trim());
+}

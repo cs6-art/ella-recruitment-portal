@@ -54,11 +54,17 @@ export type ApplicantDetails = ApplicantSummary & {
   resumeDecision: string;
   resumeDecisionDate: string;
   resumeReviewer: string;
+  resumeComments: string;
   voiceDecision: string;
+  voiceComments: string;
   voiceScore: string;
   voiceRecommendation: string;
   voiceSummary: string;
+  voiceStrengths: string;
   voiceConcerns: string;
+  voiceCommunicationQuality: string;
+  voiceAnswerCompleteness: string;
+  voiceFollowUpQuestions: string;
   voiceTranscript: string;
   voiceScheduledDate: string;
   voiceScheduledTime: string;
@@ -303,7 +309,7 @@ export async function getApplicantById(id: string): Promise<ApplicantDetails | n
     ...summary,
     aiAnalysisSummary: field(record, "AI_Analysis_Summary", "AI Analysis Summary"),
     interviewQuestions: field(record, "Interview_Questions", "Interview Questions"),
-    resumeText: field(record, "Resume_CV", "Resume/CV", "Resume Text"),
+    resumeText: field(record, "Resume_Text", "Resume_CV", "Resume/CV", "Resume Text"),
     resumeFileId: field(record, "Resume_File_Id"),
     resumeFileName: field(record, "Resume_File_Name"),
     resumeFileMimeType: field(record, "Resume_File_Mime_Type"),
@@ -313,11 +319,20 @@ export async function getApplicantById(id: string): Promise<ApplicantDetails | n
     resumeDecision: field(record, "Resume_HR_Decision"),
     resumeDecisionDate: field(record, "Resume_HR_Decision_Date"),
     resumeReviewer: field(record, "Resume_HR_Reviewer"),
+    resumeComments: field(record, "Resume_HR_Comments"),
     voiceDecision: field(record, "Voice_HR_Decision"),
-    voiceScore: field(voiceResult ?? {}, "Voice_Score", "Voice Score"),
-    voiceRecommendation: field(voiceResult ?? {}, "Voice_Recommendation", "Voice Recommendation"),
-    voiceSummary: field(voiceResult ?? {}, "AI_Voice_Summary", "AI Voice Summary"),
-    voiceConcerns: field(voiceResult ?? {}, "Voice_Concerns", "Voice Concerns"),
+    voiceComments: field(record, "Voice_HR_Comments"),
+    // Voice_Interview_Results is canonical. The call log is a safe fallback
+    // while the result workflow is retrying or when a provider webhook only
+    // updated the audit log.
+    voiceScore: field(voiceResult ?? {}, "Voice_Score", "Voice Score") || field(callLog ?? {}, "Voice_Score", "Voice Score"),
+    voiceRecommendation: field(voiceResult ?? {}, "Voice_Recommendation", "Voice Recommendation") || field(callLog ?? {}, "Voice_Recommendation", "Voice Recommendation"),
+    voiceSummary: field(voiceResult ?? {}, "AI_Voice_Summary", "AI Voice Summary") || field(callLog ?? {}, "AI_Voice_Summary", "AI Voice Summary"),
+    voiceStrengths: field(voiceResult ?? {}, "Voice_Strengths", "Voice Strengths") || field(callLog ?? {}, "Voice_Strengths", "Voice Strengths"),
+    voiceConcerns: field(voiceResult ?? {}, "Voice_Concerns", "Voice Concerns") || field(callLog ?? {}, "Voice_Concerns", "Voice Concerns"),
+    voiceCommunicationQuality: field(voiceResult ?? {}, "Communication_Quality", "Communication Quality") || field(callLog ?? {}, "Communication_Quality", "Communication Quality"),
+    voiceAnswerCompleteness: field(voiceResult ?? {}, "Answer_Completeness", "Answer Completeness") || field(callLog ?? {}, "Answer_Completeness", "Answer Completeness"),
+    voiceFollowUpQuestions: field(voiceResult ?? {}, "Recommended_Follow_Up_Questions", "Recommended Follow Up Questions") || field(callLog ?? {}, "Recommended_Follow_Up_Questions", "Recommended Follow Up Questions"),
     voiceTranscript: field(voiceResult ?? {}, "Transcript", "Voice_Transcript", "Call_Transcript") || field(callLog ?? {}, "Transcript", "Voice_Transcript", "Call_Transcript"),
     voiceScheduledDate: field(record, "Voice_Interview_Scheduled_Date"),
     voiceScheduledTime: field(record, "Voice_Interview_Scheduled_Time"),

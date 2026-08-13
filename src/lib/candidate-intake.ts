@@ -25,10 +25,12 @@ export async function readCandidateIntakeRequest(request: Request): Promise<Cand
 }
 
 export function candidateBodyForValidation(body: Record<string, unknown>, resumeFile: File | null) {
+  const contactNumber = body.contactNumber ?? body.preferredMobile ?? body.mobile;
   return {
     ...body,
     candidateName: body.candidateName ?? body.name,
-    preferredMobile: body.preferredMobile ?? body.mobile,
+    phone: body.phone ?? contactNumber,
+    preferredMobile: contactNumber,
     applicationSource: body.applicationSource || "Direct Application",
     resumeText: resumeFile ? (String(body.resumeText || "").trim() || "Uploaded resume file will be extracted before screening.") : body.resumeText,
   };

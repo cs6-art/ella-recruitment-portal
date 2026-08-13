@@ -10,6 +10,7 @@ test("applicant data reader uses the shared candidate workbook tabs", () => {
   assert.match(source, /Voice_Interview_Results/);
   assert.match(source, /Voice_Call_Logs/);
   assert.match(source, /Final_Interview_Tracking/);
+  assert.match(source, /Resume_Text/);
   assert.doesNotMatch(source, /Finance_Resume/);
 });
 
@@ -30,52 +31,90 @@ test("dashboard includes candidate pipeline metrics without exposing them to cre
 
 test("applicant routes are protected and render populated sheet data", () => {
   const list = read("src/app/applicants/page.tsx");
+  const screening = read("src/app/resume-screening/page.tsx");
   const detail = read("src/app/applicants/[applicationId]/page.tsx");
   assert.match(list, /verifySessionToken/);
   assert.match(list, /getApplicants/);
-  assert.match(list, /CandidateApplicationForm/);
-  assert.match(list, /\/api\/applicants/);
+  assert.match(list, /role\.status === "Job Posted" && role\.recruitmentSetupStatus === "Published"/);
+  assert.match(list, /publishedRoles/);
+  assert.match(screening, /CandidateApplicationForm/);
+  assert.match(screening, /\/api\/applicants/);
+  assert.match(screening, /role\.status === "Job Posted" && role\.recruitmentSetupStatus === "Published"/);
+  assert.match(screening, /Resume Screening/);
   assert.match(detail, /verifySessionToken/);
   assert.match(detail, /getApplicantById/);
   assert.match(detail, /getCandidateStatusHistory/);
+  assert.match(detail, /latestDecisionComment/);
+  assert.match(detail, /const resumeComments = applicant\.resumeComments \|\|/);
   assert.match(detail, /Candidate Status History/);
 });
 
 test("applicants are reachable from the reviewer shell and role detail", () => {
   const shell = read("src/components/AppShell.tsx");
   const roleDetails = read("src/components/RoleDetails.tsx");
+  const hrReview = read("src/components/HrReview.tsx");
   assert.match(shell, /\/applicants/);
+  assert.match(shell, /\/resume-screening/);
   assert.match(roleDetails, /\/applicants/);
+  assert.match(roleDetails, /updatedStatus/);
+  assert.match(hrReview, /data\.status/);
 });
 
 test("candidate intake forms and decisions expose the required fields", () => {
   const form = read("src/components/CandidateApplicationForm.tsx");
+  const countryOptions = read("src/components/CountryOptions.tsx");
   const editor = read("src/components/RecruitmentSetupEditor.tsx");
   const decisionPanel = read("src/components/ApplicantDecisionPanel.tsx");
+  const roleDetails = read("src/components/RoleDetails.tsx");
+  const applicantData = read("src/lib/candidate-applications.ts");
   const route = read("src/app/api/applicants/route.ts");
   const publicRoute = read("src/app/api/public/applications/route.ts");
   const workflow = read("src/lib/applicant-workflow.ts");
   const decisionRoute = read("src/app/api/applicants/[applicationId]/decision/route.ts");
   const uploadRoute = read("src/app/api/uploads/resumes/route.ts");
   const downloadRoute = read("src/app/api/uploads/resumes/[fileId]/route.ts");
+  const scoreFormat = read("src/lib/score-format.ts");
 
-  assert.match(form, /preferredMobile/);
-  assert.match(form, /skillsAssessment/);
-  assert.match(form, /roleExpectations/);
-  assert.match(form, /applicationSource/);
+  assert.match(form, /Start a resume screening/);
+  assert.match(form, /countryCode/);
+  assert.match(form, /localContactNumber/);
+  assert.match(form, /Contact Number/);
+  assert.match(countryOptions, /flag: "ph"/);
+  assert.match(countryOptions, /\+63/);
+  assert.match(countryOptions, /flag: "sg"/);
+  assert.match(countryOptions, /\+65/);
+  assert.match(countryOptions, /flag: "my"/);
+  assert.match(countryOptions, /\+60/);
+  assert.doesNotMatch(form, /Roles loaded successfully/);
+  assert.doesNotMatch(form, /Preferred mobile/);
+  assert.doesNotMatch(form, /Salary expectation/);
+  assert.doesNotMatch(form, /Skills assessment/);
+  assert.doesNotMatch(form, /Role expectations/);
+  assert.match(scoreFormat, /percentage > 100/);
   assert.match(editor, /Save as template/);
   assert.match(editor, /SAVED TEMPLATES/);
+  assert.match(editor, /AI SUGGESTIONS/);
+  assert.match(editor, /Use suggestion/);
+  assert.match(roleDetails, /aiGeneratedScreeningQuestions/);
+  assert.match(applicantData, /Resume_HR_Comments/);
+  assert.match(applicantData, /Voice_HR_Comments/);
+  assert.match(decisionPanel, /<h2>HR Decisions<\/h2>/);
+  assert.match(decisionPanel, /reviewStage/);
+  assert.match(decisionPanel, /CompletedDecision/);
+  assert.match(decisionPanel, /router\.refresh\(\)/);
   assert.match(decisionPanel, /Request Manual Review/);
   assert.match(decisionPanel, /Comments \*/);
   assert.match(decisionPanel, /disabled=\{busy \|\|/);
   assert.match(route, /findDuplicateCandidateApplication/);
   assert.match(route, /canReviewRole !== true/);
   assert.match(route, /source: "HR Manual Intake"/);
-  assert.match(route, /allowedStatuses/);
+  assert.match(route, /role\.status !== "Job Posted"/);
+  assert.match(route, /role\.recruitmentSetupStatus !== "Published"/);
   assert.match(publicRoute, /buildCandidateApplicationPayload/);
   assert.match(workflow, /preferredMobile/);
-  assert.match(workflow, /skillsAssessment/);
-  assert.match(workflow, /roleExpectations/);
+  assert.match(workflow, /jobTitle/);
+  assert.match(route, /jobTitle: role\.jobTitle/);
+  assert.match(publicRoute, /jobTitle: role\.jobTitle/);
   assert.match(workflow, /applicationSource/);
   assert.match(decisionRoute, /Manual Review/);
   assert.match(decisionRoute, /comments/);
@@ -130,6 +169,14 @@ test("final booking links use the public portal host and final tokens are single
   assert.match(decisionRoute, /getPublicAppBaseUrl\(request\)/);
   assert.match(publicUrl, /NEXT_PUBLIC_APP_URL/);
   assert.match(publicUrl, /x-forwarded-host/);
+});
+
+test("booking links render a branded unavailable page when the token is not valid", () => {
+  const bookingPage = read("src/app/book/[kind]/[token]/page.tsx");
+  const unavailablePage = read("src/app/book/[kind]/[token]/not-found.tsx");
+  assert.match(bookingPage, /if \(!context\) notFound\(\)/);
+  assert.match(unavailablePage, /booking link is no longer available/i);
+  assert.match(unavailablePage, /already been used, expired, or been replaced/i);
 });
 
 test("high-cost and state-changing APIs apply request throttling", () => {

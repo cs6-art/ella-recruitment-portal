@@ -1,11 +1,65 @@
 {
   "name": "McLink - Candidate Application Foundation",
   "nodes": [
-    {"parameters":{"httpMethod":"POST","path":"candidate-application","responseMode":"responseNode","options":{}},"id":"candidate-application-webhook","name":"Candidate Application Webhook","type":"n8n-nodes-base.webhook","typeVersion":2.1,"position":[260,300],"webhookId":"candidate-application"},
-    {"parameters":{"jsCode":"const body = $json.body ?? $json;\nif (body.eventType !== 'candidate_application_submitted') throw new Error('Invalid candidate application event');\nconst roleId = String(body.Role_ID ?? body.roleId ?? '').trim();\nconst candidate = body.candidate ?? {};\nif (!roleId || !String(candidate.name ?? '').trim() || !String(candidate.email ?? '').includes('@') || String(candidate.resumeText ?? '').trim().length < 20) throw new Error('Candidate application is incomplete');\nreturn [{json:{'Application ID':body.applicationId ?? '', 'Candidate Name':candidate.name, Email:candidate.email, 'Contact Number':candidate.phone ?? '', Role_ID:roleId, 'Selected Role':body.jobTitle ?? '', 'Resume/CV':candidate.resumeText, 'Status (Resume Processing)':'Submitted', 'Date of Application':body.submittedAt ?? new Date().toISOString()}}];"},"id":"validate-candidate-application","name":"Validate Candidate Application","type":"n8n-nodes-base.code","typeVersion":2,"position":[500,300]},
-    {"parameters":{"operation":"append","documentId":{"__rl":true,"mode":"id","value":"={{$env.GOOGLE_SHEETS_SPREADSHEET_ID}}"},"sheetName":{"__rl":true,"mode":"name","value":"High_Match_Profile"},"columns":{"mappingMode":"autoMapInputData","value":{}},"options":{}},"id":"append-candidate-application","name":"Append Candidate Application","type":"n8n-nodes-base.googleSheets","typeVersion":4.7,"position":[760,300]},
-    {"parameters":{"respondWith":"json","responseBody":"={{ JSON.stringify({success:true, applicationId:$node['Validate Candidate Application'].json['Application ID'], roleId:$node['Validate Candidate Application'].json.Role_ID, status:'Resume Submitted'}) }}","options":{}},"id":"candidate-application-response","name":"Return Candidate Application Result","type":"n8n-nodes-base.respondToWebhook","typeVersion":1.4,"position":[1020,300]}
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "candidate-application",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "candidate-application-webhook",
+      "name": "Candidate Application Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [260, 300],
+      "webhookId": "candidate-application"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body ?? $json;\nif (body.eventType !== 'candidate_application_submitted') throw new Error('Invalid candidate application event');\nconst roleId = String(body.Role_ID ?? body.roleId ?? '').trim();\nconst candidate = body.candidate ?? {};\nconst resumeText = String(candidate.resumeText ?? '').trim();\nconst contactNumber = String(candidate.preferredMobile ?? candidate.phone ?? '').trim();\nconst applicantCountry = String(candidate.applicantCountry ?? body.applicantCountry ?? '').trim().toUpperCase();\nif (!roleId || !String(candidate.name ?? '').trim() || !String(candidate.email ?? '').includes('@') || resumeText.length < 20) throw new Error('Candidate application is incomplete');\nif (applicantCountry && !['PH', 'SG', 'MY', 'SA'].includes(applicantCountry)) throw new Error('Unsupported applicant country');\nreturn [{json:{'Application ID':body.applicationId ?? '', Candidate_Name:candidate.name ?? '', 'Candidate Name':candidate.name ?? '', Email:candidate.email ?? '', Phone:contactNumber, Contact_Number:contactNumber, 'Contact Number':contactNumber, Preferred_Mobile:contactNumber, Applicant_Country:applicantCountry, Role_ID:roleId, 'Selected Role':body.jobTitle ?? body.selectedRole ?? '', Department:body.department ?? '', Resume_Text:resumeText, 'Resume/CV':resumeText, Application_Source:body.applicationSource ?? candidate.applicationSource ?? 'Direct Application', 'Status (Resume Processing)':'Submitted', 'Date of Application':body.submittedAt ?? new Date().toISOString(), Resume_File_Id:body.resumeFile?.fileId ?? '', Resume_File_Name:body.resumeFile?.fileName ?? '', Resume_File_Mime_Type:body.resumeFile?.mimeType ?? ''}}];"
+      },
+      "id": "validate-candidate-application",
+      "name": "Validate Candidate Application",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{$env.GOOGLE_SHEETS_SPREADSHEET_ID}}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "High_Match_Profile" },
+        "columns": { "mappingMode": "autoMapInputData", "value": {} },
+        "options": {}
+      },
+      "id": "append-candidate-application",
+      "name": "Append Candidate Application",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [760, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({success:true, applicationId:$node['Validate Candidate Application'].json['Application ID'], roleId:$node['Validate Candidate Application'].json.Role_ID, status:'Resume Submitted'}) }}",
+        "options": {}
+      },
+      "id": "candidate-application-response",
+      "name": "Return Candidate Application Result",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [1020, 300]
+    }
   ],
-  "connections":{"Candidate Application Webhook":{"main":[[{"node":"Validate Candidate Application","type":"main","index":0}]]},"Validate Candidate Application":{"main":[[{"node":"Append Candidate Application","type":"main","index":0}]]},"Append Candidate Application":{"main":[[{"node":"Return Candidate Application Result","type":"main","index":0}]]}},
-  "active":false,"settings":{},"versionId":"candidate-application-foundation-v2","meta":{"templateCredsSetupCompleted":false},"tags":[]
+  "connections": {
+    "Candidate Application Webhook": { "main": [[{ "node": "Validate Candidate Application", "type": "main", "index": 0 }]] },
+    "Validate Candidate Application": { "main": [[{ "node": "Append Candidate Application", "type": "main", "index": 0 }]] },
+    "Append Candidate Application": { "main": [[{ "node": "Return Candidate Application Result", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": {},
+  "versionId": "candidate-application-foundation-v2",
+  "meta": { "templateCredsSetupCompleted": false },
+  "tags": []
 }

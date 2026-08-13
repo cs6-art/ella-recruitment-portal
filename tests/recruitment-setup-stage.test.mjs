@@ -42,6 +42,29 @@ test("publishing is blocked until Ready for Publishing", () => {
   assert.match(route, /Job Posted/);
 });
 
+test("voice interview availability is configured separately and generated on publish", async () => {
+  const voiceAvailability = fs.readFileSync("src/lib/voice-interview-availability.ts", "utf8");
+  assert.match(editor, /AI VOICE INTERVIEW AVAILABILITY/);
+  assert.match(editor, /Enter specific slots now/);
+  assert.match(editor, /Generate weekday slots/);
+  assert.match(route, /createConfiguredVoiceInterviewSlots/);
+  assert.match(route, /setupAction === "publish_role"/);
+  assert.match(route, /Voice_Interview_Availability_Mode/);
+  assert.match(voiceAvailability, /9 \* 60/);
+
+  const { generateAutomaticVoiceInterviewSlots } = await import("../src/lib/voice-interview-availability.ts");
+  const slots = generateAutomaticVoiceInterviewSlots({ startDate: "2026-08-17", endDate: "2026-08-17", timezone: "Asia/Singapore", durationMinutes: 30 });
+  assert.equal(slots.length, 16);
+  assert.deepEqual(slots[0], { date: "2026-08-17", startTime: "09:00", endTime: "09:30", timezone: "Asia/Singapore" });
+  assert.deepEqual(slots.at(-1), { date: "2026-08-17", startTime: "16:30", endTime: "17:00", timezone: "Asia/Singapore" });
+});
+
+test("setup action status is synchronized for legacy and canonical n8n payload readers", () => {
+  assert.match(route, /const nextRecruitmentSetupStatus = setupStatusForAction/);
+  assert.match(route, /recruitmentSetupStatus: nextRecruitmentSetupStatus/);
+  assert.match(route, /Recruitment_Setup_Status: setupStatusForAction/);
+});
+
 test("setup payload keeps the five canonical questions compatible with n8n", () => {
   assert.match(route, /requiredInterviewQuestion1/);
   assert.match(route, /requiredInterviewQuestion5/);

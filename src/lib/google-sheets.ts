@@ -99,6 +99,12 @@ export type RoleRequestDetails = {
   hodAvailabilityDates: string;
   hodAvailabilityTimes: string;
   hodAvailabilitySlots: string;
+  voiceInterviewAvailabilityMode: string;
+  voiceInterviewSlots: string;
+  voiceInterviewAutoStartDate: string;
+  voiceInterviewAutoEndDate: string;
+  voiceInterviewTimezone: string;
+  voiceInterviewSlotsGeneratedAt: string;
   customScreeningQuestion1: string;
   customScreeningQuestion2: string;
   aiGeneratedScreeningQuestions: string;
@@ -279,6 +285,17 @@ function parseNumber(value: string): number {
     : 0;
 }
 
+function columnName(index: number): string {
+  let number = index + 1;
+  let name = "";
+  while (number > 0) {
+    const remainder = (number - 1) % 26;
+    name = String.fromCharCode(65 + remainder) + name;
+    number = Math.floor((number - 1) / 26);
+  }
+  return name;
+}
+
 function parseStoredEvaluationFields(
   value: string,
 ): Pick<RoleRequestDetails, "evaluationFieldToggles" | "customEvaluationFields"> {
@@ -398,6 +415,12 @@ function mapRoleRequest(
     hodAvailabilityDates: getField(record, ["HOD_Availability_Dates"]),
     hodAvailabilityTimes: getField(record, ["HOD_Availability_Times"]),
     hodAvailabilitySlots: getField(record, ["HOD_Availability_Slots"]),
+    voiceInterviewAvailabilityMode: getField(record, ["Voice_Interview_Availability_Mode"]),
+    voiceInterviewSlots: getField(record, ["Voice_Interview_Slots"]),
+    voiceInterviewAutoStartDate: getField(record, ["Voice_Interview_Auto_Start_Date"]),
+    voiceInterviewAutoEndDate: getField(record, ["Voice_Interview_Auto_End_Date"]),
+    voiceInterviewTimezone: getField(record, ["Voice_Interview_Timezone"]),
+    voiceInterviewSlotsGeneratedAt: getField(record, ["Voice_Interview_Slots_Generated_At"]),
     customScreeningQuestion1: getField(record, ["Custom_Screening_Question_1"]),
     customScreeningQuestion2: getField(record, ["Custom_Screening_Question_2"]),
     aiGeneratedScreeningQuestions: getField(record, ["AI_Screening_Questions"]),
@@ -907,6 +930,38 @@ export async function upsertRecruitmentTemplate(template: RecruitmentTemplateRec
     });
   }
   invalidateSheetsCache("Recruitment_Templates");
+}
+
+/**
+ * Writes role-owned setup fields directly after a setup action. The n8n
+ * mapper still receives the same fields, but this keeps newly introduced
+ * setup columns durable even before an imported workflow has been redeployed.
+ */
+export async function updateRoleRequestFields(roleId: string, fields: Record<string, string>): Promise<void> {
+  const response = await sheets.spreadsheets.values.get({ spreadsheetId, range: "Role_Requests!A1:ZZ" });
+  const rows = response.data.values ?? [];
+  if (rows.length < 2) throw new Error("Role_Requests sheet has no data rows.");
+  const headers = [...(rows[0] ?? [])].map((header) => toText(header));
+  const roleIndex = headers.findIndex((header) => ["role_id", "role id", "submission_id", "submission id"].includes(normalizeHeader(header)));
+  if (roleIndex < 0) throw new Error("Role_Requests sheet is missing a role ID column.");
+  const rowIndex = rows.slice(1).findIndex((row) => toText(row[roleIndex]) === roleId);
+  if (rowIndex < 0) throw new Error("Role request row not found.");
+
+  const rowNumber = rowIndex + 2;
+  const updates: { range: string; values: string[][] }[] = [];
+  for (const [header, value] of Object.entries(fields)) {
+    let headerIndex = headers.findIndex((existing) => normalizeHeader(existing) === normalizeHeader(header));
+    if (headerIndex < 0) {
+      headerIndex = headers.length;
+      headers.push(header);
+      updates.push({ range: `'Role_Requests'!${columnName(headerIndex)}1`, values: [[header]] });
+    }
+    updates.push({ range: `'Role_Requests'!${columnName(headerIndex)}${rowNumber}`, values: [[value]] });
+  }
+  if (updates.length > 0) {
+    await sheets.spreadsheets.values.batchUpdate({ spreadsheetId, requestBody: { valueInputOption: "USER_ENTERED", data: updates } });
+    invalidateSheetsCache("Role_Requests");
+  }
 }
 
 export async function deleteRecruitmentTemplate(id: string): Promise<void> {

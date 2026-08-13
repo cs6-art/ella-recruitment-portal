@@ -20,6 +20,9 @@ the portal maps by header name, but spelling must remain exact.
 `HOD_Availability_Dates`, `HOD_Availability_Times`, `HOD_Availability_Slots`,
 `Custom_Screening_Question_1`, `Custom_Screening_Question_2`,
 `AI_Screening_Questions`, `Notice_Period_Requirement`,
+`Voice_Interview_Availability_Mode`, `Voice_Interview_Slots`,
+`Voice_Interview_Auto_Start_Date`, `Voice_Interview_Auto_End_Date`,
+`Voice_Interview_Timezone`, `Voice_Interview_Slots_Generated_At`,
 `Salary_Expectation_Guidance`, `Application_Link`, `Posting_Confirmed`,
 `Posted_At`, `Posted_By`,
 `AI_System_Prompt`, `Initial_Interview_Booking_Link`,
@@ -69,6 +72,13 @@ remain human-readable compatibility fields. Final interview slots are checked
 against these structured windows when they exist; older roles without them
 continue to support manual scheduling.
 
+`Voice_Interview_Availability_Mode` is `none`, `manual`, or `automatic`.
+Manual mode stores exact AI Voice Interview slots in `Voice_Interview_Slots`.
+Automatic mode stores a date range and timezone; publishing generates weekday
+slots from 9:00 AM to 5:00 PM using the configured voice-interview duration.
+Generated slots are written to `Interview_Slots` and duplicate role/date/start
+combinations are skipped on later publishes.
+
 ## Role_Status_History
 
 `History_ID`, `Role_ID`, `Changed_At`, `Changed_By_Name`, `Changed_By_Email`,
@@ -86,7 +96,8 @@ continue to support manual scheduling.
 
 The portal reads and writes these candidate fields in `High_Match_Profile`:
 `Application_ID`, `Role_ID`, `Candidate_Name`, `Email`, `Phone`,
-`Preferred_Mobile`, `Resume_Text`, `Salary_Expectation`, `Notice_Period`,
+`Contact_Number`, `Preferred_Mobile`, `Selected_Role`, `Department`,
+`Resume_Text`, `Salary_Expectation`, `Notice_Period`,
 `Availability`, `Skills_Assessment`, `Role_Expectations`,
 `Application_Source`, `Final_Status`, `Resume_HR_Comments`,
 `Voice_HR_Comments`, `Resume_File_Id`, `Resume_File_Name`,

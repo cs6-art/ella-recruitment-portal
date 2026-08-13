@@ -3,6 +3,7 @@
 import Script from "next/script";
 import { useEffect, useRef, useState } from "react";
 
+import ActionFeedback from "@/components/ActionFeedback";
 interface GoogleCredentialResponse {
   credential: string;
 }
@@ -72,7 +73,7 @@ export default function GoogleLogin() {
     <>
       <Script src="https://accounts.google.com/gsi/client" strategy="afterInteractive" onLoad={initialize} />
       <div className="google-slot" ref={buttonRef} aria-busy={!ready} />
-      {error ? <div className="error-box">{error}</div> : null}
+      {error ? <ActionFeedback kind="error">{error}</ActionFeedback> : null}
     </>
   );
 }

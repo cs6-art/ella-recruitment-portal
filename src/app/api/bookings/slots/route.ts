@@ -1,7 +1,9 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
+import { canManageInterviewAvailability } from "@/lib/access-control";
 import { createInterviewSlot } from "@/lib/applicant-workflow";
+import { getRoleRequestById } from "@/lib/google-sheets";
 import { consumeRateLimit, rateLimitHeaders, requestClientKey } from "@/lib/rate-limit";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
 
@@ -12,7 +14,10 @@ export async function POST(request: Request) {
   if (!rate.allowed) return NextResponse.json({ error: "Too many availability updates. Try again later." }, { status: 429, headers: rateLimitHeaders(rate) });
   try {
     const body = await request.json();
-    const slot = await createInterviewSlot({ interviewType: body.interviewType, roleId: body.roleId, date: body.date, startTime: body.startTime, endTime: body.endTime, timezone: body.timezone });
+    const roleId = String(body.roleId ?? "").trim();
+    const role = await getRoleRequestById(roleId);
+    if (!role || !canManageInterviewAvailability(role.status)) throw new Error("Interview availability can only be added for approved or active recruitment roles.");
+    const slot = await createInterviewSlot({ interviewType: body.interviewType, roleId, date: body.date, startTime: body.startTime, endTime: body.endTime, timezone: body.timezone });
     return NextResponse.json({ success: true, slot }, { status: 201 });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to create interview availability." }, { status: 400 });

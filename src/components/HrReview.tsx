@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 
+import ActionFeedback from "@/components/ActionFeedback";
 import { STATUS_ACTION_LABELS } from "@/lib/status-actions";
 import { notificationPresentation } from "@/lib/notification-status";
 
@@ -40,7 +41,7 @@ type HrReviewProps = {
   canReviewRole: boolean;
   canApproveRole: boolean;
   history: RoleStatusHistoryEntry[];
-  onSuccess: (message: string, warning?: string) => void;
+  onSuccess: (message: string, warning?: string, status?: string) => void;
   onConflict?: () => void;
 };
 
@@ -176,6 +177,7 @@ export default function HrReview({
       onSuccess(
         statusMessage,
         warning,
+        data.status,
       );
       setComments("");
       retryRequest.current = null;
@@ -239,7 +241,7 @@ export default function HrReview({
               />
               <small>Required and saved in Status History.</small>
             </div>
-            {error && <div className="error-box" role="alert">{error}</div>}
+            {error && <ActionFeedback kind="error">{error}</ActionFeedback>}
           </div>
 
           <div className="form-actions">
