@@ -578,7 +578,9 @@ a { color: inherit; text-decoration: none; }
 .availability-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 13px; }
 .availability-form label { display: grid; gap: 6px; color: var(--navy); font-size: 12px; font-weight: 700; }
 .availability-form input, .availability-form select { min-height: 40px; padding: 0 10px; border: 1px solid #cbd9e7; border-radius: 8px; background: #fff; color: var(--navy); font: inherit; font-weight: 500; }
-.availability-form-actions { display: flex; grid-column: 1 / -1; align-items: center; justify-content: flex-end; gap: 14px; }
+.availability-form-actions { display: flex; grid-column: 1 / -1; align-items: center; justify-content: space-between; gap: 14px; }
+.availability-form-actions .booking-form-error { flex: 1 1 auto; min-width: 0; }
+.availability-form-actions .btn { flex: 0 0 auto; margin-left: auto; }
 .availability-entry-list { display: grid; gap: 10px; margin-top: 10px; }
 .availability-entry { display: grid; grid-template-columns: 1.1fr .8fr .8fr 1.2fr auto; align-items: end; gap: 10px; padding: 12px; border: 1px solid #d8e4ee; border-radius: 10px; background: #fbfdff; }
 .availability-entry label { font-size: 11px; }
