@@ -167,17 +167,43 @@ export async function checkCalendarAvailability(input: Pick<CalendarEventInput, 
     const start = scheduledInstant(input.date, input.startTime, input.timezone);
     const end = scheduledInstant(input.date, input.endTime, input.timezone);
     const calendar = google.calendar({ version: "v3", auth: client });
-    const response = await calendar.freebusy.query({
-      requestBody: {
+    try {
+      const response = await calendar.freebusy.query({
+        requestBody: {
+          timeMin: start.toISOString(),
+          timeMax: end.toISOString(),
+          items: [{ id: "primary" }],
+        },
+      });
+      const busy = response.data.calendars?.primary?.busy || [];
+      const conflict = busy.find((window) => window.start && window.end);
+      if (conflict) return { available: false, checked: true, reason: "conflict", busyUntil: conflict.end || undefined };
+      return { available: true, checked: true };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!/insufficient authentication scopes|insufficient permission/i.test(message)) {
+        return { available: false, checked: false, reason: "error", error: message };
+      }
+
+      // Older connections may have calendar.events but not calendar.freebusy.
+      // Read event windows as a compatible fallback until the HOD reconnects.
+      const events = await calendar.events.list({
+        calendarId: "primary",
         timeMin: start.toISOString(),
         timeMax: end.toISOString(),
-        items: [{ id: "primary" }],
-      },
-    });
-    const busy = response.data.calendars?.primary?.busy || [];
-    const conflict = busy.find((window) => window.start && window.end);
-    if (conflict) return { available: false, checked: true, reason: "conflict", busyUntil: conflict.end || undefined };
-    return { available: true, checked: true };
+        singleEvents: true,
+        showDeleted: false,
+        maxResults: 2500,
+      });
+      const conflict = (events.data.items || []).find((event) => {
+        const eventStart = event.start?.dateTime || event.start?.date;
+        const eventEnd = event.end?.dateTime || event.end?.date;
+        if (!eventStart || !eventEnd) return false;
+        return Date.parse(eventStart) < end.getTime() && Date.parse(eventEnd) > start.getTime();
+      });
+      if (conflict) return { available: false, checked: true, reason: "conflict", busyUntil: conflict.end?.dateTime || conflict.end?.date };
+      return { available: true, checked: true };
+    }
   } catch (error) {
     return { available: false, checked: false, reason: "error", error: error instanceof Error ? error.message : String(error) };
   }
