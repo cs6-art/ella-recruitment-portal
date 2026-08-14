@@ -555,6 +555,137 @@ async function updateCells(updates: CellUpdate[]) {
   }
 }
 
+export type ApplicantProfileUpdate = {
+  candidateName: string;
+  email: string;
+  preferredMobile: string;
+  applicantCountry: string;
+};
+
+export async function updateApplicantProfile(applicationId: string, input: ApplicantProfileUpdate) {
+  const applicantData = await readSheet("High_Match_Profile", "BH");
+  const found = findApplicant(applicantData, applicationId);
+  if (!found) throw new Error("Applicant not found.");
+
+  const preferredMobile = normalizePreferredMobile(input.preferredMobile);
+  if (!isPreferredMobileValid(preferredMobile)) throw new Error("Enter a valid international mobile number.");
+  const now = new Date().toISOString();
+  await updateCells([
+    { tab: "High_Match_Profile", row: found.rowNumber, header: "Candidate_Name", value: input.candidateName.trim() },
+    { tab: "High_Match_Profile", row: found.rowNumber, header: "Email", value: input.email.trim().toLowerCase() },
+    { tab: "High_Match_Profile", row: found.rowNumber, header: "Preferred_Mobile", value: asTextCell(preferredMobile) },
+    { tab: "High_Match_Profile", row: found.rowNumber, header: "Contact_Number", value: asTextCell(preferredMobile) },
+    { tab: "High_Match_Profile", row: found.rowNumber, header: "Contact Number", value: asTextCell(preferredMobile) },
+    { tab: "High_Match_Profile", row: found.rowNumber, header: "Applicant_Country", value: input.applicantCountry.trim().toUpperCase() },
+    { tab: "High_Match_Profile", row: found.rowNumber, header: "Last_Updated", value: now },
+  ]);
+
+  const slots = await readSheet("Interview_Slots", "X");
+  const slotUpdates = slots.rows.flatMap((row, index) => {
+    if (field(row, "Application_ID", "Application ID").toLowerCase() !== applicationId.trim().toLowerCase()) return [];
+    return [
+      { tab: "Interview_Slots", row: slots.rowNumbers[index], header: "Candidate_Name", value: input.candidateName.trim() },
+      { tab: "Interview_Slots", row: slots.rowNumbers[index], header: "Candidate_Email", value: input.email.trim().toLowerCase() },
+    ];
+  });
+  if (slotUpdates.length > 0) await updateCells(slotUpdates);
+  const callQueue = await readOptionalSheet("Voice_Call_Queue", "X");
+  const queueUpdates = callQueue?.rows.flatMap((row, index) => {
+    if (field(row, "Application_ID", "Application ID").toLowerCase() !== applicationId.trim().toLowerCase()) return [];
+    return [
+      { tab: "Voice_Call_Queue", row: callQueue.rowNumbers[index], header: "Candidate_Name", value: input.candidateName.trim() },
+      { tab: "Voice_Call_Queue", row: callQueue.rowNumbers[index], header: "Candidate_Email", value: input.email.trim().toLowerCase() },
+      { tab: "Voice_Call_Queue", row: callQueue.rowNumbers[index], header: "Preferred_Mobile", value: asTextCell(preferredMobile) },
+      { tab: "Voice_Call_Queue", row: callQueue.rowNumbers[index], header: "Applicant_Country", value: input.applicantCountry.trim().toUpperCase() },
+    ];
+  }) || [];
+  if (queueUpdates.length > 0) await updateCells(queueUpdates);
+  return { applicationId, candidateName: input.candidateName.trim(), email: input.email.trim().toLowerCase(), preferredMobile };
+}
+
+async function readOptionalSheet(tab: string, endColumn: string): Promise<SheetData | null> {
+  try {
+    return await readSheet(tab, endColumn);
+  } catch (error) {
+    console.warn(`[Applicant Delete] Optional sheet ${tab} could not be read:`, error);
+    return null;
+  }
+}
+
+export async function deleteApplicant(applicationId: string) {
+  const normalizedApplicationId = applicationId.trim().toLowerCase();
+  if (!normalizedApplicationId) throw new Error("Applicant ID is required.");
+  const [applicantData, slots, history, voiceResults, callLogs, finalTracking, callQueue] = await Promise.all([
+    readSheet("High_Match_Profile", "BH"),
+    readOptionalSheet("Interview_Slots", "X"),
+    readOptionalSheet("Candidate_Status_History", "M"),
+    readOptionalSheet("Voice_Interview_Results", "AF"),
+    readOptionalSheet("Voice_Call_Logs", "AD"),
+    readOptionalSheet("Final_Interview_Tracking", "AE"),
+    readOptionalSheet("Voice_Call_Queue", "X"),
+  ]);
+  const found = findApplicant(applicantData, normalizedApplicationId);
+  if (!found) throw new Error("Applicant not found.");
+
+  const activeVoiceStatus = field(found.row, "Status 2 (Voice Interview)").toLowerCase();
+  const activeQueue = callQueue?.rows.some((row) =>
+    field(row, "Application_ID", "Application ID").toLowerCase() === normalizedApplicationId &&
+    ["calling", "initiated", "in progress"].includes(field(row, "Status").toLowerCase()),
+  );
+  if (["calling", "initiated", "in progress"].includes(activeVoiceStatus) || activeQueue) {
+    throw new Error("This applicant cannot be deleted while the voice interview is in progress.");
+  }
+
+  const applicantSlots = slots?.rows
+    .map((row, index) => ({ row, rowNumber: slots.rowNumbers[index] }))
+    .filter(({ row }) => field(row, "Application_ID", "Application ID").toLowerCase() === normalizedApplicationId) || [];
+  const finalBookedSlots = applicantSlots.filter(({ row }) =>
+    field(row, "Interview_Type", "Interview Type").toLowerCase() === "final interview" &&
+    field(row, "Status").toLowerCase() === "booked" &&
+    field(row, "Google_Calendar_Event_ID"),
+  );
+  if (finalBookedSlots.length > 0) {
+    const role = await getRoleRequestById(field(found.row, "Role_ID", "Role ID"));
+    const hodEmail = text(role?.hodEmail || role?.requesterEmail);
+    if (!hodEmail) throw new Error("The HOD email is not configured, so the linked calendar event cannot be removed.");
+    for (const { row } of finalBookedSlots) {
+      const result = await deleteFinalInterviewEvent(hodEmail, field(row, "Google_Calendar_Event_ID"));
+      if (!result.deleted) throw new Error(result.error || "Unable to remove the linked final-interview calendar event.");
+    }
+  }
+
+  const relatedSheets: Array<[string, SheetData | null]> = [
+    ["High_Match_Profile", applicantData],
+    ["Interview_Slots", slots],
+    ["Candidate_Status_History", history],
+    ["Voice_Interview_Results", voiceResults],
+    ["Voice_Call_Logs", callLogs],
+    ["Final_Interview_Tracking", finalTracking],
+    ["Voice_Call_Queue", callQueue],
+  ];
+  const metadata = await sheets.spreadsheets.get({ spreadsheetId, fields: "sheets(properties(sheetId,title))" });
+  const sheetIds = new Map((metadata.data.sheets || []).map((sheet) => [sheet.properties?.title || "", sheet.properties?.sheetId]));
+  const requests: { deleteDimension: { range: { sheetId: number; dimension: "ROWS"; startIndex: number; endIndex: number } } }[] = [];
+  for (const [tab, data] of relatedSheets) {
+    const sheetId = sheetIds.get(tab);
+    if (typeof sheetId !== "number" || !data) continue;
+    data.rows.forEach((row, index) => {
+      if (field(row, "Application_ID", "Application ID").toLowerCase() !== normalizedApplicationId) return;
+      const rowNumber = data.rowNumbers[index];
+      requests.push({ deleteDimension: { range: { sheetId, dimension: "ROWS", startIndex: rowNumber - 1, endIndex: rowNumber } } });
+    });
+  }
+  if (requests.length === 0) throw new Error("No applicant records were found to delete.");
+  requests.sort((left, right) => {
+    const leftRange = left.deleteDimension.range;
+    const rightRange = right.deleteDimension.range;
+    return rightRange.sheetId - leftRange.sheetId || rightRange.startIndex - leftRange.startIndex;
+  });
+  await sheets.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests } });
+  relatedSheets.forEach(([tab]) => invalidateSheetsCache(tab));
+  return { applicationId };
+}
+
 export async function reserveBooking(kind: BookingKind, token: string, slotId: string, preferredMobile: string) {
   const cleanSlotId = text(slotId);
   if (!cleanSlotId) throw new Error("Choose an interview slot.");

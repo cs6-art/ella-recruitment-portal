@@ -24,7 +24,9 @@ export type UiIconName =
   | "shield"
   | "info"
   | "alert"
-  | "check-circle";
+  | "check-circle"
+  | "edit"
+  | "trash";
 
 type UiIconProps = {
   name: UiIconName;
@@ -62,6 +64,8 @@ export default function UiIcon({ name, size = 18, strokeWidth = 1.8, className }
       {name === "info" && <><circle cx="12" cy="12" r="9" /><path d="M12 10.5v5M12 7.5h.01" /></>}
       {name === "alert" && <><circle cx="12" cy="12" r="9" /><path d="M12 7.5v5.5M12 16.5h.01" /></>}
       {name === "check-circle" && <><circle cx="12" cy="12" r="9" /><path d="m8 12.2 2.8 2.8L16 9.6" /></>}
+      {name === "edit" && <><path d="m4 16.5-.8 4.3 4.3-.8L19 8.5 15.5 5z" /><path d="m13.5 7 3.5 3.5" /></>}
+      {name === "trash" && <><path d="M5 7h14M10 4h4l1 3H9zM7 7l.8 13h8.4L17 7M10 10v7M14 10v7" /></>}
     </svg>
   );
 }

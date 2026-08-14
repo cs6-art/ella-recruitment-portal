@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { roleAiRecruitmentSetupDraftSchema } from "@/lib/role-ai-draft-schema";
+
 const hodAvailabilitySlotSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Select a valid availability date."),
   startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Enter a valid start time."),
@@ -34,6 +36,7 @@ export const roleRequestSchema = z.object({
   customScreeningQuestion1: z.string().trim().max(1000).default(""),
   customScreeningQuestion2: z.string().trim().max(1000).default(""),
   aiGeneratedScreeningQuestions: z.array(z.string().trim().min(1).max(1000)).max(5).default([]),
+  recruitmentSetupDraft: roleAiRecruitmentSetupDraftSchema.optional().default({}),
   // These legacy requisition columns remain available for existing sheet rows
   // and downstream workflows, but are no longer required during role creation.
   reportingManager: z.string().trim().max(150).default(""),
@@ -68,7 +71,7 @@ export const roleRequestSchema = z.object({
     });
   }
 
-  if (value.salaryMin !== undefined && value.salaryMax !== undefined && value.salaryMin > value.salaryMax) {
+  if (value.salaryMin !== undefined && value.salaryMin !== null && value.salaryMax !== undefined && value.salaryMax !== null && value.salaryMin > value.salaryMax) {
     context.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["salaryMax"],

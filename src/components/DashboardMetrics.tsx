@@ -30,7 +30,6 @@ export default function DashboardMetrics({ scope = "organization" }: { scope?: "
   const personalScope = scope === "personal";
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [error, setError] = useState("");
-  const [updatedAt, setUpdatedAt] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -38,13 +37,12 @@ export default function DashboardMetrics({ scope = "organization" }: { scope?: "
       .then(async (response) => {
         const data = await response.json();
         if (!response.ok || data.success !== true) throw new Error(data.error || "Unable to load dashboard metrics.");
-        if (active) { setMetrics(data.metrics); setUpdatedAt(new Date().toISOString()); }
+        if (active) setMetrics(data.metrics);
       })
       .catch((loadError: unknown) => { if (active) setError(loadError instanceof Error ? loadError.message : "Unable to load dashboard metrics."); });
     return () => { active = false; };
   }, []);
 
-  const value = (metric: keyof Metrics) => metrics ? String(metrics[metric] ?? 0) : "0";
   const recentCount = metrics?.recentRequests?.length ?? 0;
   const applicantMetrics = metrics?.applicantMetrics;
   const applicantBars = applicantMetrics ? [
@@ -56,23 +54,16 @@ export default function DashboardMetrics({ scope = "organization" }: { scope?: "
   ] : [];
 
   return <>
-    <div className="dashboard-metrics-meta dashboard-metrics-overview"><span className="dashboard-metrics-overview-label">{personalScope ? "My Overview" : "Overview"}</span>{error ? <span className="dashboard-metrics-error" role="alert">{error}</span> : updatedAt ? `Last updated ${formatDate(updatedAt)}` : "Loading live metrics..."}</div>
-    <div className="dashboard-metric-cards">{!metrics && !error ? <><MetricSkeleton /><MetricSkeleton /><MetricSkeleton /><MetricSkeleton /></> : <>
-      <article className="dashboard-stat-card"><div className="dashboard-stat-header"><span className="dashboard-stat-title-with-info">{personalScope ? "My Requests Waiting for HR Review" : "Waiting for HR Review"}<InfoTip label="What does Waiting for HR Review mean?">These are role requests that still need HR to check the job details.</InfoTip></span><span className="dashboard-stat-icon" aria-hidden="true"><UiIcon name="clock" size={17} /></span></div><strong>{value("pendingHrDiscussion")}</strong><small>{personalScope ? "Your submitted requests" : "Newly submitted requests"}</small></article>
-      <article className="dashboard-stat-card"><div className="dashboard-stat-header"><span className="dashboard-stat-title-with-info">{personalScope ? "My Requests Waiting for Approval" : "Waiting for Management Approval"}<InfoTip label="What does Waiting for Management Approval mean?">HR has reviewed these requests and management still needs to approve or reject them.</InfoTip></span><span className="dashboard-stat-icon" aria-hidden="true"><UiIcon name="shield" size={17} /></span></div><strong>{value("pendingManagementApproval")}</strong><small>{personalScope ? "Your requests in approval" : "Awaiting management decision"}</small></article>
-      <article className="dashboard-stat-card"><div className="dashboard-stat-header"><span className="dashboard-stat-title-with-info">{personalScope ? "My Approved Roles" : "Approved Roles"}<InfoTip label="What are Approved Roles?">These role requests were approved and can move into recruitment setup.</InfoTip></span><span className="dashboard-stat-icon" aria-hidden="true"><UiIcon name="check" size={17} /></span></div><strong>{value("approved")}</strong><small>{personalScope ? "Your approved roles" : "Approved for recruitment"}</small></article>
-      <article className="dashboard-stat-card"><div className="dashboard-stat-header"><span className="dashboard-stat-title-with-info">{personalScope ? "My Open Positions" : "Open Positions"}<InfoTip label="What are Open Positions?">A role is counted here when it is approved or ready for recruitment. Draft and rejected requests are not included.</InfoTip></span><span className="dashboard-stat-icon" aria-hidden="true"><UiIcon name="briefcase" size={17} /></span></div><strong>{value("openPositions")}</strong><small>{personalScope ? "Your roles in recruitment" : "Currently in recruitment"}</small></article>
-    </>}</div>
-
-    {!personalScope && metrics && <section className="dashboard-role-actions" aria-labelledby="dashboard-role-actions-title">
-      <div className="dashboard-candidate-heading"><div><span className="dashboard-metrics-overview-label dashboard-stat-title-with-info">Role Request Actions<InfoTip label="What are Role Request Actions?">These are the role requests that need HR or management action before recruitment can continue.</InfoTip></span><h2 id="dashboard-role-actions-title">Role Request Decision Queue</h2><p>Review, send for approval, approve, reject, or continue setup from the role request list.</p></div><Link className="dashboard-panel-link" href="/roles">View Role Requests <span aria-hidden="true">&rarr;</span></Link></div>
-      <div className="dashboard-role-action-grid">
+    <section className="dashboard-role-actions dashboard-role-actions-overview" aria-labelledby="dashboard-role-actions-title">
+      <div className="dashboard-candidate-heading"><div><span className="dashboard-metrics-overview-label dashboard-stat-title-with-info">Role Request Actions<InfoTip label="What are Role Request Actions?">These are the role requests grouped by their current workflow state, so each count is shown only once.</InfoTip></span><h2 id="dashboard-role-actions-title">{personalScope ? "My Role Request Overview" : "Role Request Overview"}</h2><p>Pending HR review, management approval, approved, rejected, and active recruitment positions.</p></div><Link className="dashboard-panel-link" href="/roles">View Role Requests <span aria-hidden="true">&rarr;</span></Link></div>
+      <div className="dashboard-role-action-grid">{!metrics && !error ? <><MetricSkeleton /><MetricSkeleton /><MetricSkeleton /><MetricSkeleton /><MetricSkeleton /></> : metrics ? <>
         <Link className="dashboard-role-action-card dashboard-role-action-review" href="/roles?status=Pending%20HR%20Discussion"><span>Pending HR Review</span><strong>{metrics.pendingHrDiscussion}</strong><small>Review details and send to management, return, or hold.</small></Link>
         <Link className="dashboard-role-action-card dashboard-role-action-approval" href="/roles?status=Pending%20Management%20Approval"><span>Pending Approval</span><strong>{metrics.pendingManagementApproval}</strong><small>Management decision required: approve, reject, return, or hold.</small></Link>
         <Link className="dashboard-role-action-card dashboard-role-action-approved" href="/roles?status=Approved"><span>Approved Roles</span><strong>{metrics.approved}</strong><small>Ready for recruitment setup and posting.</small></Link>
         <Link className="dashboard-role-action-card dashboard-role-action-rejected" href="/roles?status=Rejected"><span>Rejected Role Requests</span><strong>{metrics.rejected}</strong><small>Explicit role-request rejection recorded.</small></Link>
-      </div>
-    </section>}
+        <Link className="dashboard-role-action-card dashboard-role-action-open" href="/roles"><span>Open Positions</span><strong>{metrics.openPositions}</strong><small>Approved or active roles currently in recruitment.</small></Link>
+      </> : null}</div>
+    </section>
 
     {!personalScope && applicantMetrics && <section className="dashboard-candidate-overview" aria-labelledby="dashboard-candidate-overview-title">
       <div className="dashboard-candidate-heading"><div><span className="dashboard-metrics-overview-label dashboard-stat-title-with-info">Candidate Pipeline<InfoTip label="What is the Candidate Pipeline?">This shows how many applicants have reached each step of the hiring process.</InfoTip></span><h2 id="dashboard-candidate-overview-title">Applicant Performance</h2><p>Live counts from High_Match_Profile. Approval and rejection use clear candidate workflow statuses.</p></div><Link className="dashboard-panel-link" href="/applicants">View Applicants <span aria-hidden="true">&rarr;</span></Link></div>

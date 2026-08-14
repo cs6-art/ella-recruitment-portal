@@ -20,19 +20,29 @@ type Props = {
 
 const emptySlot = (): DraftSlot => ({ date: "", startTime: "", endTime: "", timezone: "Asia/Singapore" });
 
+function slotsMatch(left: DraftSlot[], right: DraftSlot[]) {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
 export default function HodAvailabilityEditor({ roleId, status, availability, editable, onSaved }: Props) {
   const initialSlots = useMemo(() => parseHodAvailabilitySlots(availability), [availability]);
   const [slots, setSlots] = useState<DraftSlot[]>(initialSlots);
+  const [savedSlots, setSavedSlots] = useState<DraftSlot[]>(initialSlots);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
     setSlots(initialSlots);
+    setSavedSlots(initialSlots);
   }, [initialSlots]);
+
+  const isDirty = !slotsMatch(slots, savedSlots);
 
   function updateSlot(index: number, key: keyof DraftSlot, value: string) {
     setSlots((current) => current.map((slot, slotIndex) => slotIndex === index ? { ...slot, [key]: value } : slot));
+    setMessage("");
+    setError("");
   }
 
   function addSlot() {
@@ -62,6 +72,7 @@ export default function HodAvailabilityEditor({ roleId, status, availability, ed
       });
       const result = await response.json() as { success?: boolean; error?: string; message?: string };
       if (!response.ok || result.success !== true) throw new Error(result.error || "Unable to update HOD availability.");
+      setSavedSlots(slots);
       setMessage(result.message || "HOD availability updated successfully.");
       onSaved();
     } catch (caught) {
@@ -85,6 +96,6 @@ export default function HodAvailabilityEditor({ roleId, status, availability, ed
       </div>)}
     </div>
     {slots.length === 0 && <p className="hod-availability-empty">No HOD availability windows are configured. Add a window before creating final-interview slots.</p>}
-    <div className="hod-availability-actions"><button type="button" className="btn btn-secondary" disabled={!editable || saving || slots.length >= 50} onClick={addSlot}>+ Add availability window</button><button type="button" className="btn btn-primary" disabled={!editable || saving} onClick={() => void save()}>{saving ? "Saving..." : "Save HOD availability"}</button></div>
+    <div className="hod-availability-actions"><button type="button" className="btn btn-secondary" disabled={!editable || saving || slots.length >= 50} onClick={addSlot}>+ Add availability window</button>{editable && isDirty && <button type="button" className="btn btn-primary" disabled={saving} onClick={() => void save()}>{saving ? "Saving..." : "Save HOD availability"}</button>}</div>
   </section>;
 }

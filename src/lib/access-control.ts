@@ -31,6 +31,37 @@ export function canEditHodAvailability(user: Pick<SessionUser, "email" | "canRev
   return [role.hodEmail, role.requesterEmail].some((value) => value.trim().toLowerCase() === email);
 }
 
+const editableRoleRequestStatuses = new Set([
+  "Pending HR Discussion",
+  "Pending Management Approval",
+  "Returned for Revision",
+  "On Hold",
+]);
+
+export function canEditRoleRequest(
+  user: Pick<SessionUser, "email" | "canReviewRole" | "canApproveRole">,
+  role: Pick<RoleRequestDetails, "requesterEmail" | "status">,
+): boolean {
+  if (!editableRoleRequestStatuses.has(role.status.trim())) return false;
+  if (user.canReviewRole === true || user.canApproveRole === true) return true;
+  return role.requesterEmail.trim().toLowerCase() === user.email.trim().toLowerCase();
+}
+
+export function canDeleteRoleRequest(
+  user: Pick<SessionUser, "email" | "canReviewRole" | "canApproveRole">,
+  role: Pick<RoleRequestDetails, "requesterEmail" | "status">,
+): boolean {
+  return canEditRoleRequest(user, role);
+}
+
+export function canEditApplicant(user: Pick<SessionUser, "canReviewRole" | "canApproveRole">): boolean {
+  return user.canReviewRole === true || user.canApproveRole === true;
+}
+
+export function canDeleteApplicant(user: Pick<SessionUser, "canReviewRole" | "canApproveRole">): boolean {
+  return canEditApplicant(user);
+}
+
 export function canUseRecruitmentSetup(status: string): boolean {
   return status === "Approved" || status === "Recruitment Setup";
 }

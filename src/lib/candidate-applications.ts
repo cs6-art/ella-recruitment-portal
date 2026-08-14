@@ -198,10 +198,24 @@ function workflowRecommendationFor(record: SheetRow) {
   const normalizedStage = currentStage.toLowerCase();
   const finalStatus = field(record, "Final_Status").toLowerCase();
   const voiceStatus = field(record, "Status 2 (Voice Interview)").toLowerCase();
+  const voiceDecision = field(record, "Voice_HR_Decision").toLowerCase();
   const finalInterviewStatus = field(record, "Status 3 (Final Interview)").toLowerCase();
 
   if (["calling", "initiated", "in progress"].includes(voiceStatus) || finalStatus.includes("voice interview in progress")) {
     return "AI Voice Interview In Progress";
+  }
+
+  // Nothing about the final interview is meaningful until the voice stage is
+  // decided. "Status 3 (Final Interview)" starts at "Pending" on every new
+  // applicant, which the final-stage branch below reads as "awaiting
+  // scheduling" — so a candidate whose voice call had not happened yet was
+  // reported as waiting on a final interview. Report the voice stage instead
+  // while it is still open; approved and rejected candidates fall through to
+  // the final-interview wording as before.
+  if (!["approve", "reject"].includes(voiceDecision)) {
+    if (voiceStatus === "scheduled") return "AI Voice Interview Scheduled";
+    if (voiceStatus === "awaiting schedule" || finalStatus.includes("approved for ai voice")) return "Awaiting AI Voice Interview Schedule";
+    if (["interviewed", "completed"].includes(voiceStatus)) return "Voice Interview Awaiting HR Review";
   }
 
   const finalStagePending = finalInterviewStatus.includes("awaiting schedule") || finalInterviewStatus.includes("not started") || finalInterviewStatus.includes("pending");
@@ -338,14 +352,27 @@ export async function getApplicantById(id: string): Promise<ApplicantDetails | n
   if (!record) return null;
 
   const summary = mapApplicant(record);
-  const related = (rows: SheetRow[]) => rows.find((row) => applicationId(row).toLowerCase() === normalizedId);
-  const voiceResult = related(voiceResults);
-  const callLog = related(callLogs);
-  const finalInterview = related(finalInterviews);
+  // A retry creates a new result/log row for the same applicant. Always use
+  // the most recent event; selecting the first row can surface an older
+  // no-answer result instead of the completed retry with its transcript.
+  const latestRelated = (rows: SheetRow[], timestampFields: string[]) => rows
+    .map((row, index) => ({ row, index }))
+    .filter(({ row }) => applicationId(row).toLowerCase() === normalizedId)
+    .sort((left, right) => {
+      const timestamp = (row: SheetRow) => timestampFields
+        .map((fieldName) => field(row, fieldName))
+        .map((value) => Date.parse(value))
+        .find((value) => !Number.isNaN(value)) ?? Number.NEGATIVE_INFINITY;
+      return timestamp(right.row) - timestamp(left.row) || right.index - left.index;
+    })
+    .at(0)?.row;
+  const voiceResult = latestRelated(voiceResults, ["Result_Received_At", "Call_Completed_At", "Last_Updated", "Created_At"]);
+  const callLog = latestRelated(callLogs, ["Result_Received_At", "Call_Completed_At", "Last_Updated", "Date"]);
+  const finalInterview = latestRelated(finalInterviews, ["Last_Updated", "Booked_At", "Created_At"]);
   const applicantSlots = slots.filter((row) => applicationId(row).toLowerCase() === normalizedId);
   const voiceInterviewSlot = applicantSlots.find((row) => field(row, "Interview_Type", "Interview Type").toLowerCase().includes("voice"));
   const finalInterviewSlot = applicantSlots.find((row) => field(row, "Interview_Type", "Interview Type").toLowerCase().includes("final"));
-  const interviewSlot = voiceInterviewSlot || related(slots);
+  const interviewSlot = voiceInterviewSlot || applicantSlots[0];
 
   return {
     ...summary,

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
+import ActionFeedback from "@/components/ActionFeedback";
 import Pagination from "@/components/Pagination";
 import UiIcon from "@/components/UiIcon";
 
@@ -42,11 +43,17 @@ type RolesApiResponse = {
 type RolesListProps = {
   canCreateRole: boolean;
   creatorOnly: boolean;
+  userEmail: string;
+  canReviewRole: boolean;
+  canApproveRole: boolean;
 };
 
 export default function RolesList({
   canCreateRole,
   creatorOnly,
+  userEmail,
+  canReviewRole,
+  canApproveRole,
 }: RolesListProps) {
   const router = useRouter();
   const [roles, setRoles] = useState<RoleRequest[]>([]);
@@ -61,6 +68,9 @@ export default function RolesList({
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalRoles, setTotalRoles] = useState(0);
+  const [deletingRoleId, setDeletingRoleId] = useState("");
+  const [actionError, setActionError] = useState("");
+  const [actionMessage, setActionMessage] = useState("");
 
   const loadRoles = useCallback(async () => {
     setLoading(true);
@@ -180,6 +190,27 @@ export default function RolesList({
     router.push(`/roles/${encodeURIComponent(roleId)}`);
   }
 
+  function canEditRole(role: RoleRequest) {
+    const editableStatuses = new Set(["Pending HR Discussion", "Pending Management Approval", "Returned for Revision", "On Hold"]);
+    return editableStatuses.has(role.status.trim()) && (canReviewRole || canApproveRole || role.requesterEmail.trim().toLowerCase() === userEmail.trim().toLowerCase());
+  }
+
+  async function deleteRole(role: RoleRequest) {
+    if (!window.confirm(`Delete ${role.jobTitle || role.roleId}? This role request cannot be recovered.`)) return;
+    setDeletingRoleId(role.roleId); setActionError(""); setActionMessage("");
+    try {
+      const response = await fetch(`/api/roles/${encodeURIComponent(role.roleId)}`, { method: "DELETE", credentials: "same-origin" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data.success !== true) throw new Error(data.error || "Unable to delete the role request.");
+      setActionMessage("Role request deleted successfully.");
+      await loadRoles();
+    } catch (caught) {
+      setActionError(caught instanceof Error ? caught.message : "Unable to delete the role request.");
+    } finally {
+      setDeletingRoleId("");
+    }
+  }
+
   return (
     <main className="container page">
       <div className="hero-row roles-page-header">
@@ -243,6 +274,9 @@ export default function RolesList({
             </button>
           )}
         </div>
+
+        {actionMessage && <ActionFeedback kind="success" className="roles-action-feedback">{actionMessage}</ActionFeedback>}
+        {actionError && <ActionFeedback kind="error" className="roles-action-feedback">{actionError}</ActionFeedback>}
 
         <div className="roles-filter-grid" aria-label="Role request filters">
           <div className="roles-filter-field">
@@ -394,15 +428,7 @@ export default function RolesList({
                           {role.status || "Submitted"}
                         </span>
                       </td>
-                      <td>
-                        <Link
-                          href={`/roles/${encodeURIComponent(
-                            role.roleId,
-                          )}`}
-                        >
-                          View Details
-                        </Link>
-                      </td>
+                      <td><div className="role-table-actions"><Link href={`/roles/${encodeURIComponent(role.roleId)}`}>View</Link>{canEditRole(role) && <><Link href={`/roles/${encodeURIComponent(role.roleId)}/edit`}>Edit</Link><button type="button" className="table-danger-action" disabled={deletingRoleId === role.roleId} onClick={() => void deleteRole(role)}>{deletingRoleId === role.roleId ? "Deleting..." : "Delete"}</button></>}</div></td>
                     </tr>
                   ))}
                 </tbody>

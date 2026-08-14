@@ -42,6 +42,9 @@ export default async function RolesPage() {
           !canReviewRole &&
           !canApproveRole
         }
+        userEmail={user.email}
+        canReviewRole={canReviewRole}
+        canApproveRole={canApproveRole}
       />
     </AppShell>
   );

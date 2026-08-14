@@ -1,0 +1,31 @@
+"use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+
+import ActionFeedback from "@/components/ActionFeedback";
+import UiIcon from "@/components/UiIcon";
+
+export default function ApplicantDetailActions({ applicationId, candidateName }: { applicationId: string; candidateName: string }) {
+  const router = useRouter();
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState("");
+
+  async function deleteRecord() {
+    if (!window.confirm(`Delete ${candidateName || "this applicant"}? This removes the applicant, screening evidence, history, and linked interview slots.`)) return;
+    setDeleting(true); setError("");
+    try {
+      const response = await fetch(`/api/applicants/${encodeURIComponent(applicationId)}`, { method: "DELETE", credentials: "same-origin" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data.success !== true) throw new Error(data.error || "Unable to delete the applicant.");
+      router.push("/applicants");
+      router.refresh();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unable to delete the applicant.");
+      setDeleting(false);
+    }
+  }
+
+  return <div className="applicant-record-actions"><Link className="btn btn-secondary" href={`/applicants/${encodeURIComponent(applicationId)}/edit`}><UiIcon name="edit" size={15} />Edit applicant</Link><button className="btn btn-danger-outline" type="button" disabled={deleting} onClick={() => void deleteRecord()}><UiIcon name="trash" size={15} />{deleting ? "Deleting..." : "Delete applicant"}</button>{error && <ActionFeedback kind="error" className="applicant-record-action-error">{error}</ActionFeedback>}</div>;
+}

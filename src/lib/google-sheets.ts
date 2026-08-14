@@ -994,6 +994,45 @@ export async function updateRoleRequestFields(roleId: string, fields: Record<str
   }
 }
 
+export async function deleteRoleRequest(roleId: string): Promise<void> {
+  const response = await sheets.spreadsheets.values.get({ spreadsheetId, range: "Role_Requests!A1:ZZ" });
+  const rows = response.data.values ?? [];
+  if (rows.length < 2) throw new Error("Role_Requests sheet has no data rows.");
+
+  const headers = rows[0] ?? [];
+  const roleIndex = headers.findIndex((header) => ["role_id", "role id", "submission_id", "submission id"].includes(normalizeHeader(header)));
+  if (roleIndex < 0) throw new Error("Role_Requests sheet is missing a role ID column.");
+
+  const normalizedRoleId = roleId.trim().toLowerCase();
+  const dataRowIndex = rows.slice(1).findIndex((row) => toText(row[roleIndex]).toLowerCase() === normalizedRoleId);
+  if (dataRowIndex < 0) throw new Error("Role request row not found.");
+
+  const metadata = await sheets.spreadsheets.get({
+    spreadsheetId,
+    fields: "sheets(properties(sheetId,title))",
+  });
+  const sheet = metadata.data.sheets?.find((item) => item.properties?.title === "Role_Requests");
+  const sheetId = sheet?.properties?.sheetId;
+  if (sheetId === undefined) throw new Error("Role_Requests sheet metadata is unavailable.");
+
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId,
+    requestBody: {
+      requests: [{
+        deleteDimension: {
+          range: {
+            sheetId,
+            dimension: "ROWS",
+            startIndex: dataRowIndex + 1,
+            endIndex: dataRowIndex + 2,
+          },
+        },
+      }],
+    },
+  });
+  invalidateSheetsCache("Role_Requests");
+}
+
 export async function deleteRecruitmentTemplate(id: string): Promise<void> {
   const rows = await cachedSheetsRead(`Recruitment_Templates:G:${spreadsheetId}`, async () => {
     const response = await sheets.spreadsheets.values.get({

@@ -26,6 +26,7 @@ export default async function ApplicantsPage() {
       <ApplicantsList
         applicants={applicants}
         publishedRoles={publishedRoles}
+        canManageApplicants={user.canReviewRole === true || user.canApproveRole === true}
         description="Review every applicant as they move through the recruitment workflow."
       />
     </AppShell>

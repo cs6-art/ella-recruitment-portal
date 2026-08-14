@@ -113,6 +113,20 @@ function valueText(value: unknown) {
   return String(value ?? "").trim();
 }
 
+function dateInputValue(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function automaticAvailabilityDefaults() {
+  const start = new Date();
+  const end = new Date(start);
+  end.setDate(end.getDate() + 30);
+  return { startDate: dateInputValue(start), endDate: dateInputValue(end), timezone: "Asia/Singapore" };
+}
+
 function editorVoiceSlots(value: VoiceInterviewSlot[] | string | undefined): VoiceInterviewSlot[] {
   return Array.isArray(value) ? value : parseVoiceInterviewSlots(value);
 }
@@ -141,6 +155,7 @@ function buildInitialValues(setup: Setup): Setup {
   const questions = questionFallbacks(setup);
   const hodQuestion1 = valueText(setup.hodScreeningQuestion1);
   const hodQuestion2 = valueText(setup.hodScreeningQuestion2);
+  const automaticDefaults = setup.voiceInterviewAvailabilityMode === "automatic" ? automaticAvailabilityDefaults() : { startDate: "", endDate: "", timezone: "Asia/Singapore" };
   return {
     ...setup,
     // Slots 1-2 are reserved for the HOD's own screening questions from the
@@ -155,9 +170,9 @@ function buildInitialValues(setup: Setup): Setup {
     customEvaluationFields: Array.isArray(setup.customEvaluationFields) ? setup.customEvaluationFields.slice(0, 3) : [],
     voiceInterviewAvailabilityMode: setup.voiceInterviewAvailabilityMode || "none",
     voiceInterviewSlots: parseVoiceInterviewSlots(setup.voiceInterviewSlots),
-    voiceInterviewAutoStartDate: setup.voiceInterviewAutoStartDate || "",
-    voiceInterviewAutoEndDate: setup.voiceInterviewAutoEndDate || "",
-    voiceInterviewTimezone: setup.voiceInterviewTimezone || "Asia/Singapore",
+    voiceInterviewAutoStartDate: setup.voiceInterviewAutoStartDate || automaticDefaults.startDate,
+    voiceInterviewAutoEndDate: setup.voiceInterviewAutoEndDate || automaticDefaults.endDate,
+    voiceInterviewTimezone: setup.voiceInterviewTimezone || automaticDefaults.timezone,
     recruitmentSetupStatus: setup.recruitmentSetupStatus || "Draft",
   };
 }
@@ -265,7 +280,12 @@ function ReadOnlyFact({ label, value }: { label: string; value?: string | number
   );
 }
 
-export default function RecruitmentSetupEditor({ roleId, status, setup, editable, updatedAt, updatedBy, updatedByEmail, onSaved }: Props) {
+export default function RecruitmentSetupEditor({ roleId, status, setup, editable: canReview, updatedAt, updatedBy, updatedByEmail, onSaved }: Props) {
+  // Saving is server-side restricted to Approved / Recruitment Setup roles, so
+  // a published role is viewable but not editable here. The section used to be
+  // hidden outright once the role reached "Job Posted", which left HR unable to
+  // see what Ella had actually been configured to ask.
+  const editable = canReview && (status === "Approved" || status === "Recruitment Setup");
   const setupKey = JSON.stringify(setup);
   const [values, setValues] = useState<Setup>(() => buildInitialValues(setup));
   const [advancedPrompt, setAdvancedPrompt] = useState(false);
@@ -319,10 +339,28 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
 
   const savedTemplates = templates.filter((template) => template.id);
 
-  if (!(status === "Approved" || status === "Recruitment Setup")) return null;
+  if (!(status === "Approved" || status === "Recruitment Setup" || status === "Job Posted")) return null;
 
   const update = (key: SetupField, value: SetupValue) => {
     setValues((current) => ({ ...current, [key]: value }));
+    setMessage("");
+    setWarning("");
+    setError("");
+  };
+
+  const changeVoiceAvailabilityMode = (mode: string) => {
+    if (mode !== "automatic") {
+      update("voiceInterviewAvailabilityMode", mode);
+      return;
+    }
+    const defaults = automaticAvailabilityDefaults();
+    setValues((current) => ({
+      ...current,
+      voiceInterviewAvailabilityMode: mode,
+      voiceInterviewAutoStartDate: current.voiceInterviewAutoStartDate || defaults.startDate,
+      voiceInterviewAutoEndDate: current.voiceInterviewAutoEndDate || defaults.endDate,
+      voiceInterviewTimezone: current.voiceInterviewTimezone || defaults.timezone,
+    }));
     setMessage("");
     setWarning("");
     setError("");
@@ -714,13 +752,13 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
           <div><span className="vapi-kicker">AI VOICE INTERVIEW AVAILABILITY</span><h3>How should candidates book the voice interview?</h3><p>This is an additional role-level schedule. Publishing creates these AI Voice Interview slots in the existing booking calendar; the separate Bookings page remains available for extra availability.</p></div>
           {values.voiceInterviewSlotsGeneratedAt && <span className="vapi-readonly-badge">Generated on publish</span>}
         </div>
-        <label className="field vapi-voice-availability-mode" htmlFor="vapi-voice-availability-mode"><span>Voice interview availability</span><select id="vapi-voice-availability-mode" value={values.voiceInterviewAvailabilityMode || "none"} disabled={!editable || saving} onChange={(event) => update("voiceInterviewAvailabilityMode", event.target.value)}><option value="none">Set later in Bookings</option><option value="manual">Enter specific slots now</option><option value="automatic">Generate weekday slots · 9:00 AM–5:00 PM</option></select></label>
+        <label className="field vapi-voice-availability-mode" htmlFor="vapi-voice-availability-mode"><span>Voice interview availability</span><select id="vapi-voice-availability-mode" value={values.voiceInterviewAvailabilityMode || "none"} disabled={!editable || saving} onChange={(event) => changeVoiceAvailabilityMode(event.target.value)}><option value="none">Set later in Bookings</option><option value="manual">Enter specific slots now</option><option value="automatic">Generate weekday slots · 9:00 AM–5:00 PM</option></select></label>
         {values.voiceInterviewAvailabilityMode === "manual" && <div className="vapi-voice-slot-list">
           {editorVoiceSlots(values.voiceInterviewSlots).map((slot, index) => <div className="vapi-voice-slot-row" key={`${index}-${slot.date}`}><label><span>Date</span><input type="date" value={slot.date} disabled={!editable || saving} onChange={(event) => updateVoiceSlot(index, "date", event.target.value)} /></label><label><span>Start</span><input type="time" value={slot.startTime} disabled={!editable || saving} onChange={(event) => updateVoiceSlot(index, "startTime", event.target.value)} /></label><label><span>End</span><input type="time" value={slot.endTime} disabled={!editable || saving} onChange={(event) => updateVoiceSlot(index, "endTime", event.target.value)} /></label><label><span>Timezone</span><input value={slot.timezone} disabled={!editable || saving} onChange={(event) => updateVoiceSlot(index, "timezone", event.target.value)} /></label><button type="button" className="btn btn-secondary" disabled={!editable || saving} onClick={() => removeVoiceSlot(index)}>Remove</button></div>)}
           <button type="button" className="btn btn-secondary" disabled={!editable || saving || editorVoiceSlots(values.voiceInterviewSlots).length >= 100} onClick={addVoiceSlot}>Add voice interview slot</button>
           {editorVoiceSlots(values.voiceInterviewSlots).length === 0 && <small className="vapi-voice-availability-help">Add at least one date and time before saving this option.</small>}
         </div>}
-        {values.voiceInterviewAvailabilityMode === "automatic" && <div className="vapi-voice-automatic-grid"><Field id="vapi-voice-auto-start" type="date" label="First date" value={values.voiceInterviewAutoStartDate} onChange={(value) => update("voiceInterviewAutoStartDate", value)} disabled={!editable || saving} /><Field id="vapi-voice-auto-end" type="date" label="Last date" value={values.voiceInterviewAutoEndDate} onChange={(value) => update("voiceInterviewAutoEndDate", value)} disabled={!editable || saving} /><Field id="vapi-voice-timezone" label="Timezone" value={values.voiceInterviewTimezone} onChange={(value) => update("voiceInterviewTimezone", value)} disabled={!editable || saving} /><p className="vapi-voice-availability-help">Weekdays only, 9:00 AM–5:00 PM. Slots use the configured Voice Interview duration and are generated when the role is published.</p></div>}
+        {values.voiceInterviewAvailabilityMode === "automatic" && <div className="vapi-voice-automatic-grid"><p className="vapi-voice-availability-help">Weekdays only, 9:00 AM–5:00 PM in Asia/Singapore. Slots use the configured Voice Interview duration and are generated for the next 30 days when the role is published.</p></div>}
       </div>
 
       <div className="vapi-preview">
@@ -776,7 +814,7 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
       </div>
 
       <div className="setup-action-bar">
-        <div className="vapi-save-note"><strong>{editable ? "Review the prompt before saving." : "Read-only setup"}</strong><small>{updatedByEmail ? `Last updated by ${updatedByEmail}` : "The standard template remains available for this role."}</small></div>
+        <div className="vapi-save-note"><strong>{editable ? "Review the prompt before saving." : status === "Job Posted" ? "Read-only — this role is already published" : "Read-only setup"}</strong><small>{status === "Job Posted" ? `This is the setup Ella uses for applicants to this role.${updatedByEmail ? ` Last updated by ${updatedByEmail}.` : ""}` : updatedByEmail ? `Last updated by ${updatedByEmail}` : "The standard template remains available for this role."}</small></div>
         <div className="vapi-save-actions">
           {editable && <>
             <button type="button" className="btn btn-secondary" disabled={saving} onClick={() => void save("save_draft")}>{saving ? "Saving..." : "Save Draft"}</button>

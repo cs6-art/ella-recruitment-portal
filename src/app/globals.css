@@ -1262,6 +1262,33 @@ html { scroll-behavior: smooth; }
 @media (max-width: 900px) { .role-layout { grid-template-columns: 1fr; } }
 @media (max-width: 640px) { .role-details-page { padding-top: 10px; } .role-sticky-header { top: 64px; margin-top: -10px; padding-top: 10px; } .role-sticky-title { align-items: flex-start; gap: 9px; flex-direction: column; } .role-sticky-actions { justify-content: flex-start; flex-wrap: wrap; } .role-back-link span { display: inline; } .workflow-steps { grid-template-columns: 1fr; gap: 9px; } .workflow-steps li { display: flex; align-items: center; gap: 9px; } .workflow-steps li:not(:last-child)::after { top: 29px; bottom: -9px; left: 13px; right: auto; width: 2px; height: auto; } .role-definition-list { grid-template-columns: 1fr; padding-inline: 16px; } .role-field-wide { grid-column: auto; } .role-section .card-header { padding-inline: 16px; } .setup-group-toggle, .setup-group-content, .history-timeline { padding-left: 16px; padding-right: 16px; } .setup-action-bar { align-items: stretch; flex-direction: column; } .setup-action-bar .btn:last-child { width: 100%; } .timeline-top { align-items: flex-start; flex-direction: column; gap: 5px; } }
 
+.applicant-record-actions { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; }
+.applicant-record-actions .btn { min-height: 40px; }
+.applicant-record-action-error { flex-basis: 100%; margin-top: 4px; }
+.applicant-table-actions, .role-table-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; min-width: 170px; }
+.applicant-table-actions a, .role-table-actions a { white-space: nowrap; }
+.table-danger-action { border: 0; padding: 0; color: #a12b22; background: transparent; font: inherit; font-weight: 800; cursor: pointer; }
+.table-danger-action:hover, .table-danger-action:focus-visible { text-decoration: underline; }
+.table-danger-action:disabled { opacity: .55; cursor: wait; }
+.btn-danger-outline { border: 1px solid #e3a39c; color: #a12b22; background: #fff8f7; }
+.btn-danger-outline:hover, .btn-danger-outline:focus-visible { border-color: #c95449; background: #fff0ee; }
+.applicants-action-feedback, .roles-action-feedback { margin: 0 20px 14px; }
+.applicant-edit-page { max-width: 920px; }
+.applicant-edit-card { margin-top: 18px; overflow: hidden; }
+.applicant-edit-card .card-header { display: block; }
+.applicant-edit-card h1 { margin: 12px 0 6px; }
+.applicant-edit-card .applicant-back-link { display: inline-flex; margin: 0; }
+.applicant-edit-form { display: grid; gap: 18px; padding: 24px; }
+.applicant-edit-form > label { display: grid; gap: 7px; color: var(--navy); font-weight: 800; }
+.applicant-edit-form input { width: 100%; min-height: 44px; }
+.applicant-edit-form small { color: var(--muted); font-weight: 500; }
+.applicant-edit-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 14px; border: 1px solid #d7e3ef; border-radius: 10px; background: #f7fbff; }
+.applicant-edit-meta div { display: grid; gap: 4px; }
+.applicant-edit-meta span, .applicant-edit-meta small { color: var(--muted); font-size: 12px; }
+.applicant-edit-meta strong { color: var(--navy); }
+.applicant-edit-actions { display: flex; justify-content: flex-end; gap: 10px; padding-top: 8px; }
+@media (max-width: 700px) { .applicant-record-actions { width: 100%; margin-left: 0; } .applicant-record-actions .btn { flex: 1 1 180px; } .applicant-edit-meta { grid-template-columns: 1fr; } .applicant-edit-actions { flex-direction: column-reverse; } .applicant-edit-actions .btn { width: 100%; } }
+
 /* Final role-page alignment overrides. Keep these after the legacy role rules. */
 .role-details-page .role-layout > .role-main-column > .role-section,
 .role-details-page .role-layout > .role-side-column > .role-section { margin-top: 0; }
@@ -1878,6 +1905,55 @@ html { scroll-behavior: smooth; }
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+}
+.role-request-actions {
+  justify-content: flex-end;
+  margin: 12px 0 0;
+}
+
+.ai-draft-panel {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+  padding: 1rem;
+  border: 1px solid var(--border-color, #d7e2ef);
+  border-radius: 0.75rem;
+  background: #f7fbff;
+}
+
+.ai-draft-panel > div:first-child {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.ai-draft-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.ai-draft-controls input[type="file"] {
+  min-width: 0;
+  flex: 1 1 16rem;
+}
+
+.ai-question-review {
+  display: grid;
+  gap: 0.35rem;
+  padding: 1rem;
+  border: 1px solid var(--border-color, #d7e2ef);
+  border-radius: 0.75rem;
+  background: #f7fbff;
+}
+
+.ai-question-review ol {
+  margin: 0.35rem 0 0;
+  padding-left: 1.35rem;
+}
+
+.ai-question-review li + li {
+  margin-top: 0.5rem;
 }
 
 .table-wrap {
@@ -3129,7 +3205,7 @@ html { scroll-behavior: smooth; }
 
 .dashboard-role-action-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -3181,6 +3257,7 @@ html { scroll-behavior: smooth; }
 .dashboard-role-action-approval { border-color: #ddd2f1; background: #fbf9ff; }
 .dashboard-role-action-approved { border-color: #cde8db; background: #f7fcf9; }
 .dashboard-role-action-rejected { border-color: #f0d6d2; background: #fffafa; }
+.dashboard-role-action-open { border-color: #d8e2ed; background: #fbfdff; }
 
 @media (max-width: 1050px) {
   .dashboard-role-action-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -4295,6 +4372,27 @@ textarea:focus-visible {
   .hero-row .btn {
     flex: 1 1 auto;
   }
+}
+
+/* Final action-spacing overrides: keep table actions readable after the
+   legacy table rules above, which intentionally style the action column. */
+.applicants-table th:last-child { width: 238px; }
+.roles-table th:nth-child(9) { width: 225px; }
+.applicant-table-actions, .role-table-actions { align-items: center; gap: 10px; min-width: 0; padding: 3px 0; }
+.applicant-table-actions a, .role-table-actions a, .applicant-table-actions .table-danger-action, .role-table-actions .table-danger-action { display: inline-flex; align-items: center; justify-content: center; min-height: 34px; padding: 7px 11px; border: 1px solid #cfd9e6; border-radius: 8px; color: var(--navy); background: #fff; font-size: 12px; font-weight: 800; line-height: 1; text-decoration: none; white-space: nowrap; }
+.applicant-table-actions a:hover, .applicant-table-actions a:focus-visible, .role-table-actions a:hover, .role-table-actions a:focus-visible { border-color: #8db9d8; background: #f3f9fe; text-decoration: none; }
+.applicant-table-actions .table-danger-action, .role-table-actions .table-danger-action { border-color: #e3a39c; color: #a12b22; background: #fff8f7; }
+.applicant-table-actions .table-danger-action:hover, .applicant-table-actions .table-danger-action:focus-visible, .role-table-actions .table-danger-action:hover, .role-table-actions .table-danger-action:focus-visible { border-color: #c95449; background: #fff0ee; text-decoration: none; }
+.applicant-table-actions .table-danger-action:disabled, .role-table-actions .table-danger-action:disabled { opacity: .55; cursor: wait; }
+.applicants-table th, .applicants-table td { padding-top: 16px; padding-bottom: 16px; }
+.roles-table th, .roles-table td { padding-top: 15px; padding-bottom: 15px; }
+.applicants-toolbar { row-gap: 14px; }
+.applicant-detail-actions { flex-wrap: wrap; column-gap: 12px; row-gap: 14px; }
+.applicant-record-actions { margin-left: 6px; padding-left: 14px; border-left: 1px solid #dce6f0; gap: 10px; }
+.role-request-actions { gap: 12px; padding-bottom: 8px; }
+@media (max-width: 760px) {
+  .applicant-record-actions { margin-left: 0; padding-left: 0; border-left: 0; }
+  .applicant-table-actions, .role-table-actions { gap: 8px; }
 }
 
 /* ==========================================================================

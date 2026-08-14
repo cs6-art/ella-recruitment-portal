@@ -8,6 +8,7 @@ import { filterVisibleRoles } from "@/lib/access-control";
 import { roleRequestSchema } from "@/lib/role-schema";
 import { generateRoleId } from "@/lib/role-id";
 import { consumeRateLimit, rateLimitHeaders, requestClientKey } from "@/lib/rate-limit";
+import { STANDARD_VAPI_SYSTEM_PROMPT_TEMPLATE } from "@/lib/recruitment-prompt";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
 
 export const runtime = "nodejs";
@@ -289,13 +290,32 @@ export async function POST(request: Request) {
       },
 
       recruitmentSetup: {
-        jobDescription: "",
-        screeningCriteria: "",
-        initialInterviewQuestions: "",
-        aiSystemPrompt: "",
+        jobDescription: input.recruitmentSetupDraft?.jobDescription || "",
+        screeningCriteria: input.recruitmentSetupDraft?.screeningCriteria || "",
+        initialInterviewQuestions: [
+          input.recruitmentSetupDraft?.requiredInterviewQuestion1,
+          input.recruitmentSetupDraft?.requiredInterviewQuestion2,
+          input.recruitmentSetupDraft?.requiredInterviewQuestion3,
+          input.recruitmentSetupDraft?.requiredInterviewQuestion4,
+          input.recruitmentSetupDraft?.requiredInterviewQuestion5,
+        ].filter(Boolean),
+        requiredInterviewQuestion1: input.recruitmentSetupDraft?.requiredInterviewQuestion1 || "",
+        requiredInterviewQuestion2: input.recruitmentSetupDraft?.requiredInterviewQuestion2 || "",
+        requiredInterviewQuestion3: input.recruitmentSetupDraft?.requiredInterviewQuestion3 || "",
+        requiredInterviewQuestion4: input.recruitmentSetupDraft?.requiredInterviewQuestion4 || "",
+        requiredInterviewQuestion5: input.recruitmentSetupDraft?.requiredInterviewQuestion5 || "",
+        keywordsToLookFor: input.recruitmentSetupDraft?.keywordsToLookFor || "",
+        minimumYearsOfExperience: input.recruitmentSetupDraft?.minimumYearsOfExperience || "",
+        transferableSkillsAccepted: input.recruitmentSetupDraft?.transferableSkillsAccepted || "",
+        licenseOrCertificateRequired: input.recruitmentSetupDraft?.licenseOrCertificateRequired || "",
+        salaryOrBudgetRange: input.recruitmentSetupDraft?.salaryOrBudgetRange || "",
+        earliestAvailabilityRule: input.recruitmentSetupDraft?.earliestAvailabilityRule || "",
+        evaluationFieldToggles: input.recruitmentSetupDraft?.evaluationFieldToggles || [],
+        customEvaluationFields: input.recruitmentSetupDraft?.customEvaluationFields || [],
+        aiSystemPrompt: STANDARD_VAPI_SYSTEM_PROMPT_TEMPLATE,
         initialInterviewBookingLink: "",
         hodInterviewBookingLink: "",
-        postingChannels: [],
+        postingChannels: input.recruitmentSetupDraft?.postingChannels || [],
         salaryDisclosureStatus: "",
         experienceRequirementStatus: "",
         licenseRequirementStatus: "",

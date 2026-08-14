@@ -12,12 +12,15 @@ import {
 } from "@/lib/hod-availability";
 import type { HodAvailabilitySlot } from "@/lib/hod-availability";
 import { roleRequestSchema } from "@/lib/role-schema";
+import type { RoleAiDraft } from "@/lib/role-ai-draft-schema";
 
 type RoleRequestFormProps = {
   user: {
     name: string;
     email: string;
   };
+  roleId?: string;
+  initialValues?: Partial<FormState>;
 };
 
 type RoleSubmissionResult = {
@@ -41,7 +44,10 @@ type FormState = {
   customScreeningQuestion1: string;
   customScreeningQuestion2: string;
   aiGeneratedScreeningQuestions: string[];
+  recruitmentSetupDraft: RoleAiDraft["recruitmentSetup"];
 };
+
+export type RoleRequestFormValues = FormState;
 
 const initial: FormState = {
   requestType: "Staff Addition",
@@ -57,6 +63,24 @@ const initial: FormState = {
   customScreeningQuestion1: "",
   customScreeningQuestion2: "",
   aiGeneratedScreeningQuestions: [],
+  recruitmentSetupDraft: {
+    jobDescription: "",
+    screeningCriteria: "",
+    requiredInterviewQuestion1: "",
+    requiredInterviewQuestion2: "",
+    requiredInterviewQuestion3: "",
+    requiredInterviewQuestion4: "",
+    requiredInterviewQuestion5: "",
+    keywordsToLookFor: "",
+    minimumYearsOfExperience: "",
+    transferableSkillsAccepted: "",
+    licenseOrCertificateRequired: "",
+    salaryOrBudgetRange: "",
+    earliestAvailabilityRule: "",
+    evaluationFieldToggles: [],
+    customEvaluationFields: [],
+    postingChannels: [],
+  },
 };
 
 const fieldLabels: Record<string, string> = {
@@ -76,13 +100,21 @@ const fieldLabels: Record<string, string> = {
   customScreeningQuestion2: "Custom Screening Question 2",
 };
 
-export default function RoleRequestForm({ user }: RoleRequestFormProps) {
+export default function RoleRequestForm({ user, roleId, initialValues }: RoleRequestFormProps) {
   const router = useRouter();
-  const [form, setForm] = useState<FormState>(initial);
+  const isEditing = Boolean(roleId);
+  const [form, setForm] = useState<FormState>(() => ({
+    ...initial,
+    ...initialValues,
+    hodAvailabilitySlots: initialValues?.hodAvailabilitySlots ?? initial.hodAvailabilitySlots,
+  }));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [success, setSuccess] = useState<{ roleId: string; status: string } | null>(null);
+  const [jobDescriptionFile, setJobDescriptionFile] = useState<File | null>(null);
+  const [parsing, setParsing] = useState(false);
+  const [parseError, setParseError] = useState("");
   const errorSummaryRef = useRef<HTMLDivElement>(null);
 
   function scrollToErrorSummary() {
@@ -138,6 +170,46 @@ export default function RoleRequestForm({ user }: RoleRequestFormProps) {
     };
   }
 
+  async function populateFromJobDescription() {
+    if (!jobDescriptionFile) {
+      setParseError("Choose a PDF or DOCX job description first.");
+      return;
+    }
+
+    setParsing(true);
+    setParseError("");
+    try {
+      const body = new FormData();
+      body.append("jobDescriptionFile", jobDescriptionFile);
+      const response = await fetch("/api/roles/parse-description", {
+        method: "POST",
+        body,
+        credentials: "same-origin",
+      });
+      const result = await response.json() as { success?: boolean; error?: string; draft?: RoleAiDraft };
+      if (!response.ok || result.success !== true || !result.draft) throw new Error(result.error || "Unable to generate the role draft.");
+
+      const questions = [
+        result.draft.recruitmentSetup.requiredInterviewQuestion1,
+        result.draft.recruitmentSetup.requiredInterviewQuestion2,
+        result.draft.recruitmentSetup.requiredInterviewQuestion3,
+        result.draft.recruitmentSetup.requiredInterviewQuestion4,
+        result.draft.recruitmentSetup.requiredInterviewQuestion5,
+      ].filter(Boolean);
+
+      setForm((current) => ({
+        ...current,
+        ...result.draft?.role,
+        aiGeneratedScreeningQuestions: questions,
+        recruitmentSetupDraft: result.draft?.recruitmentSetup || current.recruitmentSetupDraft,
+      }));
+    } catch (error) {
+      setParseError(error instanceof Error ? error.message : "Unable to generate the role draft.");
+    } finally {
+      setParsing(false);
+    }
+  }
+
   function fieldErrorProps(field: string) {
     return { "aria-invalid": Boolean(fieldErrors[field]) };
   }
@@ -186,8 +258,8 @@ export default function RoleRequestForm({ user }: RoleRequestFormProps) {
     setSuccess(null);
 
     try {
-      const response = await fetch("/api/roles", {
-        method: "POST",
+      const response = await fetch(isEditing ? `/api/roles/${encodeURIComponent(roleId || "")}` : "/api/roles", {
+        method: isEditing ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
         body: JSON.stringify({
@@ -204,12 +276,13 @@ export default function RoleRequestForm({ user }: RoleRequestFormProps) {
         throw new Error(result.error || "Unable to submit role request.");
       }
 
+      const savedRoleId = result.roleId || roleId || "";
       setSuccess({
-        roleId: result.roleId || "Not provided",
+        roleId: savedRoleId || "Not provided",
         status: result.status || "Pending HR Discussion",
       });
-      router.push(`/roles/${encodeURIComponent(result.roleId || "")}`);
-      setForm(initial);
+      router.push(`/roles/${encodeURIComponent(savedRoleId)}`);
+      if (!isEditing) setForm(initial);
     } catch (submissionError) {
       console.error("[Role Request Form] Submission failed:", submissionError);
       setError(submissionError instanceof Error ? submissionError.message : "Submission failed.");
@@ -268,7 +341,7 @@ export default function RoleRequestForm({ user }: RoleRequestFormProps) {
         <section className="section">
           <div className="section-title">
             <span className="section-number">1</span>
-            <h2>Role request</h2>
+          <h2>{isEditing ? "Edit role request" : "Role request"}</h2>
           </div>
           <p className="section-intro">Provide the information HR and Ella need to understand the vacancy.</p>
 
@@ -276,6 +349,20 @@ export default function RoleRequestForm({ user }: RoleRequestFormProps) {
             <div className="field full">
               <label htmlFor="jobDescription">Job Description</label>
               <textarea id="jobDescription" {...fieldErrorProps("jobDescription")} required value={form.jobDescription} onChange={(event) => update("jobDescription", event.target.value)} placeholder="Describe the purpose and main scope of this role." />
+              <div className="ai-draft-panel">
+                <div>
+                  <strong>Populate from a job description</strong>
+                  <small className="field-help">Upload a PDF or DOCX and Ella will prepare the role details, screening criteria, and interview questions for your review.</small>
+                </div>
+                <div className="ai-draft-controls">
+                  <input id="jobDescriptionFile" type="file" accept="application/pdf,.pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx" onChange={(event) => { setJobDescriptionFile(event.target.files?.[0] || null); setParseError(""); }} />
+                  <button type="button" className="btn btn-secondary" onClick={populateFromJobDescription} disabled={parsing}>
+                    {parsing ? "Generating draft…" : "Generate draft"}
+                  </button>
+                </div>
+                {jobDescriptionFile && <small className="field-help">Selected: {jobDescriptionFile.name}</small>}
+                {parseError && <div className="error-box message-box" role="alert"><span className="message-box-icon" aria-hidden="true"><UiIcon name="alert" size={17} /></span><span>{parseError}</span></div>}
+              </div>
             </div>
 
             <div className="field">
@@ -371,13 +458,24 @@ export default function RoleRequestForm({ user }: RoleRequestFormProps) {
               <label htmlFor="customScreeningQuestion2">Custom HOD Screening Question 2 <span className="field-optional">(optional)</span></label>
               <textarea id="customScreeningQuestion2" value={form.customScreeningQuestion2} onChange={(event) => update("customScreeningQuestion2", event.target.value)} placeholder="Ask another role-specific question" />
             </div>
+            {form.aiGeneratedScreeningQuestions.length > 0 && (
+              <div className="field full">
+                <div className="ai-question-review">
+                  <strong>AI-generated interview questions</strong>
+                  <small className="field-help">Review these questions before submitting. HR can refine them later in Recruitment Setup.</small>
+                  <ol>
+                    {form.aiGeneratedScreeningQuestions.map((question, index) => <li key={`${question}-${index}`}>{question}</li>)}
+                  </ol>
+                </div>
+              </div>
+            )}
           </div>
         </section>
 
         <div className="form-actions">
           <a className="btn btn-secondary" href="/roles">Cancel</a>
           <button type="submit" className="btn btn-primary" disabled={loading}>
-            {loading ? "Submitting…" : "Submit for HR discussion"}
+            {loading ? (isEditing ? "Saving…" : "Submitting…") : (isEditing ? "Save role request" : "Submit for HR discussion")}
           </button>
         </div>
       </div>
