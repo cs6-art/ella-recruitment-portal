@@ -295,7 +295,7 @@ export async function getApplicantMetrics(): Promise<ApplicantMetrics> {
 }
 
 export async function getInterviewBookings(): Promise<InterviewBooking[]> {
-  const { rows } = await readTab("Interview_Slots", "T");
+  const { rows } = await readTab("Interview_Slots", "X");
   return rows.map((record) => ({
     slotId: field(record, "Slot_ID", "Slot ID"),
     interviewType: field(record, "Interview_Type", "Interview Type"),
@@ -323,7 +323,7 @@ export async function getApplicantById(id: string): Promise<ApplicantDetails | n
     readTab("Voice_Interview_Results", "AF"),
     readTab("Voice_Call_Logs", "AD"),
     readTab("Final_Interview_Tracking", "AE"),
-    readTab("Interview_Slots", "T"),
+    readTab("Interview_Slots", "X"),
   ]);
   const normalizedId = text(id).toLowerCase();
   const record = applicantRows.find((row) => applicationId(row).toLowerCase() === normalizedId);

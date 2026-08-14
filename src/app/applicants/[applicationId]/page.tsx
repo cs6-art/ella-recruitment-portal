@@ -12,6 +12,7 @@ import {
   type ApplicantDetails,
   type CandidateStatusHistoryEntry,
 } from "@/lib/candidate-applications";
+import { getRoleRequestById, type RoleRequestDetails } from "@/lib/google-sheets";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
 import { formatMatchScore } from "@/lib/score-format";
 
@@ -63,7 +64,7 @@ function DetailCardHeader({ icon, title, description }: { icon: UiIconName; titl
   return <div className="card-header applicant-section-header"><div className="applicant-section-heading"><span className="applicant-section-icon"><UiIcon name={icon} size={17} /></span><div><h2>{title}</h2>{description && <p>{description}</p>}</div></div></div>;
 }
 
-function FinalInterviewCard({ applicant }: { applicant: ApplicantDetails }) {
+function FinalInterviewCard({ applicant, role }: { applicant: ApplicantDetails; role: RoleRequestDetails | null }) {
   const finalInterview = applicant.finalInterview;
   const slot = applicant.interviewSlot;
   const status = applicant.finalInterviewStatus || recordValue(finalInterview, "Final_Interview_Status", "Status") || "Not Started";
@@ -71,7 +72,13 @@ function FinalInterviewCard({ applicant }: { applicant: ApplicantDetails }) {
   const scheduledDate = applicant.finalScheduledDate || recordValue(slot, "Date") || recordValue(finalInterview, "Final_Interview_Date", "Date");
   const scheduledTime = applicant.finalScheduledTime || recordValue(slot, "Start_Time", "Start Time", "Time");
   const timezone = applicant.finalTimezone || recordValue(slot, "Timezone", "Time Zone");
-  const interviewer = recordValue(finalInterview, "Interviewer_Name", "Interviewer Name") || "Not assigned";
+  const slotInterviewerName = recordValue(slot, "Interviewer_Name", "Interviewer Name") || recordValue(slot, "HOD_Name", "HOD Name");
+  const slotInterviewerEmail = recordValue(slot, "Interviewer_Email", "Interviewer Email") || recordValue(slot, "HOD_Email", "HOD Email");
+  const hodName = slotInterviewerName || role?.requesterName || role?.submittedByName || role?.hodEmail || "";
+  const hodEmail = slotInterviewerEmail || role?.hodEmail || role?.requesterEmail || "";
+  const interviewer = hodName
+    ? [hodName, hodEmail && hodEmail !== hodName ? hodEmail : ""].filter(Boolean).join(" · ")
+    : recordValue(finalInterview, "Interviewer_Name", "Interviewer Name") || "Not assigned";
   const recommendation = recordValue(finalInterview, "Final_Recommendation", "Final Recommendation") || "Awaiting interview decision";
   const calendarStatus = recordValue(slot, "Google_Calendar_Event_Status");
   const calendarError = recordValue(slot, "Google_Calendar_Event_Error");
@@ -151,6 +158,7 @@ export default async function ApplicantDetailsPage({ params }: { params: Promise
   const applicationId = decodeURIComponent((await params).applicationId);
   const [applicant, history] = await Promise.all([getApplicantById(applicationId), getCandidateStatusHistory(applicationId)]);
   if (!applicant) return <AppShell user={user}><main className="container page"><section className="card"><div className="empty"><p>Applicant Not Found.</p><Link className="btn btn-secondary" href="/applicants">Back to Applicants</Link></div></section></main></AppShell>;
+  const role = await getRoleRequestById(applicant.roleId);
   const resumeComments = applicant.resumeComments || latestDecisionComment(history, "resume");
   const voiceComments = applicant.voiceComments || latestDecisionComment(history, "voice");
   const voiceSummary = voiceSummaryPreview(applicant.voiceSummary);
@@ -168,7 +176,7 @@ export default async function ApplicantDetailsPage({ params }: { params: Promise
     </div><aside className="applicant-detail-side">
       <section className="card applicant-detail-card applicant-voice-summary-card"><DetailCardHeader icon="microphone" title="Voice Interview" description="Key interview results for HR." /><div className="applicant-detail-content"><div className="applicant-detail-inline-fields"><DetailField label="Status" value={applicant.voiceStatus} /><DetailField label="Booking Status" value={applicant.voiceBookingStatus} /><DetailField label="Voice AI Score" value={applicant.voiceScore ? formatMatchScore(applicant.voiceScore) : "Awaiting AI evaluation"} /><DetailField label="Voice AI Recommendation" value={applicant.voiceRecommendation || "Awaiting AI evaluation"} /><DetailField label="Scheduled" value={[applicant.voiceScheduledDate, applicant.voiceScheduledTime].filter(Boolean).join(" ")} /></div><div className="applicant-voice-summary-item"><span>AI summary</span><p>{voiceSummary || "No voice interview summary is available."}</p></div><div className="applicant-voice-summary-item"><span>Concerns</span><p>{applicant.voiceConcerns || "No concerns recorded."}</p></div><p className="applicant-voice-review-hint">Full evidence is shown below AI CV Analysis.</p></div></section>
       <section className="card applicant-detail-card"><DetailCardHeader icon="clock" title="Workflow Tracking" description="Current progress through the candidate workflow." /><div className="applicant-timeline"><div><strong>1. AI CV Analysis</strong><span>{applicant.resumeStatus || "Not Started"}</span></div><div><strong>2. Voice Interview</strong><span>{applicant.voiceStatus || "Not Started"}</span></div><div><strong>3. Voice HR Review</strong><span>{applicant.voiceDecision || "Pending"}</span></div><div><strong>4. Final Interview</strong><span>{applicant.finalInterviewStatus || "Not Started"}</span></div><div><strong>Last Updated</strong><span>{dateValue(applicant.lastUpdated)}</span></div></div></section>
-      <FinalInterviewCard applicant={applicant} />
+      <FinalInterviewCard applicant={applicant} role={role} />
     </aside></div>
   </main></AppShell>;
 }

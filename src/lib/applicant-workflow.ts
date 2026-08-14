@@ -139,6 +139,10 @@ export type BookingSlot = {
   calendarEventLink?: string;
   calendarEventStatus?: string;
   calendarEventError?: string;
+  interviewerName?: string;
+  interviewerEmail?: string;
+  hodName?: string;
+  hodEmail?: string;
 };
 
 export type BookingContext = {
@@ -284,6 +288,10 @@ function slotFrom(row: Row): BookingSlot {
     calendarEventLink: field(row, "Google_Calendar_Event_Link"),
     calendarEventStatus: field(row, "Google_Calendar_Event_Status"),
     calendarEventError: field(row, "Google_Calendar_Event_Error"),
+    interviewerName: field(row, "Interviewer_Name", "Interviewer Name"),
+    interviewerEmail: field(row, "Interviewer_Email", "Interviewer Email"),
+    hodName: field(row, "HOD_Name", "HOD Name"),
+    hodEmail: field(row, "HOD_Email", "HOD Email"),
   };
 }
 
@@ -458,7 +466,7 @@ export async function getCandidateStatusHistory(applicationId: string): Promise<
 }
 
 export async function getBookingContext(kind: BookingKind, token: string): Promise<BookingContext | null> {
-  const [applicantData, slotsData] = await Promise.all([readSheet("High_Match_Profile", "BH"), readSheet("Interview_Slots", "T")]);
+  const [applicantData, slotsData] = await Promise.all([readSheet("High_Match_Profile", "BH"), readSheet("Interview_Slots", "X")]);
   const cleanToken = text(token);
   const tokenHash = hashToken(cleanToken);
   const applicantIndex = applicantData.rows.findIndex((row) => kind === "voice"
@@ -520,7 +528,7 @@ async function updateCells(updates: CellUpdate[]) {
   for (const [tab, tabUpdates] of grouped) {
     const data = await readSheet(tab,
       tab === "High_Match_Profile" ? "BH" :
-        tab === "Interview_Slots" ? "T" :
+        tab === "Interview_Slots" ? "X" :
           tab === "Voice_Call_Queue" ? "X" : "AE");
     const requests: { range: string; values: string[][] }[] = [];
     const headers = [...data.headers];
@@ -543,7 +551,7 @@ export async function reserveBooking(kind: BookingKind, token: string, slotId: s
   if (!cleanSlotId) throw new Error("Choose an interview slot.");
   const confirmedMobile = normalizePreferredMobile(preferredMobile);
   if (!isPreferredMobileValid(confirmedMobile)) throw new Error("Confirm a valid preferred mobile number in international format.");
-  const [context, slotsData, applicantData] = await Promise.all([getBookingContext(kind, token), readSheet("Interview_Slots", "T"), readSheet("High_Match_Profile", "BH")]);
+  const [context, slotsData, applicantData] = await Promise.all([getBookingContext(kind, token), readSheet("Interview_Slots", "X"), readSheet("High_Match_Profile", "BH")]);
   if (!context) throw new Error("This booking link is invalid or expired.");
   const matchingSlotIndex = slotsData.rows.findIndex((row) => field(row, "Slot_ID", "Slot ID") === cleanSlotId);
   if (matchingSlotIndex < 0) throw new Error("The selected interview slot is no longer available.");
@@ -653,6 +661,14 @@ export async function reserveBooking(kind: BookingKind, token: string, slotId: s
       { tab: "High_Match_Profile", row: applicantRow, header: "Final_Interview_Booking_Token_Used_At", value: now },
       { tab: "High_Match_Profile", row: applicantRow, header: "Last_Updated", value: now },
     );
+    const interviewerName = text(role?.requesterName || role?.submittedByName || role?.hodEmail);
+    const interviewerEmail = text(role?.hodEmail || role?.requesterEmail);
+    updates.push(
+      { tab: "Interview_Slots", row: slotRow, header: "Interviewer_Name", value: interviewerName },
+      { tab: "Interview_Slots", row: slotRow, header: "Interviewer_Email", value: interviewerEmail },
+      { tab: "Interview_Slots", row: slotRow, header: "HOD_Name", value: interviewerName },
+      { tab: "Interview_Slots", row: slotRow, header: "HOD_Email", value: interviewerEmail },
+    );
   }
   await updateCells(updates);
   if (queueValues) await appendRows("Voice_Call_Queue", [queueValues]);
@@ -708,7 +724,7 @@ export async function reserveBooking(kind: BookingKind, token: string, slotId: s
 export async function markInterviewNoShow(slotId: string) {
   const cleanSlotId = text(slotId);
   if (!cleanSlotId) throw new Error("Interview slot is required.");
-  const [slotsData, applicantsData] = await Promise.all([readSheet("Interview_Slots", "T"), readSheet("High_Match_Profile", "BH")]);
+  const [slotsData, applicantsData] = await Promise.all([readSheet("Interview_Slots", "X"), readSheet("High_Match_Profile", "BH")]);
   const slotIndex = slotsData.rows.findIndex((row) => field(row, "Slot_ID", "Slot ID") === cleanSlotId);
   if (slotIndex < 0) throw new Error("Interview slot not found.");
   const slot = slotsData.rows[slotIndex];
@@ -772,7 +788,7 @@ export async function createInterviewSlot(input: CreateInterviewSlotInput) {
       if (!calendar.checked && calendar.reason === "error") throw new Error("Unable to verify the HOD Google Calendar for this final-interview slot.");
     }
   }
-  const data = await readSheet("Interview_Slots", "T");
+  const data = await readSheet("Interview_Slots", "X");
   const duplicate = data.rows.some((row) => field(row, "Interview_Type", "Interview Type") === input.interviewType && field(row, "Role_ID", "Role ID").toLowerCase() === roleId.toLowerCase() && field(row, "Date") === date && field(row, "Start_Time", "Start Time") === startTime);
   if (duplicate) throw new Error("This role already has the same interview slot.");
   const slotId = `SLOT-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
@@ -804,7 +820,7 @@ export async function createConfiguredVoiceInterviewSlots({ roleId, mode, manual
   if (slots.length === 0) throw new Error("No AI Voice Interview slots were generated from the selected availability.");
   if (slots.some((slot) => !isValidTimezone(slot.timezone))) throw new Error("Choose a valid timezone for every AI Voice Interview slot.");
 
-  const data = await readSheet("Interview_Slots", "T");
+  const data = await readSheet("Interview_Slots", "X");
   const existing = new Set(data.rows.map((row) => `${field(row, "Interview_Type", "Interview Type").toLowerCase()}|${field(row, "Role_ID", "Role ID").toLowerCase()}|${field(row, "Date")}|${field(row, "Start_Time", "Start Time")}`));
   const uniqueSlots = slots.filter((slot, index) => {
     const key = `ai voice interview|${roleId.toLowerCase()}|${slot.date}|${slot.startTime}`;
@@ -924,6 +940,10 @@ export async function recordApplicantDecision(applicationId: string, stage: Appl
 async function upsertFinalTracking(applicant: Row, applicationId: string, decision: ApplicantDecision, reviewer: { name: string; email: string }, now: string) {
   const data = await readSheet("Final_Interview_Tracking", "AE");
   const existingIndex = data.rows.findIndex((row) => field(row, "Application_ID", "Application ID") === applicationId);
+  const existing = existingIndex >= 0 ? data.rows[existingIndex] : {};
+  const role = await getRoleRequestById(field(applicant, "Role_ID", "Role ID"));
+  const hodName = text(role?.requesterName || role?.submittedByName || role?.hodEmail);
+  const hodEmail = text(role?.hodEmail || role?.requesterEmail);
   const values = data.headers.map((header) => {
     const key = normalize(header);
     if (key === normalize("Application_ID")) return applicationId;
@@ -939,8 +959,8 @@ async function upsertFinalTracking(applicant: Row, applicationId: string, decisi
     if (key === normalize("HR_Decision")) return decision;
     if (key === normalize("Final_Recommendation")) return decision === "Approve" ? "Passed" : "Rejected";
     if (key === normalize("Last_Updated")) return now;
-    if (key === normalize("Interviewer_Name")) return reviewer.name;
-    if (key === normalize("Interviewer_Email")) return reviewer.email;
+    if (key === normalize("Interviewer_Name")) return hodName || field(existing, "Interviewer_Name", "Interviewer Name");
+    if (key === normalize("Interviewer_Email")) return hodEmail || field(existing, "Interviewer_Email", "Interviewer Email");
     return "";
   });
   if (existingIndex >= 0) {
