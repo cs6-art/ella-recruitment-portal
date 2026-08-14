@@ -949,16 +949,42 @@ export async function updateRoleRequestFields(roleId: string, fields: Record<str
 
   const rowNumber = rowIndex + 2;
   const updates: { range: string; values: string[][] }[] = [];
+  const missingHeaderIndexes: number[] = [];
   for (const [header, value] of Object.entries(fields)) {
     let headerIndex = headers.findIndex((existing) => normalizeHeader(existing) === normalizeHeader(header));
     if (headerIndex < 0) {
       headerIndex = headers.length;
       headers.push(header);
+      missingHeaderIndexes.push(headerIndex);
       updates.push({ range: `'Role_Requests'!${columnName(headerIndex)}1`, values: [[header]] });
     }
     updates.push({ range: `'Role_Requests'!${columnName(headerIndex)}${rowNumber}`, values: [[value]] });
   }
   if (updates.length > 0) {
+    if (missingHeaderIndexes.length > 0) {
+      const metadata = await sheets.spreadsheets.get({
+        spreadsheetId,
+        fields: "sheets(properties(sheetId,title,gridProperties(columnCount)))",
+      });
+      const sheet = metadata.data.sheets?.find((item) => item.properties?.title === "Role_Requests");
+      const sheetId = sheet?.properties?.sheetId;
+      const currentColumnCount = sheet?.properties?.gridProperties?.columnCount || 0;
+      if (sheetId === undefined || currentColumnCount < headers.length) {
+        if (sheetId === undefined) throw new Error("Role_Requests sheet metadata is unavailable.");
+        await sheets.spreadsheets.batchUpdate({
+          spreadsheetId,
+          requestBody: {
+            requests: [{
+              appendDimension: {
+                sheetId,
+                dimension: "COLUMNS",
+                length: Math.max(1, headers.length - currentColumnCount),
+              },
+            }],
+          },
+        });
+      }
+    }
     await sheets.spreadsheets.values.batchUpdate({ spreadsheetId, requestBody: { valueInputOption: "USER_ENTERED", data: updates } });
     invalidateSheetsCache("Role_Requests");
   }
