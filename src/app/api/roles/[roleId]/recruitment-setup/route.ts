@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 
 import { canEditRecruitmentSetup, canUseRecruitmentSetup, canViewRole } from "@/lib/access-control";
 import { getRoleRequestById, updateRoleRequestFields } from "@/lib/google-sheets";
+import { invalidateSheetsCache } from "@/lib/sheets-cache";
 import { consumeRateLimit, rateLimitHeaders, requestClientKey } from "@/lib/rate-limit";
 import { BASELINE_EVALUATION_FIELDS, EVALUATION_FIELD_CATALOG, recruitmentSetupSchema } from "@/lib/recruitment-setup-schema";
 import { getSetupReadiness, setupStatusForAction } from "@/lib/recruitment-setup-readiness";
@@ -28,15 +29,45 @@ export async function POST(request: Request, context: Context) {
   const roleId = decodeURIComponent(encodedRoleId);
   const role = await getRoleRequestById(roleId);
   if (!role || !canViewRole(user, role)) return NextResponse.json({ success: false, error: "Role request not found." }, { status: 404 });
-  if (!canUseRecruitmentSetup(role.status)) return NextResponse.json({ success: false, error: "Recruitment setup is only available for Approved or Recruitment Setup roles." }, { status: 409 });
 
   try {
     const setup = recruitmentSetupSchema.parse(await request.json());
     const setupAction = setup.setupAction || "save_draft";
+
+    // A publish that already landed — a double click, a retried request, or a
+    // second click after a slow first response — leaves the role at "Job
+    // Posted". Falling through to the status guard below would answer with
+    // "Recruitment setup is only available for Approved or Recruitment Setup
+    // roles", which reads as a failure even though the publish succeeded.
+    // Report the settled state instead of re-running the workflow.
+    if (setupAction === "publish_role" && role.status === "Job Posted") {
+      return NextResponse.json({
+        success: true,
+        roleId: role.roleId,
+        status: role.status,
+        action: "recruitment_setup_updated",
+        recruitmentSetupStatus: role.recruitmentSetupStatus || "Published",
+        alreadyPublished: true,
+        updatedAt: role.recruitmentSetupUpdatedAt || "",
+        notificationStatus: "not_configured",
+        notificationError: "",
+        message: "This role is already published.",
+      });
+    }
+
+    if (!canUseRecruitmentSetup(role.status)) return NextResponse.json({ success: false, error: "Recruitment setup is only available for Approved or Recruitment Setup roles." }, { status: 409 });
     const readinessLevel = setupAction === "mark_recruitment_ready" ? "recruitment-ready" : setupAction === "mark_ready_for_publishing" || setupAction === "publish_role" ? "ready-for-publishing" : "draft";
     const readiness = getSetupReadiness(setup, readinessLevel);
     if (!readiness.valid) return NextResponse.json({ success: false, code: "RECRUITMENT_SETUP_INCOMPLETE", message: setupAction === "save_draft" ? "Complete the three required draft fields before saving." : "The recruitment setup is not ready for this stage.", missingFields: readiness.missingFields.map((field) => field.key), missingFieldLabels: readiness.missingFields.map((field) => field.label) }, { status: 422 });
-    if (setupAction === "publish_role" && role.recruitmentSetupStatus !== "Ready for Publishing") return NextResponse.json({ success: false, code: "RECRUITMENT_SETUP_NOT_READY", message: "Mark the setup as Ready for Publishing before publishing the role." }, { status: 409 });
+    // The staged buttons stay available for HR who want an explicit audit
+    // trail, but a setup that already satisfies every ready-for-publishing
+    // requirement should not be refused just because the intermediate button
+    // was never clicked. Gating on the stored stage left Publish permanently
+    // disabled while the checklist read "All required items complete", and
+    // publishing then wrote Recruitment_Setup_Status straight to "Published"
+    // anyway. The readiness check above is the real gate; this remains as a
+    // defensive one.
+    if (setupAction === "publish_role" && !readiness.valid) return NextResponse.json({ success: false, code: "RECRUITMENT_SETUP_NOT_READY", message: "Mark the setup as Ready for Publishing before publishing the role." }, { status: 409 });
     const webhookUrl = process.env.N8N_RECRUITMENT_SETUP_WEBHOOK_URL || process.env.N8N_ROLE_REQUEST_WEBHOOK_URL || process.env.N8N_ROLE_WEBHOOK_URL;
     const webhookSecret = process.env.N8N_WEBHOOK_SECRET;
     if (!webhookUrl || !webhookSecret) return NextResponse.json({ success: false, error: "The recruitment setup workflow is not configured." }, { status: 503 });
@@ -157,12 +188,47 @@ export async function POST(request: Request, context: Context) {
       Department: user.department,
       portalUrl: appBaseUrl ? `${appBaseUrl}/roles/${encodeURIComponent(role.roleId)}` : "",
     };
+    // Persist the HR-entered setup content directly, not just the voice
+    // fields. Previously everything else reached Role_Requests only through
+    // the n8n mapper, so a saved draft that the mapper did not carry was gone
+    // on the next page load — the editor reloaded from the sheet and showed
+    // blank fields. These are the same values sent in the payload below, and
+    // n8n writes them again immediately after, so the two stay consistent.
+    // Role status transitions remain owned by the workflow.
     await updateRoleRequestFields(role.roleId, {
       Voice_Interview_Availability_Mode: setup.voiceInterviewAvailabilityMode,
       Voice_Interview_Slots: serializeVoiceInterviewSlots(setup.voiceInterviewSlots),
       Voice_Interview_Auto_Start_Date: setup.voiceInterviewAutoStartDate,
       Voice_Interview_Auto_End_Date: setup.voiceInterviewAutoEndDate,
       Voice_Interview_Timezone: setup.voiceInterviewTimezone,
+      Screening_Criteria: setup.screeningCriteria,
+      Initial_Interview_Questions: initialInterviewQuestions.join("\n"),
+      Required_Interview_Question_1: setup.requiredInterviewQuestion1,
+      Required_Interview_Question_2: setup.requiredInterviewQuestion2,
+      Required_Interview_Question_3: setup.requiredInterviewQuestion3,
+      Required_Interview_Question_4: setup.requiredInterviewQuestion4,
+      Required_Interview_Question_5: setup.requiredInterviewQuestion5,
+      AI_System_Prompt: setup.aiSystemPrompt,
+      Evaluation_Fields: JSON.stringify([
+        ...BASELINE_EVALUATION_FIELDS,
+        ...setup.evaluationFieldToggles.map((key) => EVALUATION_FIELD_CATALOG.find((field) => field.key === key)).filter(Boolean),
+        ...setup.customEvaluationFields,
+      ]),
+      Posting_Channels: setup.postingChannels.join(", "),
+      License_or_Certificate_Required: setup.licenseOrCertificateRequired,
+      Keywords_to_Look_For: setup.keywordsToLookFor,
+      Minimum_Years_of_Experience: setup.minimumYearsOfExperience || "",
+      Transferable_Skills_Accepted: setup.transferableSkillsAccepted,
+      Salary_or_Budget_Range: setup.salaryOrBudgetRange,
+      Earliest_Availability_Rule: setup.earliestAvailabilityRule,
+      Recruitment_Setup_Status: nextRecruitmentSetupStatus,
+      Salary_Disclosure_Status: setup.salaryDisclosureStatus,
+      Experience_Requirement_Status: setup.experienceRequirementStatus,
+      License_Requirement_Status: setup.licenseRequirementStatus,
+      HOD_Interview_Required: setup.hodInterviewRequired,
+      Recruitment_Setup_Updated_At: updatedAt,
+      Recruitment_Setup_Updated_By_Name: user.name,
+      Recruitment_Setup_Updated_By_Email: performerEmail,
     });
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
@@ -190,6 +256,14 @@ export async function POST(request: Request, context: Context) {
           : "The recruitment setup could not be saved.";
       return NextResponse.json({ success: false, error: workflowMessage }, { status: response.status === 409 ? 409 : 502 });
     }
+    // n8n has just written the new Status/Recruitment_Setup_Status outside
+    // this process. The editor refetches the role immediately after this
+    // response, so any cache entry repopulated during the request would serve
+    // the pre-action status and make the UI look like nothing happened until
+    // a second manual refresh.
+    invalidateSheetsCache("Role_Requests");
+    invalidateSheetsCache("Role_Status_History");
+
     let voiceSlotWarning = "";
     let voiceSlotsGeneratedAt = setup.voiceInterviewSlotsGeneratedAt || "";
     if (setupAction === "publish_role" && setup.voiceInterviewAvailabilityMode !== "none") {

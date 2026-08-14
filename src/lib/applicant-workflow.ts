@@ -233,6 +233,15 @@ export function isPreferredMobileValid(value: string) {
   return /^\+[1-9]\d{7,14}$/.test(normalized);
 }
 
+// Sheets' USER_ENTERED write mode parses cell values the same way the UI
+// would: a leading "+" reads as a numeric expression, so "+60127717025"
+// silently loses its "+" and lands in the sheet as a plain number. Vapi/n8n
+// then fails to dial an international-format number. Prefixing with "'"
+// (the standard Sheets "force text" marker) keeps the "+" intact without
+// switching the whole batch off USER_ENTERED, which other columns rely on
+// for date/number parsing.
+function asTextCell(value: string) { return value ? `'${value}` : value; }
+
 async function readSheet(tab: string, endColumn: string): Promise<SheetData> {
   // Cached: reserveBooking() alone reads Interview_Slots and
   // High_Match_Profile up to three times per call (getBookingContext, its
@@ -600,9 +609,9 @@ export async function reserveBooking(kind: BookingKind, token: string, slotId: s
     }
   }
   updates.push(
-    { tab: "High_Match_Profile", row: applicantRow, header: "Preferred_Mobile", value: confirmedMobile },
-    { tab: "High_Match_Profile", row: applicantRow, header: "Contact_Number", value: confirmedMobile },
-    { tab: "High_Match_Profile", row: applicantRow, header: "Contact Number", value: confirmedMobile },
+    { tab: "High_Match_Profile", row: applicantRow, header: "Preferred_Mobile", value: asTextCell(confirmedMobile) },
+    { tab: "High_Match_Profile", row: applicantRow, header: "Contact_Number", value: asTextCell(confirmedMobile) },
+    { tab: "High_Match_Profile", row: applicantRow, header: "Contact Number", value: asTextCell(confirmedMobile) },
     { tab: "High_Match_Profile", row: applicantRow, header: "Applicant_Country", value: field(applicantData.rows[applicantIndex], "Applicant_Country") || inferApplicantCountry(confirmedMobile) },
   );
   let queueValues: string[] | null = null;
@@ -632,8 +641,8 @@ export async function reserveBooking(kind: BookingKind, token: string, slotId: s
       if (key === normalize("Voice_Interview_Scheduled_Time")) return field(matchingSlot, "Start_Time", "Start Time");
       if (key === normalize("Voice_Interview_Timezone")) return field(matchingSlot, "Timezone", "Time Zone");
       if (key === normalize("Applicant_Country")) return field(applicantRecord, "Applicant_Country") || inferApplicantCountry(confirmedMobile);
-      if (key === normalize("Preferred_Mobile")) return confirmedMobile;
-      if (key === normalize("Contact_Number") || key === normalize("Contact Number")) return confirmedMobile;
+      if (key === normalize("Preferred_Mobile")) return asTextCell(confirmedMobile);
+      if (key === normalize("Contact_Number") || key === normalize("Contact Number")) return asTextCell(confirmedMobile);
       if (key === normalize("Role_ID")) return context.roleId;
       if (key === normalize("Voice_Call_Status")) return "Scheduled";
       if (key === normalize("Voice_Call_Attempts")) return "0";
@@ -950,7 +959,7 @@ async function upsertFinalTracking(applicant: Row, applicationId: string, decisi
     if (key === normalize("Application_ID")) return applicationId;
     if (key === normalize("Candidate_Name")) return field(applicant, "Candidate Name");
     if (key === normalize("Candidate_Email")) return field(applicant, "Email");
-    if (key === normalize("Contact_Number")) return field(applicant, "Contact Number");
+    if (key === normalize("Contact_Number")) return asTextCell(field(applicant, "Contact Number"));
     if (key === normalize("Role_ID")) return field(applicant, "Role_ID");
     if (key === normalize("Selected_Role")) return field(applicant, "Selected Role");
     if (key === normalize("Department")) return field(applicant, "Department");

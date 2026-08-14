@@ -83,6 +83,8 @@ export type ApplicantDetails = ApplicantSummary & {
   voiceInterviewResult?: Record<string, string>;
   voiceCallLog?: Record<string, string>;
   finalInterview?: Record<string, string>;
+  voiceInterviewSlot?: Record<string, string>;
+  finalInterviewSlot?: Record<string, string>;
   interviewSlot?: Record<string, string>;
 };
 
@@ -185,7 +187,8 @@ function nextActionFor(record: SheetRow) {
   if (["calling", "initiated", "in progress"].includes(voiceStatus)) return "Voice Interview In Progress";
   if (voiceStatus === "scheduled" || finalStatus.includes("voice interview scheduled")) return "Complete Voice Interview";
   if (voiceStatus === "interviewed" && voiceDecision === "pending") return "Review Voice Interview";
-  if (finalInterviewStatus.includes("scheduled") || finalInterviewStatus.includes("booked") || finalStatus.includes("final interview scheduled")) return "Attend Final Interview";
+  const finalStagePending = finalInterviewStatus.includes("awaiting schedule") || finalInterviewStatus.includes("not started") || finalInterviewStatus.includes("pending");
+  if (!finalStagePending && (finalInterviewStatus.includes("scheduled") || finalInterviewStatus.includes("booked") || finalStatus.includes("final interview scheduled"))) return "Attend Final Interview";
   if (finalStatus.includes("approved for final") || finalInterviewStatus === "awaiting schedule") return "Schedule Final Interview";
   return "Review Application";
 }
@@ -201,8 +204,13 @@ function workflowRecommendationFor(record: SheetRow) {
     return "AI Voice Interview In Progress";
   }
 
-  if (finalInterviewStatus.includes("scheduled") || finalInterviewStatus.includes("booked") || finalStatus.includes("final interview scheduled")) {
+  const finalStagePending = finalInterviewStatus.includes("awaiting schedule") || finalInterviewStatus.includes("not started") || finalInterviewStatus.includes("pending");
+  if (!finalStagePending && (finalInterviewStatus.includes("scheduled") || finalInterviewStatus.includes("booked") || finalStatus.includes("final interview scheduled"))) {
     return "Final Interview Scheduled";
+  }
+
+  if (finalStagePending || finalStatus.includes("final interview booking link sent") || finalStatus.includes("approved for final")) {
+    return "Awaiting Final Interview Scheduling";
   }
 
   // The summary recommendation must reflect the applicant's current workflow
@@ -334,7 +342,10 @@ export async function getApplicantById(id: string): Promise<ApplicantDetails | n
   const voiceResult = related(voiceResults);
   const callLog = related(callLogs);
   const finalInterview = related(finalInterviews);
-  const interviewSlot = related(slots);
+  const applicantSlots = slots.filter((row) => applicationId(row).toLowerCase() === normalizedId);
+  const voiceInterviewSlot = applicantSlots.find((row) => field(row, "Interview_Type", "Interview Type").toLowerCase().includes("voice"));
+  const finalInterviewSlot = applicantSlots.find((row) => field(row, "Interview_Type", "Interview Type").toLowerCase().includes("final"));
+  const interviewSlot = voiceInterviewSlot || related(slots);
 
   return {
     ...summary,
@@ -381,6 +392,8 @@ export async function getApplicantById(id: string): Promise<ApplicantDetails | n
     voiceInterviewResult: voiceResult,
     voiceCallLog: callLog,
     finalInterview,
+    voiceInterviewSlot,
+    finalInterviewSlot,
     interviewSlot,
   };
 }

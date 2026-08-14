@@ -1025,6 +1025,10 @@ a { color: inherit; text-decoration: none; }
 .applicant-detail-main, .applicant-detail-side { display: grid; align-content: start; gap: 20px; }
 .applicant-detail-card { margin-top: 0; overflow: hidden; }
 .applicant-detail-content { display: grid; gap: 12px; padding: 20px 24px; }
+.applicant-evidence-subsection + .applicant-evidence-subsection { margin-top: 10px; padding-top: 20px; border-top: 1px solid #e4ebf2; }
+.applicant-evidence-subsection-heading { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; color: var(--navy); }
+.applicant-evidence-subsection-heading svg { color: var(--primary); }
+.applicant-evidence-subsection-heading h3 { margin: 0; font-size: 15px; }
 .applicant-copy-block p, .applicant-copy-columns p { margin: 5px 0 0; color: #35516d; font-size: 13px; line-height: 1.6; white-space: pre-wrap; }
 .applicant-copy-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
 .applicant-resume { overflow: auto; max-height: 500px; margin: 0; padding: 20px 24px; color: #35516d; font-family: inherit; font-size: 12px; line-height: 1.6; white-space: pre-wrap; }

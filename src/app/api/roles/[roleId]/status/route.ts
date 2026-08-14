@@ -392,6 +392,11 @@ export async function POST(
     } catch (persistenceError) {
       console.error("[API Role Status] Could not synchronize the Role_Requests row:", persistenceError);
     }
+    // updateRoleRequestFields() invalidates on its own, but not when the
+    // write above threw or matched no columns. n8n has still written the
+    // transition, so drop the cached row unconditionally rather than letting
+    // the detail page refresh into the previous status.
+    invalidateSheetsCache("Role_Requests");
     invalidateSheetsCache("Role_Status_History");
 
     return NextResponse.json({

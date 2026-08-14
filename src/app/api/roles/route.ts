@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { getRoleRequests } from "@/lib/google-sheets";
+import { invalidateSheetsCache } from "@/lib/sheets-cache";
 import { filterVisibleRoles } from "@/lib/access-control";
 import { roleRequestSchema } from "@/lib/role-schema";
 import { generateRoleId } from "@/lib/role-id";
@@ -390,6 +391,12 @@ export async function POST(request: Request) {
         { status: 502 },
       );
     }
+
+    // getRoleRequests() above cached the pre-creation snapshot, and n8n has
+    // just appended the new row outside that cache. Without this, the
+    // redirect to /roles/<id> reads the stale list for the rest of the TTL
+    // and renders "Role request not found" until the user refreshes again.
+    invalidateSheetsCache("Role_Requests");
 
     return NextResponse.json(
       {

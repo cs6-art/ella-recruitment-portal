@@ -518,7 +518,12 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
       actionRequestId.current = globalThis.crypto.randomUUID();
       onSaved();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Unable to save recruitment setup.");
+      setError(`${caught instanceof Error ? caught.message : "Unable to save recruitment setup."} Your entries were reloaded from the saved record below, so you can see exactly what was kept before retrying.`);
+      // The setup fields are written to the sheet before the workflow call, so
+      // a failure here does not necessarily mean nothing was saved. Reloading
+      // shows the actually persisted state instead of leaving HR guessing
+      // whether to redo the work.
+      onSaved();
     } finally {
       setSaving(false);
     }
@@ -777,7 +782,7 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
             <button type="button" className="btn btn-secondary" disabled={saving} onClick={() => void save("save_draft")}>{saving ? "Saving..." : "Save Draft"}</button>
             <button type="button" className="btn btn-secondary" disabled={saving || !recruitmentReadiness.valid} onClick={() => void save("mark_recruitment_ready")}>Mark as Recruitment Ready</button>
             <button type="button" className="btn btn-secondary" disabled={saving || !publishingReadiness.valid} onClick={() => void save("mark_ready_for_publishing")}>Mark as Ready for Publishing</button>
-            <button type="button" className="btn btn-primary" disabled={saving || !publishingReadiness.valid || setupStatus !== "Ready for Publishing"} onClick={() => void save("publish_role")}>{saving ? "Saving..." : "Publish Role"}</button>
+            <button type="button" className="btn btn-primary" disabled={saving || !publishingReadiness.valid} onClick={() => void save("publish_role")}>{saving ? "Saving..." : "Publish Role"}</button>
           </>}
         </div>
       </div>
