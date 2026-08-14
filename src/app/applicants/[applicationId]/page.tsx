@@ -55,9 +55,9 @@ function voiceSummaryPreview(value: string) {
   return overall || paragraphs[0] || "";
 }
 
-function DetailField({ label, value }: { label: string; value?: string }) {
+function DetailField({ label, value, className = "" }: { label: string; value?: string; className?: string }) {
   if (!value) return null;
-  return <div className="applicant-detail-field"><span>{label}</span><strong>{value}</strong></div>;
+  return <div className={`applicant-detail-field ${className}`.trim()}><span>{label}</span><strong>{value}</strong></div>;
 }
 
 function DetailCardHeader({ icon, title, description }: { icon: UiIconName; title: string; description?: string }) {
@@ -79,7 +79,14 @@ function FinalInterviewCard({ applicant, role }: { applicant: ApplicantDetails; 
   const interviewer = hodName
     ? [hodName, hodEmail && hodEmail !== hodName ? hodEmail : ""].filter(Boolean).join(" · ")
     : recordValue(finalInterview, "Interviewer_Name", "Interviewer Name") || "Not assigned";
-  const recommendation = recordValue(finalInterview, "Final_Recommendation", "Final Recommendation") || "Awaiting interview decision";
+  const storedRecommendation = recordValue(finalInterview, "Final_Recommendation", "Final Recommendation");
+  const isScheduled = bookingStatus.toLowerCase().includes("booked") || status.toLowerCase().includes("scheduled");
+  const isPlaceholderRecommendation = /^(awaiting|pending).*interview decision$/i.test(storedRecommendation);
+  const recommendation = storedRecommendation && !isPlaceholderRecommendation
+    ? storedRecommendation
+    : isScheduled
+      ? "Final Interview Scheduled"
+      : "Awaiting final interview decision";
   const calendarStatus = recordValue(slot, "Google_Calendar_Event_Status");
   const calendarError = recordValue(slot, "Google_Calendar_Event_Error");
 
@@ -93,7 +100,7 @@ function FinalInterviewCard({ applicant, role }: { applicant: ApplicantDetails; 
         <DetailField label="Booking Status" value={bookingStatus} />
         <DetailField label="Scheduled" value={[scheduledDate, scheduledTime].filter(Boolean).join(" ") || "Not scheduled"} />
         <DetailField label="Timezone" value={timezone || "Not provided"} />
-        <DetailField label="Interviewer" value={interviewer} />
+        <DetailField label="Interviewer" value={interviewer} className="applicant-final-interviewer-field" />
         <DetailField label="Recommendation" value={recommendation} />
         {calendarStatus && <DetailField label="Calendar" value={calendarStatus} />}
       </div>
@@ -175,8 +182,8 @@ export default async function ApplicantDetailsPage({ params }: { params: Promise
       <HistoryTimeline history={history} />
     </div><aside className="applicant-detail-side">
       <section className="card applicant-detail-card applicant-voice-summary-card"><DetailCardHeader icon="microphone" title="Voice Interview" description="Key interview results for HR." /><div className="applicant-detail-content"><div className="applicant-detail-inline-fields"><DetailField label="Status" value={applicant.voiceStatus} /><DetailField label="Booking Status" value={applicant.voiceBookingStatus} /><DetailField label="Voice AI Score" value={applicant.voiceScore ? formatMatchScore(applicant.voiceScore) : "Awaiting AI evaluation"} /><DetailField label="Voice AI Recommendation" value={applicant.voiceRecommendation || "Awaiting AI evaluation"} /><DetailField label="Scheduled" value={[applicant.voiceScheduledDate, applicant.voiceScheduledTime].filter(Boolean).join(" ")} /></div><div className="applicant-voice-summary-item"><span>AI summary</span><p>{voiceSummary || "No voice interview summary is available."}</p></div><div className="applicant-voice-summary-item"><span>Concerns</span><p>{applicant.voiceConcerns || "No concerns recorded."}</p></div><p className="applicant-voice-review-hint">Full evidence is shown below AI CV Analysis.</p></div></section>
-      <section className="card applicant-detail-card"><DetailCardHeader icon="clock" title="Workflow Tracking" description="Current progress through the candidate workflow." /><div className="applicant-timeline"><div><strong>1. AI CV Analysis</strong><span>{applicant.resumeStatus || "Not Started"}</span></div><div><strong>2. Voice Interview</strong><span>{applicant.voiceStatus || "Not Started"}</span></div><div><strong>3. Voice HR Review</strong><span>{applicant.voiceDecision || "Pending"}</span></div><div><strong>4. Final Interview</strong><span>{applicant.finalInterviewStatus || "Not Started"}</span></div><div><strong>Last Updated</strong><span>{dateValue(applicant.lastUpdated)}</span></div></div></section>
       <FinalInterviewCard applicant={applicant} role={role} />
+      <section className="card applicant-detail-card"><DetailCardHeader icon="clock" title="Status Tracking" description="Current progress through the candidate workflow." /><div className="applicant-timeline"><div><strong>1. AI CV Analysis</strong><span>{applicant.resumeStatus || "Not Started"}</span></div><div><strong>2. Voice Interview</strong><span>{applicant.voiceStatus || "Not Started"}</span></div><div><strong>3. Voice HR Review</strong><span>{applicant.voiceDecision || "Pending"}</span></div><div><strong>4. Final Interview</strong><span>{applicant.finalInterviewStatus || "Not Started"}</span></div><div><strong>Last Updated</strong><span>{dateValue(applicant.lastUpdated)}</span></div></div></section>
     </aside></div>
   </main></AppShell>;
 }

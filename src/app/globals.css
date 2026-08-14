@@ -1038,6 +1038,7 @@ a { color: inherit; text-decoration: none; }
   .applicants-header-meta { justify-items: start; }
   .applicants-filters, .applicants-filters input, .applicants-filters select { width: 100%; }
   .applicant-stat-grid, .applicant-detail-summary, .applicant-copy-columns { grid-template-columns: 1fr; }
+  .applicant-final-interviewer-field { grid-column: auto; }
   .role-applicants-context { align-items: flex-start; flex-direction: column; gap: 7px; padding-top: 12px; }
   .role-applicants-context span { padding-left: 0; border-left: 0; }
 }
@@ -1070,6 +1071,8 @@ a { color: inherit; text-decoration: none; }
 .applicant-detail-side .applicant-section-icon { color: #6750a5; background: #f0edff; }
 .applicant-detail-inline-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .applicant-detail-inline-fields .applicant-detail-field { min-height: 59px; }
+.applicant-final-interviewer-field { grid-column: span 2; }
+.applicant-final-interviewer-field strong { overflow-wrap: anywhere; }
 .applicant-detail-content { gap: 15px; padding: 22px 24px 24px; }
 .applicant-copy-block p, .applicant-copy-columns p { margin-top: 7px; font-size: 13px; line-height: 1.65; }
 .applicant-copy-columns { gap: 24px; }
