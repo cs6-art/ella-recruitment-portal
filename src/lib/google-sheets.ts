@@ -73,6 +73,8 @@ export type RoleRequestSummary = {
   recruitmentSetupStatus?: string;
   jobDescription?: string;
   postingChannels?: string;
+  hodEmail: string;
+  hodAvailabilitySlots: string;
 };
 
 export type RoleRequestDetails = {
@@ -736,6 +738,8 @@ export async function getRoleRequests(): Promise<
         recruitmentSetupStatus: role.recruitmentSetupStatus,
         jobDescription: role.jobDescription,
         postingChannels: role.postingChannels,
+        hodEmail: role.hodEmail,
+        hodAvailabilitySlots: role.hodAvailabilitySlots,
       }));
 
   // Role_ID is the identity used by every role list and detail link. A

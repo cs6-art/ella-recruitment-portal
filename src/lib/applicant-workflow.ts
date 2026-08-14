@@ -785,6 +785,7 @@ export async function createInterviewSlot(input: CreateInterviewSlotInput) {
     if (hodEmail) {
       const calendar = await checkCalendarAvailability({ hodEmail, date, startTime, endTime, timezone });
       if (calendar.checked && !calendar.available) throw new Error("The HOD Google Calendar is busy during this final-interview slot.");
+      if (!calendar.checked && calendar.reason === "not_connected") throw new Error("Connect the assigned HOD's Google Calendar before adding a final-interview slot.");
       if (!calendar.checked && calendar.reason === "error") throw new Error("Unable to verify the HOD Google Calendar for this final-interview slot.");
     }
   }

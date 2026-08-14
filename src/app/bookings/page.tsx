@@ -17,6 +17,6 @@ export default async function BookingsPage() {
   const [bookings, roles] = await Promise.all([getInterviewBookings(), getRoleRequests()]);
   const approvedRoles = roles
     .filter((role) => canManageInterviewAvailability(role.status))
-    .map(({ roleId, jobTitle }) => ({ roleId, jobTitle }));
+    .map(({ roleId, jobTitle, hodEmail, hodAvailabilitySlots }) => ({ roleId, jobTitle, hodEmail, hodAvailabilitySlots }));
   return <AppShell user={user}><BookingsList bookings={bookings} roles={approvedRoles} /></AppShell>;
 }
