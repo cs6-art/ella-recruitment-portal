@@ -13,7 +13,6 @@ function countryFromNumber(value: string) {
   const digits = value.replace(/\D/g, "").replace(/^00/, "");
   if (digits.startsWith("60")) return "MY";
   if (digits.startsWith("65")) return "SG";
-  if (digits.startsWith("966")) return "SA";
   return "PH";
 }
 

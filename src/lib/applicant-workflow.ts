@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { google } from "googleapis";
 import { z } from "zod";
 
-import { createFinalInterviewEvent, deleteFinalInterviewEvent, checkCalendarAvailability, type CalendarAvailabilityResult } from "@/lib/google-calendar";
+import { createFinalInterviewEvent, deleteFinalInterviewEvent, checkCalendarAvailability, getCalendarBusyWindows, type CalendarAvailabilityResult } from "@/lib/google-calendar";
 import { getPortalSettings, getRoleRequestById } from "@/lib/google-sheets";
 import { parseHodAvailabilitySlots, slotMatchesHodAvailability } from "@/lib/hod-availability";
 import { isValidTimezone, scheduledInstant } from "@/lib/interview-time";
@@ -10,6 +10,7 @@ import { bookingLink } from "@/lib/public-url";
 import { cachedSheetsRead, invalidateSheetsCache } from "@/lib/sheets-cache";
 import type { ResumeFileRecord } from "@/lib/resume-files";
 import { generateAutomaticVoiceInterviewSlots, type VoiceInterviewSlot } from "@/lib/voice-interview-availability";
+import { hasValidFutureTime, isVirtualSlotId, slotKey, virtualSlotsForRole } from "@/lib/interview-availability-rules";
 
 export type BookingKind = "voice" | "final";
 export type ApplicantDecisionStage = "resume" | "voice" | "final";
@@ -219,18 +220,25 @@ export function normalizePreferredMobile(value: string) {
   return normalized;
 }
 
+// Applications are only supported for PH, SG, and MY. See CountryOptions.tsx.
 function inferApplicantCountry(value: string) {
   const digits = text(value).replace(/\D/g, "").replace(/^00/, "");
   if (digits.startsWith("63")) return "PH";
   if (digits.startsWith("65")) return "SG";
   if (digits.startsWith("60")) return "MY";
-  if (digits.startsWith("966")) return "SA";
   return "";
 }
 
+// Restricted to the three countries applications are supported for (see
+// CountryOptions.tsx) rather than accepting any E.164 number — a candidate
+// typing a +966 number by hand, bypassing the dropdown, was previously
+// accepted by this generic check.
 export function isPreferredMobileValid(value: string) {
   const normalized = normalizePreferredMobile(value);
-  return /^\+[1-9]\d{7,14}$/.test(normalized);
+  if (/^\+63\d{10}$/.test(normalized)) return true; // Philippines
+  if (/^\+65\d{8}$/.test(normalized)) return true; // Singapore
+  if (/^\+60\d{8,10}$/.test(normalized)) return true; // Malaysia
+  return false;
 }
 
 // Sheets' USER_ENTERED write mode parses cell values the same way the UI
@@ -475,6 +483,7 @@ export async function getCandidateStatusHistory(applicationId: string): Promise<
 }
 
 export async function getBookingContext(kind: BookingKind, token: string): Promise<BookingContext | null> {
+  await syncPastBookedInterviewsNoShow();
   const [applicantData, slotsData] = await Promise.all([readSheet("High_Match_Profile", "BH"), readSheet("Interview_Slots", "X")]);
   const cleanToken = text(token);
   const tokenHash = hashToken(cleanToken);
@@ -487,6 +496,7 @@ export async function getBookingContext(kind: BookingKind, token: string): Promi
   const expiry = kind === "voice" ? field(row, "Booking_Token_Expires_At") : field(row, "Final_Interview_Booking_Token_Expires_At");
   if (expiry && Date.parse(expiry) < Date.now()) return null;
   const roleId = field(row, "Role_ID", "Role ID");
+  const role = await getRoleRequestById(roleId);
   const tokenStatus = kind === "voice" ? field(row, "Booking_Token_Status") : field(row, "Final_Interview_Booking_Token_Status");
   if (["used", "booked", "expired", "revoked"].includes(tokenStatus.toLowerCase())) return null;
   const status = tokenStatus || (kind === "voice" ? field(row, "Booking_Token_Status") : field(row, "Status 3 (Final Interview)"));
@@ -495,7 +505,7 @@ export async function getBookingContext(kind: BookingKind, token: string): Promi
     .find(({ slot }) => slot.applicationId === field(row, "Application ID", "Application_ID")
       && slot.interviewType === bookingKindValue(kind)
       && ["booked", "no show"].includes((slot.status || "").toLowerCase()));
-  const slots = slotsData.rows
+  const legacySlots = slotsData.rows
     .filter((slot) => field(slot, "Role_ID", "Role ID").toLowerCase() === roleId.toLowerCase())
     .filter((slot) => field(slot, "Interview_Type", "Interview Type") === bookingKindValue(kind))
     .filter((slot) => field(slot, "Status").toLowerCase() === "available")
@@ -509,6 +519,41 @@ export async function getBookingContext(kind: BookingKind, token: string): Promi
     })
     .filter((slot) => slot.slotId)
     .sort(slotSort);
+  const legacyAll = slotsData.rows
+    .filter((slot) => field(slot, "Role_ID", "Role ID").toLowerCase() === roleId.toLowerCase())
+    .filter((slot) => field(slot, "Interview_Type", "Interview Type") === bookingKindValue(kind))
+    .map(slotFrom);
+  const existingKeys = new Set(legacyAll.map((slot) => slotKey(slot)));
+  const virtual = role
+    ? virtualSlotsForRole(role, bookingKindValue(kind) as "AI Voice Interview" | "Final Interview")
+      .filter((slot) => !existingKeys.has(slotKey(slot)))
+      .map((slot) => ({ ...slot }))
+    : [];
+  const candidateSlots = [...legacySlots, ...virtual]
+    .filter((slot) => hasValidFutureTime(slot))
+    .filter((slot) => slot.slotId)
+    .sort(slotSort);
+  const finalCalendarEmail = kind === "final" ? text(role?.hodEmail || role?.requesterEmail) : "";
+  let slots = candidateSlots;
+  if (finalCalendarEmail && kind === "final") {
+    const virtualFinalSlots = candidateSlots.filter((slot) => isVirtualSlotId(slot.slotId));
+    const instants = virtualFinalSlots.flatMap((slot) => {
+      try { return [scheduledInstant(slot.date, slot.startTime, slot.timezone || "Asia/Singapore"), scheduledInstant(slot.date, slot.endTime, slot.timezone || "Asia/Singapore")]; } catch { return []; }
+    });
+    if (instants.length > 0) {
+      const busyResult = await getCalendarBusyWindows({ hodEmail: finalCalendarEmail, start: new Date(Math.min(...instants.map((value) => value.getTime()))), end: new Date(Math.max(...instants.map((value) => value.getTime()))) });
+      if (busyResult.checked && busyResult.busy.length > 0) {
+        slots = candidateSlots.filter((slot) => {
+          if (!isVirtualSlotId(slot.slotId)) return true;
+          try {
+            const start = scheduledInstant(slot.date, slot.startTime, slot.timezone || "Asia/Singapore").getTime();
+            const end = scheduledInstant(slot.date, slot.endTime, slot.timezone || "Asia/Singapore").getTime();
+            return !busyResult.busy.some((window) => Date.parse(window.start) < end && Date.parse(window.end) > start);
+          } catch { return false; }
+        });
+      }
+    }
+  }
   const scheduledDate = currentSlot?.slot.date || (kind === "voice"
     ? field(row, "Voice_Interview_Scheduled_Date")
     : field(row, "Final_Interview_Scheduled_Date"));
@@ -700,10 +745,48 @@ export async function reserveBooking(kind: BookingKind, token: string, slotId: s
   if (!isPreferredMobileValid(confirmedMobile)) throw new Error("Confirm a valid preferred mobile number in international format.");
   const [context, slotsData, applicantData] = await Promise.all([getBookingContext(kind, token), readSheet("Interview_Slots", "X"), readSheet("High_Match_Profile", "BH")]);
   if (!context) throw new Error("This booking link is invalid or expired.");
-  const matchingSlotIndex = slotsData.rows.findIndex((row) => field(row, "Slot_ID", "Slot ID") === cleanSlotId);
-  if (matchingSlotIndex < 0) throw new Error("The selected interview slot is no longer available.");
-  const matchingSlot = slotsData.rows[matchingSlotIndex];
-  if (field(matchingSlot, "Status").toLowerCase() !== "available" || field(matchingSlot, "Interview_Type", "Interview Type") !== bookingKindValue(kind) || field(matchingSlot, "Role_ID", "Role ID").toLowerCase() !== context.roleId.toLowerCase()) throw new Error("The selected interview slot is no longer available.");
+  let matchingSlotIndex = slotsData.rows.findIndex((row) => field(row, "Slot_ID", "Slot ID") === cleanSlotId);
+  let matchingSlot = matchingSlotIndex >= 0 ? slotsData.rows[matchingSlotIndex] : undefined;
+  let virtualReservation = false;
+  if (matchingSlotIndex < 0) {
+    const virtualSlot = context.slots.find((slot) => slot.slotId === cleanSlotId);
+    if (!virtualSlot || !isVirtualSlotId(cleanSlotId)) throw new Error("The selected interview slot is no longer available.");
+    if (kind === "final") {
+      const role = await getRoleRequestById(context.roleId);
+      const hodEmail = (role?.hodEmail || role?.requesterEmail || "").trim();
+      if (hodEmail) {
+        const calendar = await checkCalendarAvailability({ hodEmail, date: virtualSlot.date, startTime: virtualSlot.startTime, endTime: virtualSlot.endTime, timezone: virtualSlot.timezone });
+        if (calendar.checked && !calendar.available) throw new Error("This final-interview time is now blocked by the HOD Google Calendar. Choose another time.");
+      }
+    }
+    const values = slotsData.headers.map((header) => {
+      const key = normalize(header);
+      if (key === normalize("Slot_ID")) return virtualSlot.slotId;
+      if (key === normalize("Interview_Type")) return virtualSlot.interviewType;
+      if (key === normalize("Role_ID")) return virtualSlot.roleId;
+      if (key === normalize("Date")) return virtualSlot.date;
+      if (key === normalize("Start_Time")) return virtualSlot.startTime;
+      if (key === normalize("End_Time")) return virtualSlot.endTime;
+      if (key === normalize("Timezone")) return virtualSlot.timezone;
+      if (key === normalize("Status")) return "Booked";
+      if (key === normalize("Application_ID")) return context.applicationId;
+      if (key === normalize("Candidate_Name")) return context.candidateName;
+      if (key === normalize("Candidate_Email")) return context.email;
+      if (key === normalize("Booked_At")) return new Date().toISOString();
+      return "";
+    });
+    await appendRows("Interview_Slots", [values]);
+    invalidateSheetsCache("Interview_Slots");
+    const refreshedSlots = await readSheet("Interview_Slots", "X");
+    matchingSlotIndex = refreshedSlots.rows.findIndex((row) => field(row, "Slot_ID", "Slot ID") === cleanSlotId);
+    if (matchingSlotIndex < 0) throw new Error("The selected interview slot could not be reserved. Try again.");
+    matchingSlot = refreshedSlots.rows[matchingSlotIndex];
+    slotsData.rows = refreshedSlots.rows;
+    slotsData.rowNumbers = refreshedSlots.rowNumbers;
+    virtualReservation = true;
+  }
+  if (!matchingSlot) throw new Error("The selected interview slot is no longer available.");
+  if ((!virtualReservation && field(matchingSlot, "Status").toLowerCase() !== "available") || field(matchingSlot, "Interview_Type", "Interview Type") !== bookingKindValue(kind) || field(matchingSlot, "Role_ID", "Role ID").toLowerCase() !== context.roleId.toLowerCase()) throw new Error("The selected interview slot is no longer available.");
 
   const now = new Date().toISOString();
   const slotRow = slotsData.rowNumbers[matchingSlotIndex];
@@ -716,6 +799,11 @@ export async function reserveBooking(kind: BookingKind, token: string, slotId: s
   if (oldSlotIndex === matchingSlotIndex) throw new Error("Choose a different interview slot to reschedule.");
   const role = kind === "final" ? await getRoleRequestById(context.roleId) : null;
   const calendarHodEmail = (role?.hodEmail || role?.requesterEmail || "").trim();
+  if (kind === "final" && calendarHodEmail) {
+    const calendar = await checkCalendarAvailability({ hodEmail: calendarHodEmail, date: field(matchingSlot, "Date"), startTime: field(matchingSlot, "Start_Time", "Start Time"), endTime: field(matchingSlot, "End_Time", "End Time"), timezone: field(matchingSlot, "Timezone", "Time Zone") || "Asia/Singapore" });
+    if (calendar.checked && !calendar.available) throw new Error("This final-interview time is now blocked by the HOD Google Calendar. Choose another time.");
+    if (!calendar.checked && calendar.reason === "error") throw new Error("Unable to verify the HOD Google Calendar. Please try again.");
+  }
   let oldCalendarEventCleanup: { deleted: true } | { deleted: false; reason: "not_connected" | "error"; error?: string } | null = null;
   if (kind === "final" && oldSlotIndex >= 0 && calendarHodEmail) {
     const oldEventId = field(slotsData.rows[oldSlotIndex], "Google_Calendar_Event_ID");
@@ -821,6 +909,29 @@ export async function reserveBooking(kind: BookingKind, token: string, slotId: s
   if (queueValues) await appendRows("Voice_Call_Queue", [queueValues]);
 
   if (kind === "final") {
+    // Keep the tracking tab aligned with the booked slot. A final
+    // recommendation is only valid after the final interview decision; a
+    // stale "Passed" value must not make a newly booked interview look
+    // completed.
+    try {
+      await syncFinalTrackingBooking({
+        applicationId: context.applicationId,
+        candidateName: context.candidateName,
+        candidateEmail: context.email,
+        roleId: context.roleId,
+        selectedRole: context.selectedRole,
+        slot: matchingSlot,
+        interviewerName: text(role?.requesterName || role?.submittedByName || role?.hodEmail),
+        interviewerEmail: text(role?.hodEmail || role?.requesterEmail),
+        updatedAt: now,
+      });
+    } catch (error) {
+      // The booking has already been reserved in the primary tabs. Do not
+      // turn a successful candidate booking into a false failure if this
+      // optional tracking tab is unavailable.
+      console.warn("[Final Interview Tracking] Unable to sync booking:", error);
+    }
+
     // Best-effort: put the event on the HOD's own connected Google Calendar.
     // The role's requester is treated as the HOD for calendar purposes (the
     // person who submits a role request is the HOD or authorized requester
@@ -865,7 +976,63 @@ export async function reserveBooking(kind: BookingKind, token: string, slotId: s
     }
   }
 
-  return { ...context, bookingStatus: kind === "voice" ? "Scheduled" : "Interview Scheduled", scheduledDate: field(matchingSlot, "Date"), scheduledTime: field(matchingSlot, "Start_Time", "Start Time"), timezone: field(matchingSlot, "Timezone", "Time Zone"), slots: [] };
+  // `context` was read before this booking's writes landed, so its
+  // preferredMobile still reflects whatever was stored beforehand (which may
+  // predate the E.164 fix, or simply be stale). confirmedMobile is the value
+  // actually validated and just persisted — echo that instead so the
+  // response matches the sheet.
+  return { ...context, preferredMobile: confirmedMobile, bookingStatus: kind === "voice" ? "Scheduled" : "Interview Scheduled", scheduledDate: field(matchingSlot, "Date"), scheduledTime: field(matchingSlot, "Start_Time", "Start Time"), timezone: field(matchingSlot, "Timezone", "Time Zone"), slots: [] };
+}
+
+async function syncFinalTrackingBooking(input: {
+  applicationId: string;
+  candidateName: string;
+  candidateEmail: string;
+  roleId: string;
+  selectedRole: string;
+  slot: Row;
+  interviewerName: string;
+  interviewerEmail: string;
+  updatedAt: string;
+}) {
+  const data = await readSheet("Final_Interview_Tracking", "AE");
+  const existingIndex = data.rows.findIndex((row) => field(row, "Application_ID", "Application ID") === input.applicationId);
+  const existing = existingIndex >= 0 ? data.rows[existingIndex] : {};
+  const slotDate = field(input.slot, "Date");
+  const slotTime = field(input.slot, "Start_Time", "Start Time");
+  const values = data.headers.map((header) => {
+    const key = normalize(header);
+    if (key === normalize("Application_ID")) return input.applicationId;
+    if (key === normalize("Candidate_Name")) return input.candidateName;
+    if (key === normalize("Candidate_Email")) return input.candidateEmail;
+    if (key === normalize("Role_ID")) return input.roleId;
+    if (key === normalize("Selected_Role")) return input.selectedRole;
+    if (key === normalize("Final_Interview_Date")) return `${slotDate} ${slotTime}`.trim();
+    if (key === normalize("Final_Interview_Status")) return "Interview Scheduled";
+    if (key === normalize("Final_Recommendation")) return "Awaiting interview decision";
+    if (key === normalize("Interviewer_Name")) return input.interviewerName;
+    if (key === normalize("Interviewer_Email")) return input.interviewerEmail;
+    if (key === normalize("Last_Updated")) return input.updatedAt;
+    return existing[normalize(header)] || "";
+  });
+  if (existingIndex >= 0) {
+    const rowNumber = data.rowNumbers[existingIndex];
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: `'Final_Interview_Tracking'!A${rowNumber}:${columnName(data.headers.length - 1)}${rowNumber}`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: { values: [values] },
+    });
+  } else {
+    await sheets.spreadsheets.values.append({
+      spreadsheetId,
+      range: "'Final_Interview_Tracking'!A1",
+      valueInputOption: "USER_ENTERED",
+      insertDataOption: "INSERT_ROWS",
+      requestBody: { values: [values] },
+    });
+  }
+  invalidateSheetsCache("Final_Interview_Tracking");
 }
 
 export async function markInterviewNoShow(slotId: string) {
@@ -908,6 +1075,81 @@ export async function markInterviewNoShow(slotId: string) {
   }
   await updateCells(updates);
   return { slotId: cleanSlotId, applicationId, status: "No Show" };
+}
+
+function calendarDateKey(value: string, timezone: string) {
+  const trimmed = text(value);
+  const iso = trimmed.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (iso) return `${iso[1]}-${iso[2].padStart(2, "0")}-${iso[3].padStart(2, "0")}`;
+  const slash = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (slash) return `${slash[3]}-${slash[1].padStart(2, "0")}-${slash[2].padStart(2, "0")}`;
+  const parsed = Date.parse(trimmed);
+  if (Number.isNaN(parsed)) return "";
+  return new Intl.DateTimeFormat("en-CA", { timeZone: timezone || "Asia/Singapore", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(parsed));
+}
+
+function todayInTimezone(timezone: string) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: timezone || "Asia/Singapore", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+}
+
+let pastBookedNoShowSync: Promise<number> | null = null;
+
+/** Reconcile booked interviews whose calendar day has passed. */
+export async function syncPastBookedInterviewsNoShow() {
+  if (pastBookedNoShowSync) return pastBookedNoShowSync;
+  pastBookedNoShowSync = (async () => {
+    const [slotsData, applicantsData] = await Promise.all([
+      readSheet("Interview_Slots", "X"),
+      readSheet("High_Match_Profile", "BH"),
+    ]);
+    let queueData: { rows: Row[]; rowNumbers: number[] } = { rows: [], rowNumbers: [] };
+    try { queueData = await readSheet("Voice_Call_Queue", "X"); } catch { /* Older workbooks may not have this tab. */ }
+
+    const updates: CellUpdate[] = [];
+    let changed = 0;
+    slotsData.rows.forEach((slot, slotIndex) => {
+      if (field(slot, "Status").toLowerCase() !== "booked") return;
+      const timezone = field(slot, "Timezone", "Time Zone") || "Asia/Singapore";
+      const date = calendarDateKey(field(slot, "Date"), timezone);
+      if (!date || date >= todayInTimezone(timezone)) return;
+
+      const applicationId = field(slot, "Application_ID", "Application ID");
+      const applicantIndex = applicantsData.rows.findIndex((row) => field(row, "Application_ID", "Application ID") === applicationId);
+      const isVoice = field(slot, "Interview_Type", "Interview Type").toLowerCase().includes("voice");
+      const applicant = applicantIndex >= 0 ? applicantsData.rows[applicantIndex] : undefined;
+      const interviewStatus = field(applicant || {}, isVoice ? "Status 2 (Voice Interview)" : "Status 3 (Final Interview)").toLowerCase();
+      if (interviewStatus.includes("interviewed") || interviewStatus.includes("completed")) return;
+
+      const now = new Date().toISOString();
+      updates.push(
+        { tab: "Interview_Slots", row: slotsData.rowNumbers[slotIndex], header: "Status", value: "No Show" },
+        { tab: "Interview_Slots", row: slotsData.rowNumbers[slotIndex], header: "Last_Updated", value: now },
+      );
+      if (applicant && applicantIndex >= 0) {
+        const applicantRow = applicantsData.rowNumbers[applicantIndex];
+        updates.push(
+          { tab: "High_Match_Profile", row: applicantRow, header: "Last_Updated", value: now },
+          { tab: "High_Match_Profile", row: applicantRow, header: isVoice ? "Status 2 (Voice Interview)" : "Status 3 (Final Interview)", value: "No Show" },
+          { tab: "High_Match_Profile", row: applicantRow, header: "Final_Status", value: `${isVoice ? "AI Voice Interview" : "Final Interview"} No Show` },
+        );
+        if (isVoice) updates.push({ tab: "High_Match_Profile", row: applicantRow, header: "Voice_Interview_Booking_Status", value: "No Show" });
+      }
+      if (isVoice) {
+        queueData.rows
+          .map((queueRow, queueIndex) => ({ queueRow, rowNumber: queueData.rowNumbers[queueIndex] }))
+          .filter(({ queueRow }) => field(queueRow, "Application_ID", "Application ID") === applicationId && ["scheduled", "queued"].includes(field(queueRow, "Voice_Call_Status").toLowerCase()))
+          .forEach(({ rowNumber }) => updates.push(
+            { tab: "Voice_Call_Queue", row: rowNumber, header: "Voice_Call_Status", value: "No Show" },
+            { tab: "Voice_Call_Queue", row: rowNumber, header: "Last_Updated", value: now },
+          ));
+      }
+      changed += 1;
+    });
+
+    if (updates.length > 0) await updateCells(updates);
+    return changed;
+  })().finally(() => { pastBookedNoShowSync = null; });
+  return pastBookedNoShowSync;
 }
 
 export async function createInterviewSlot(input: CreateInterviewSlotInput) {
@@ -1209,11 +1451,17 @@ export async function recordApplicantDecision(applicationId: string, stage: Appl
   } else {
     if (decision === "Manual Review") {
       newFinalStatus = "Pending Manual Review";
-      updates.push(set("Final_Status", newFinalStatus));
+      updates.push(set("Final_Status", newFinalStatus), set("Final_Interview_Comments", comments));
     } else {
       newFinalStatus = decision === "Approve" ? "Final Interview Passed" : "Final Interview Rejected";
-      updates.push(set("Status 3 (Final Interview)", "Interview Completed"), set("Final_Status", newFinalStatus));
-      await upsertFinalTracking(found.row, applicationId, decision, reviewer, now);
+      updates.push(
+        set("Status 3 (Final Interview)", "Interview Completed"),
+        set("Final_Status", newFinalStatus),
+        set("Final_Interview_Comments", comments),
+        set("Final_Interview_Reviewer", reviewer.name),
+        set("Final_Interview_Decision_Date", now),
+      );
+      await upsertFinalTracking(found.row, applicationId, decision, reviewer, comments, now);
     }
   }
   await updateCells(updates);
@@ -1235,7 +1483,7 @@ export async function recordApplicantDecision(applicationId: string, stage: Appl
   return { decision, stage };
 }
 
-async function upsertFinalTracking(applicant: Row, applicationId: string, decision: ApplicantDecision, reviewer: { name: string; email: string }, now: string) {
+async function upsertFinalTracking(applicant: Row, applicationId: string, decision: ApplicantDecision, reviewer: { name: string; email: string }, comments: string, now: string) {
   const data = await readSheet("Final_Interview_Tracking", "AE");
   const existingIndex = data.rows.findIndex((row) => field(row, "Application_ID", "Application ID") === applicationId);
   const existing = existingIndex >= 0 ? data.rows[existingIndex] : {};
@@ -1256,6 +1504,9 @@ async function upsertFinalTracking(applicant: Row, applicationId: string, decisi
     if (key === normalize("Voice_Interview_Summary")) return field(applicant, "AI Voice Summary");
     if (key === normalize("HR_Decision")) return decision;
     if (key === normalize("Final_Recommendation")) return decision === "Approve" ? "Passed" : "Rejected";
+    if (["Final_Interview_Comments", "Comments", "HR_Comments", "Decision_Comments"].map(normalize).includes(key)) return comments;
+    if (["Reviewed_By", "Reviewer", "HR_Reviewer"].map(normalize).includes(key)) return reviewer.name;
+    if (["Decision_Date", "Reviewed_At"].map(normalize).includes(key)) return now;
     if (key === normalize("Last_Updated")) return now;
     if (key === normalize("Interviewer_Name")) return hodName || field(existing, "Interviewer_Name", "Interviewer Name");
     if (key === normalize("Interviewer_Email")) return hodEmail || field(existing, "Interviewer_Email", "Interviewer Email");

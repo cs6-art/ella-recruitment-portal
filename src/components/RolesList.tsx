@@ -236,6 +236,7 @@ export default function RolesList({
       });
       setActionMessage(`${deletedIds.length} role request${deletedIds.length === 1 ? "" : "s"} deleted successfully.${failedCount ? ` ${failedCount} could not be deleted.` : ""}`);
       await loadRoles();
+      router.refresh();
     }
     if (failedCount > 0) {
       const firstFailure = results.find((result) => result.status === "rejected");

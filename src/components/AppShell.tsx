@@ -16,6 +16,7 @@ type AppShellUser = {
   canReviewRole?: boolean;
   canApproveRole?: boolean;
   canEditSettings?: boolean;
+  canManageUsers?: boolean;
   active?: boolean;
 };
 
@@ -49,6 +50,7 @@ export default function AppShell({ user, children }: AppShellProps) {
   const isBookings = pathname === "/bookings" || pathname.startsWith("/bookings/");
   const isProfile = pathname === "/profile";
   const isSettings = pathname === "/settings";
+  const isUserAccounts = pathname === "/user-accounts";
   const closeSidebar = () => setSidebarOpen(false);
 
   return (
@@ -71,6 +73,7 @@ export default function AppShell({ user, children }: AppShellProps) {
           {showRoleRequests && <Link href="/applicants" onClick={closeSidebar} className={`${styles.navLink} ${isApplicants ? styles.navLinkActive : ""}`}><span className={styles.navIcon}><UiIcon name="applicants" /></span><span>Applicants</span></Link>}
           {showRoleRequests && <Link href="/bookings" onClick={closeSidebar} className={`${styles.navLink} ${isBookings ? styles.navLinkActive : ""}`}><span className={styles.navIcon}><UiIcon name="calendar" /></span><span>Bookings</span></Link>}
           {user.canEditSettings === true && <Link href="/settings" onClick={closeSidebar} className={`${styles.navLink} ${isSettings ? styles.navLinkActive : ""}`}><span className={styles.navIcon}><UiIcon name="settings" /></span><span>Settings</span></Link>}
+          {(user.canManageUsers === true || user.canEditSettings === true) && <Link href="/user-accounts" onClick={closeSidebar} className={`${styles.navLink} ${isUserAccounts ? styles.navLinkActive : ""}`}><span className={styles.navIcon}><UiIcon name="users" /></span><span>User Accounts</span></Link>}
         </nav>
 
         <div className={styles.sidebarSpacer} />

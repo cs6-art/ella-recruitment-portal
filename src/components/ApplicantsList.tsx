@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import ActionFeedback from "@/components/ActionFeedback";
@@ -17,6 +18,8 @@ type Props = {
   canManageApplicants?: boolean;
 };
 
+type RoleOption = { value: string; label: string; roleId?: string };
+
 function stageClass(stage: string) {
   return `applicant-stage applicant-stage-${stage.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
 }
@@ -32,6 +35,7 @@ function scoreValue(value: string) {
 }
 
 export default function ApplicantsList({ applicants, title = "Applicants", description = "Review candidates across every published role.", topContent, publishedRoles, canManageApplicants = false }: Props) {
+  const router = useRouter();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [search, setSearch] = useState("");
@@ -46,26 +50,34 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
 
   const publishedRoleKeys = useMemo(() => new Set((publishedRoles || []).flatMap((role) => [role.roleId, role.label])), [publishedRoles]);
   const hasPublishedRoleScope = publishedRoles !== undefined;
-  const publishedRoleByLabel = useMemo(() => new Map((publishedRoles || []).map((role) => [role.label, role])), [publishedRoles]);
-  const activeApplicants = useMemo(() => applicants.filter((applicant) => !removedIds.has(applicant.applicationId)), [applicants, removedIds]);
-  const roles = useMemo(() => {
-    if (hasPublishedRoleScope) return (publishedRoles || []).map((role) => role.label).sort();
-    return [...new Set(applicants.map((applicant) => applicant.selectedRole || applicant.roleId).filter(Boolean))].sort();
+  const roleOptions = useMemo<RoleOption[]>(() => {
+    if (hasPublishedRoleScope) {
+      const unique = new Map<string, RoleOption>();
+      (publishedRoles || []).forEach((role) => {
+        const value = role.roleId || role.label;
+        if (!unique.has(value)) unique.set(value, { value, label: role.label, roleId: role.roleId });
+      });
+      return [...unique.values()].sort((left, right) => left.label.localeCompare(right.label));
+    }
+    return [...new Set(applicants.map((applicant) => applicant.selectedRole || applicant.roleId).filter(Boolean))]
+      .sort()
+      .map((role) => ({ value: role, label: role }));
   }, [applicants, hasPublishedRoleScope, publishedRoles]);
+  const activeApplicants = useMemo(() => applicants.filter((applicant) => !removedIds.has(applicant.applicationId)), [applicants, removedIds]);
   const stages = useMemo(() => [...new Set(applicants.map((applicant) => applicant.currentStage).filter(Boolean))].sort(), [applicants]);
 
   const visibleApplicants = useMemo(() => {
     const query = search.trim().toLowerCase();
-    const selectedRole = publishedRoleByLabel.get(roleFilter);
+    const selectedRole = roleOptions.find((role) => role.value === roleFilter);
     return activeApplicants.filter((applicant) => {
       const applicantRole = applicant.selectedRole || applicant.roleId;
       const searchable = `${applicant.applicationId} ${applicant.candidateName} ${applicant.email} ${applicant.roleId} ${applicant.selectedRole} ${applicant.department}`.toLowerCase();
       return (!query || searchable.includes(query)) &&
         (!hasPublishedRoleScope || publishedRoleKeys.has(applicantRole) || publishedRoleKeys.has(applicant.roleId)) &&
-        (roleFilter === "All Roles" || applicantRole === roleFilter || applicant.roleId === selectedRole?.roleId) &&
+        (roleFilter === "All Roles" || applicant.roleId === selectedRole?.roleId || applicantRole === roleFilter || applicant.selectedRole === selectedRole?.label) &&
         (stageFilter === "All Stages" || applicant.currentStage === stageFilter);
     });
-  }, [activeApplicants, hasPublishedRoleScope, publishedRoleByLabel, publishedRoleKeys, roleFilter, search, stageFilter]);
+  }, [activeApplicants, hasPublishedRoleScope, publishedRoleKeys, roleFilter, roleOptions, search, stageFilter]);
 
   const totalPages = Math.max(1, Math.ceil(visibleApplicants.length / pageSize));
   const pagedApplicants = visibleApplicants.slice((page - 1) * pageSize, page * pageSize);
@@ -117,6 +129,7 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
       const firstFailure = results.find((result) => result.status === "rejected");
       setActionError(firstFailure?.status === "rejected" && firstFailure.reason instanceof Error ? firstFailure.reason.message : "Some applicants could not be deleted.");
     }
+    if (deletedIds.length > 0) router.refresh();
     setDeletingIds(new Set());
     setDeletingId("");
   }
@@ -167,7 +180,7 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
           {canManageApplicants && <div className="bulk-selection-toolbar"><span>{selectedApplicants.length} selected</span><button type="button" className="btn btn-danger-outline" disabled={selectedApplicants.length === 0 || deletingId !== ""} onClick={() => void deleteApplicants(selectedApplicants)}>Delete selected</button></div>}
           <div className="applicants-filters">
             <input aria-label="Search applicants" placeholder="Search candidate, role, or ID" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} />
-            <select aria-label="Filter by role" value={roleFilter} onChange={(event) => { setRoleFilter(event.target.value); setPage(1); }}><option>All Roles</option>{roles.map((role) => <option key={role}>{role}</option>)}</select>
+            <select aria-label="Filter by role" value={roleFilter} onChange={(event) => { setRoleFilter(event.target.value); setPage(1); }}><option>All Roles</option>{roleOptions.map((role) => <option key={role.value} value={role.value}>{role.label}</option>)}</select>
             <select aria-label="Filter by stage" value={stageFilter} onChange={(event) => { setStageFilter(event.target.value); setPage(1); }}><option>All Stages</option>{stages.map((stage) => <option key={stage}>{stage}</option>)}</select>
             <label className="pagination-size-control">Rows
               <select aria-label="Applicants per page" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }}>
@@ -184,8 +197,8 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
             <table className="applicants-table">
               <thead><tr>{canManageApplicants && <th className="selection-column"><input type="checkbox" aria-label="Select all visible applicants" checked={allVisibleSelected} onChange={toggleAllVisibleApplicants} /></th>}<th>Candidate</th><th>Role</th><th>Applied</th><th>Match</th><th>Current Stage</th><th>Next Action</th><th>Action</th></tr></thead>
               <tbody>
-                {pagedApplicants.map((applicant) => (
-                  <tr key={applicant.applicationId} className={selectedIds.has(applicant.applicationId) ? "is-selected" : undefined}>
+                {pagedApplicants.map((applicant, index) => (
+                  <tr key={`${applicant.applicationId || "applicant"}-${applicant.roleId || "role"}-${index}`} className={selectedIds.has(applicant.applicationId) ? "is-selected" : undefined}>
                     {canManageApplicants && <td className="selection-column"><input type="checkbox" aria-label={`Select ${applicant.candidateName || applicant.applicationId}`} checked={selectedIds.has(applicant.applicationId)} disabled={deletingIds.has(applicant.applicationId)} onChange={() => toggleApplicantSelection(applicant.applicationId)} /></td>}
                     <td><Link className="applicant-name-link" href={`/applicants/${encodeURIComponent(applicant.applicationId)}`}><strong>{applicant.candidateName || "Unnamed candidate"}</strong><span>{applicant.email || applicant.applicationId}</span></Link></td>
                     <td><strong>{applicant.selectedRole || "Role not provided"}</strong><span className="applicant-subtext">{applicant.roleId}</span></td>

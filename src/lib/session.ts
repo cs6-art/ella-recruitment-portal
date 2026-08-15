@@ -14,6 +14,7 @@ export type SessionUser = {
   canReviewRole: boolean;
   canApproveRole: boolean;
   canEditSettings: boolean;
+  canManageUsers?: boolean;
 };
 
 const COOKIE_NAME = "mclink_session";

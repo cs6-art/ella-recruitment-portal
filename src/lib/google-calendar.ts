@@ -211,6 +211,56 @@ export async function checkCalendarAvailability(input: Pick<CalendarEventInput, 
   }
 }
 
+export type CalendarBusyWindow = { start: string; end: string };
+export type CalendarBusyWindowsResult =
+  | { checked: true; busy: CalendarBusyWindow[] }
+  | { checked: false; busy: CalendarBusyWindow[]; reason: "not_connected" | "error"; error?: string };
+
+/**
+ * Reads one bounded free/busy range so recurring candidate slots do not cause
+ * one Google request per generated time. A failed lookup is non-blocking here;
+ * the reservation endpoint performs the authoritative final check.
+ */
+export async function getCalendarBusyWindows(input: { hodEmail: string; start: Date; end: Date }): Promise<CalendarBusyWindowsResult> {
+  try {
+    const client = await getAuthorizedClient(input.hodEmail);
+    if (!client) return { checked: false, busy: [], reason: "not_connected" };
+    const calendar = google.calendar({ version: "v3", auth: client });
+    try {
+      const response = await calendar.freebusy.query({
+        requestBody: {
+          timeMin: input.start.toISOString(),
+          timeMax: input.end.toISOString(),
+          items: [{ id: "primary" }],
+        },
+      });
+      const busy = (response.data.calendars?.primary?.busy || [])
+        .filter((window): window is { start: string; end: string } => Boolean(window.start && window.end))
+        .map((window) => ({ start: window.start, end: window.end }));
+      return { checked: true, busy };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!/insufficient authentication scopes|insufficient permission/i.test(message)) {
+        return { checked: false, busy: [], reason: "error", error: message };
+      }
+      const events = await calendar.events.list({
+        calendarId: "primary",
+        timeMin: input.start.toISOString(),
+        timeMax: input.end.toISOString(),
+        singleEvents: true,
+        showDeleted: false,
+        maxResults: 2500,
+      });
+      const busy = (events.data.items || []).map((event) => ({ start: event.start?.dateTime || event.start?.date, end: event.end?.dateTime || event.end?.date }))
+        .filter((window): window is { start: string; end: string } => Boolean(window.start && window.end))
+        .map((window) => ({ start: window.start, end: window.end }));
+      return { checked: true, busy };
+    }
+  } catch (error) {
+    return { checked: false, busy: [], reason: "error", error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
 export async function deleteFinalInterviewEvent(hodEmail: string, eventId: string): Promise<{ deleted: true } | { deleted: false; reason: "not_connected" | "error"; error?: string }> {
   if (!eventId) return { deleted: true };
   try {

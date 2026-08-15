@@ -23,6 +23,7 @@ the portal maps by header name, but spelling must remain exact.
 `Voice_Interview_Availability_Mode`, `Voice_Interview_Slots`,
 `Voice_Interview_Auto_Start_Date`, `Voice_Interview_Auto_End_Date`,
 `Voice_Interview_Timezone`, `Voice_Interview_Slots_Generated_At`,
+`Interview_Availability_Rules`,
 `Salary_Expectation_Guidance`, `Application_Link`, `Posting_Confirmed`,
 `Posted_At`, `Posted_By`,
 `AI_System_Prompt`, `Initial_Interview_Booking_Link`,
@@ -79,6 +80,16 @@ slots from 9:00 AM to 5:00 PM using the configured voice-interview duration.
 Generated slots are written to `Interview_Slots` and duplicate role/date/start
 combinations are skipped on later publishes.
 
+`Interview_Availability_Rules` is the preferred schedule source for new and
+updated roles. It is a JSON array of active or archived rules. A recurring rule
+contains `ruleId`, `roleId`, `interviewType`, `mode: "recurring"`,
+`weekdays` (0 Sunday through 6 Saturday), `startTime`, `endTime`,
+`slotDurationMinutes`, and `timezone`. A specific rule contains
+`mode: "specific"` and `specificSlots` with `date`, `startTime`, `endTime`,
+and `timezone`. Rules generate virtual availability on demand; they do not
+create hundreds of rows in `Interview_Slots`. Existing legacy fields and rows
+remain supported as a fallback.
+
 ## Role_Status_History
 
 `History_ID`, `Role_ID`, `Changed_At`, `Changed_By_Name`, `Changed_By_Email`,
@@ -100,7 +111,8 @@ The portal reads and writes these candidate fields in `High_Match_Profile`:
 `Resume_Text`, `Salary_Expectation`, `Notice_Period`,
 `Availability`, `Skills_Assessment`, `Role_Expectations`,
 `Application_Source`, `Final_Status`, `Resume_HR_Comments`,
-`Voice_HR_Comments`, `Resume_File_Id`, `Resume_File_Name`,
+`Voice_HR_Comments`, `Final_Interview_Comments`, `Final_Interview_Reviewer`,
+`Final_Interview_Decision_Date`, `Resume_File_Id`, `Resume_File_Name`,
 `Resume_File_Mime_Type`, `Resume_File_Size`, `Resume_File_SHA256`,
 `Resume_File_Expires_At`, `Voice_Interview_Booking_Link`,
 `Booking_Token_Status`, `Booking_Token_Expires_At`,
@@ -119,7 +131,8 @@ portal writes a link using the current public app URL and marks the token
 The booking calendar uses `Slot_ID`, `Interview_Type`, `Role_ID`, `Date`,
 `Start_Time`, `End_Time`, `Timezone`, `Status`, `Application_ID`,
 `Candidate_Name`, `Candidate_Email`, `Booked_At`, and `Last_Updated`.
-`Status` may be `Available`, `Booked`, or `No Show`. Rescheduling clears the
+`Status` may be `Available`, `Booked`, `Blocked`, `Expired`, or `Cancelled`.
+`No Show` is retained as a backward-compatible appointment outcome. Rescheduling clears the
 candidate fields on the old booked row and returns it to `Available`.
 Final-interview rows also use `Google_Calendar_Event_ID`,
 `Google_Calendar_Event_Link`, `Google_Calendar_Event_Status`, and
@@ -129,6 +142,14 @@ HR may mark a booked slot `No Show` only after its start time in the slot
 timezone. The portal also updates the corresponding voice/final status in
 `High_Match_Profile`; a completed interview cannot be changed to `No Show`.
 
+Rules are read as virtual slots by the HR calendar and candidate booking page.
+Candidate booking exposes only future `Available` times. Final-interview
+virtual times are checked against the connected HOD Google Calendar before
+they are shown and checked again immediately before reservation. A conflict is
+never booked; legacy final rows are synchronized to `Blocked` by the calendar
+workflow when a conflict is found. Past available rows are treated as
+`Expired` in the read model so dashboards count only active or booked times.
+
 Binary resume files, DOCX uploads, and base64-encoded resume blobs must not be
 stored in Google Sheets. Keep file storage separate and store only metadata plus
 extracted text in the sheet. The portal's `RESUME_STORAGE_DIR` must be a
@@ -137,7 +158,13 @@ private, persistent directory in production; expired files are not downloadable.
 ## User_Directory
 
 `Email`, `Full_Name`, `Access_Role`, `Department`, `Can_Create_Role`,
-`Can_Review_Role`, `Can_Approve_Role`, `Can_Edit_Settings`, `Active`.
+`Can_Review_Role`, `Can_Approve_Role`, `Can_Edit_Settings`,
+`Can_Manage_Users`, `Active`.
+
+`Can_Manage_Users` controls access to the User Accounts page and account
+administration API. Existing rows without this column remain compatible: an
+existing settings administrator is treated as a user administrator until the
+row is saved with an explicit value.
 
 ## Settings
 

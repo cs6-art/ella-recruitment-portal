@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import ActionFeedback from "@/components/ActionFeedback";
 
@@ -8,6 +9,7 @@ type Status = "loading" | "connected" | "not_connected" | "error";
 type NoticeKind = "success" | "warning" | "error";
 
 export default function GoogleCalendarConnect() {
+  const router = useRouter();
   const [status, setStatus] = useState<Status>("loading");
   const [disconnecting, setDisconnecting] = useState(false);
   const [notice, setNotice] = useState("");
@@ -35,7 +37,7 @@ export default function GoogleCalendarConnect() {
     setDisconnecting(true);
     try {
       const res = await fetch("/api/auth/google-calendar/disconnect", { method: "POST" });
-      if (res.ok) { setStatus("not_connected"); setNotice("Google Calendar disconnected successfully."); setNoticeKind("success"); }
+      if (res.ok) { setStatus("not_connected"); setNotice("Google Calendar disconnected successfully."); setNoticeKind("success"); router.refresh(); }
       else { setNotice("Could not disconnect Google Calendar. Please try again."); setNoticeKind("error"); }
     } finally {
       setDisconnecting(false);

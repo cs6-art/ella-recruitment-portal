@@ -2,6 +2,7 @@ export type UiIconName =
   | "dashboard"
   | "roles"
   | "applicants"
+  | "users"
   | "settings"
   | "profile"
   | "menu"
@@ -41,6 +42,7 @@ export default function UiIcon({ name, size = 18, strokeWidth = 1.8, className }
       {name === "dashboard" && <><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></>}
       {name === "roles" && <><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M7 8h10M7 12h6M7 16h8" /></>}
       {name === "applicants" && <><circle cx="9" cy="8" r="3" /><path d="M3.5 19c.5-3 2.3-4.5 5.5-4.5s5 1.5 5.5 4.5M15 6.5a3 3 0 0 1 0 5.8M16 14.7c2.5.3 4 1.7 4.5 4.3" /></>}
+      {name === "users" && <><circle cx="9" cy="8" r="3" /><circle cx="17" cy="9" r="2.5" /><path d="M3.5 19c.5-3 2.3-4.5 5.5-4.5s5 1.5 5.5 4.5M15 14.8c2.8.2 4.5 1.6 5 4.2" /></>}
       {name === "settings" && <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-1.5 1.5-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5v.2h-2.2v-.2a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1-1.5-1.5.1-.1A1.7 1.7 0 0 0 9 15a1.7 1.7 0 0 0-1.5-1H7.3v-2.2h.2A1.7 1.7 0 0 0 9 10.8a1.7 1.7 0 0 0-.3-1.9l-.1-.1 1.5-1.5.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.5V6h2.2v.2a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1 1.5 1.5-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.5 1h.2V14h-.2a1.7 1.7 0 0 0-1.5 1Z" /></>}
       {name === "profile" && <><circle cx="12" cy="8" r="3.2" /><path d="M5 20c.7-3.4 3-5.2 7-5.2s6.3 1.8 7 5.2" /></>}
       {name === "menu" && <><path d="M4 7h16M4 12h16M4 17h16" /></>}

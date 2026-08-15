@@ -93,6 +93,13 @@ configuration. The workflow should preserve `voiceInterviewAvailabilityMode`,
 Publishing the role creates the configured AI Voice Interview slots in the
 portal's `Interview_Slots` tab; the existing booking workflow then uses them.
 
+The portal also supports `interviewAvailabilityRules`, persisted in the
+`Interview_Availability_Rules` Role_Requests column. Treat this as the
+preferred source for new schedules: recurring rules and specific slots are
+expanded virtually by the portal. n8n should preserve the field when reading
+or updating a role and should not recreate virtual availability as duplicate
+`Interview_Slots` rows. Existing booked and legacy rows remain compatible.
+
 The existing role-request webhook accepts `role_request_created`,
 `role_status_transition`, and `recruitment_setup_updated`. Every write carries
 an `actionRequestId`; n8n must treat it as an idempotency key and return JSON

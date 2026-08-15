@@ -115,6 +115,7 @@ export async function POST(request: Request) {
       canReviewRole: directoryUser?.canReviewRole,
       canApproveRole: directoryUser?.canApproveRole,
       canEditSettings: directoryUser?.canEditSettings,
+      canManageUsers: directoryUser?.canManageUsers,
       active: directoryUser?.active,
     });
 
@@ -159,6 +160,7 @@ export async function POST(request: Request) {
       canReviewRole: directoryUser.canReviewRole,
       canApproveRole: directoryUser.canApproveRole,
       canEditSettings: directoryUser.canEditSettings,
+      canManageUsers: directoryUser.canManageUsers,
     });
 
     const response = NextResponse.json({
@@ -172,6 +174,7 @@ export async function POST(request: Request) {
         canReviewRole: directoryUser.canReviewRole,
         canApproveRole: directoryUser.canApproveRole,
         canEditSettings: directoryUser.canEditSettings,
+        canManageUsers: directoryUser.canManageUsers,
         active: directoryUser.active,
       },
     });

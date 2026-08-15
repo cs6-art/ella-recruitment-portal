@@ -15,7 +15,7 @@ const applicantUpdateSchema = z.object({
   candidateName: z.string().trim().min(2).max(150),
   email: z.string().trim().email().max(320),
   preferredMobile: z.string().trim().min(8).max(50),
-  applicantCountry: z.enum(["PH", "SG", "MY", "SA"]).default("PH"),
+  applicantCountry: z.enum(["PH", "SG", "MY"]).default("PH"),
 });
 
 async function getUser() {

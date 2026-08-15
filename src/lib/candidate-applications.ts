@@ -3,8 +3,11 @@ import { cachedSheetsRead } from "@/lib/sheets-cache";
 
 export {
   getCandidateStatusHistory,
+  syncPastBookedInterviewsNoShow,
   type CandidateStatusHistoryEntry,
 } from "./applicant-workflow";
+
+import { syncPastBookedInterviewsNoShow } from "./applicant-workflow";
 
 const spreadsheetId = process.env.GOOGLE_CANDIDATE_SPREADSHEET_ID || process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
 const serviceAccountEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
@@ -79,6 +82,7 @@ export type ApplicantDetails = ApplicantSummary & {
   finalTimezone: string;
   finalBookingLink: string;
   finalBookingTokenExpiresAt: string;
+  finalComments: string;
   lastUpdated: string;
   voiceInterviewResult?: Record<string, string>;
   voiceCallLog?: Record<string, string>;
@@ -255,6 +259,30 @@ function workflowRecommendationFor(record: SheetRow) {
   return field(record, "Recommendation") || "Pending HR Review";
 }
 
+function hasFinalInterviewOutcome(record: SheetRow) {
+  const finalStatus = field(record, "Final_Status").toLowerCase();
+  const finalInterviewStatus = field(record, "Status 3 (Final Interview)").toLowerCase();
+  return [finalStatus, finalInterviewStatus].some((value) =>
+    /(final interview (passed|rejected)|interview (completed|passed|rejected)|hired|not selected)/i.test(value),
+  );
+}
+
+function applyFinalBookingState(summary: ApplicantSummary, record: SheetRow, finalSlot?: SheetRow) {
+  if (field(finalSlot ?? {}, "Status").toLowerCase() !== "booked" || hasFinalInterviewOutcome(record)) return summary;
+
+  // A booked final slot is the source of truth for scheduling. This protects
+  // the profile from stale tracking rows that contain an outcome such as
+  // "Passed" before the final interview has happened.
+  return {
+    ...summary,
+    recommendation: "Final Interview Scheduled",
+    finalInterviewStatus: "Interview Scheduled",
+    finalStatus: "Final Interview Scheduled",
+    currentStage: "Final Interview Scheduled",
+    nextAction: "Attend Final Interview",
+  };
+}
+
 function mapApplicant(record: SheetRow): ApplicantSummary {
   const finalStatus = field(record, "Final_Status");
   const voiceStatus = field(record, "Status 2 (Voice Interview)");
@@ -323,6 +351,7 @@ export function calculateApplicantMetrics(rows: SheetRow[], now = new Date(), ti
 }
 
 export async function getApplicants(): Promise<ApplicantSummary[]> {
+  await syncPastBookedInterviewsNoShow();
   const { rows } = await readTab("High_Match_Profile", "BH");
   return rows
     .map(mapApplicant)
@@ -331,11 +360,13 @@ export async function getApplicants(): Promise<ApplicantSummary[]> {
 }
 
 export async function getApplicantMetrics(): Promise<ApplicantMetrics> {
+  await syncPastBookedInterviewsNoShow();
   const { rows } = await readTab("High_Match_Profile", "BH");
   return calculateApplicantMetrics(rows.filter((record) => applicationId(record) !== ""));
 }
 
 export async function getInterviewBookings(): Promise<InterviewBooking[]> {
+  await syncPastBookedInterviewsNoShow();
   const { rows } = await readTab("Interview_Slots", "X");
   return rows.map((record) => ({
     slotId: field(record, "Slot_ID", "Slot ID"),
@@ -345,7 +376,7 @@ export async function getInterviewBookings(): Promise<InterviewBooking[]> {
     startTime: field(record, "Start_Time", "Start Time"),
     endTime: field(record, "End_Time", "End Time"),
     timezone: field(record, "Timezone", "Time Zone"),
-    status: field(record, "Status"),
+    status: field(record, "Status").toLowerCase() === "available" && (() => { const date = field(record, "Date"); const time = field(record, "Start_Time", "Start Time"); const parsed = Date.parse(`${date}T${time || "00:00"}:00`); return Number.isFinite(parsed) && parsed <= Date.now(); })() ? "Expired" : field(record, "Status"),
     applicationId: field(record, "Application_ID", "Application ID"),
     candidateName: field(record, "Candidate_Name", "Candidate Name"),
     candidateEmail: field(record, "Candidate_Email", "Candidate Email"),
@@ -399,6 +430,7 @@ export async function getBulkResumeQueue(roleId = ""): Promise<BulkResumeQueueIt
 }
 
 export async function getApplicantById(id: string): Promise<ApplicantDetails | null> {
+  await syncPastBookedInterviewsNoShow();
   const [{ rows: applicantRows }, { rows: voiceResults }, { rows: callLogs }, { rows: finalInterviews }, { rows: slots }] = await Promise.all([
     readTab("High_Match_Profile", "BH"),
     readTab("Voice_Interview_Results", "AF"),
@@ -432,9 +464,10 @@ export async function getApplicantById(id: string): Promise<ApplicantDetails | n
   const voiceInterviewSlot = applicantSlots.find((row) => field(row, "Interview_Type", "Interview Type").toLowerCase().includes("voice"));
   const finalInterviewSlot = applicantSlots.find((row) => field(row, "Interview_Type", "Interview Type").toLowerCase().includes("final"));
   const interviewSlot = voiceInterviewSlot || applicantSlots[0];
+  const displaySummary = applyFinalBookingState(summary, record, finalInterviewSlot);
 
   return {
-    ...summary,
+    ...displaySummary,
     aiAnalysisSummary: field(record, "AI_Analysis_Summary", "AI Analysis Summary"),
     interviewQuestions: field(record, "Interview_Questions", "Interview Questions"),
     resumeText: field(record, "Resume_Text", "Resume_CV", "Resume/CV", "Resume Text"),
@@ -474,6 +507,7 @@ export async function getApplicantById(id: string): Promise<ApplicantDetails | n
     finalTimezone: field(record, "Final_Interview_Timezone"),
     finalBookingLink: field(record, "Final_Interview_Booking_Link"),
     finalBookingTokenExpiresAt: field(record, "Final_Interview_Booking_Token_Expires_At"),
+    finalComments: field(record, "Final_Interview_Comments", "Final Interview Comments"),
     lastUpdated: field(record, "Last_Updated"),
     voiceInterviewResult: voiceResult,
     voiceCallLog: callLog,

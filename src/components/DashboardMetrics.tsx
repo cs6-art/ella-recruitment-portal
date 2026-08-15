@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import InfoTip from "@/components/InfoTip";
-import UiIcon from "@/components/UiIcon";
 
 type RecentRequest = { roleId: string; jobTitle: string; department: string; status: string; createdAt: string; targetHiringDate: string };
 type ApplicantMetrics = { total: number; today: number; screened: number; interviewed: number; resumeApproved: number; voiceBookingPending: number; voiceScheduled: number; voiceReviewPending: number; approvedForFinal: number; finalScheduled: number; finalDecisionPending: number; rejected: number; passedFinalInterview: number };
@@ -20,11 +19,6 @@ function formatDate(value: string, includeTime = true) {
 function statusClass(status: string) { return `status-badge status-${status.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`; }
 function MetricSkeleton() { return <article className="dashboard-stat-card dashboard-stat-skeleton" aria-hidden="true"><span /><strong /><small /></article>; }
 function percentage(value: number, total: number) { return total > 0 ? Math.min(100, Math.round((value / total) * 100)) : 0; }
-
-function CandidateIcon({ name }: { name: "calendar" | "applicants" | "resume" | "voice" }) {
-  const icon = name === "calendar" ? "calendar" : name === "applicants" ? "applicants" : name === "resume" ? "document" : "microphone";
-  return <span className="dashboard-candidate-icon" aria-hidden="true"><UiIcon name={icon} size={22} /></span>;
-}
 
 export default function DashboardMetrics({ scope = "organization" }: { scope?: "personal" | "organization" }) {
   const personalScope = scope === "personal";
@@ -66,13 +60,7 @@ export default function DashboardMetrics({ scope = "organization" }: { scope?: "
     </section>
 
     {!personalScope && applicantMetrics && <section className="dashboard-candidate-overview" aria-labelledby="dashboard-candidate-overview-title">
-      <div className="dashboard-candidate-heading"><div><span className="dashboard-metrics-overview-label dashboard-stat-title-with-info">Candidate Pipeline<InfoTip label="What is the Candidate Pipeline?">This shows how many applicants have reached each step of the hiring process.</InfoTip></span><h2 id="dashboard-candidate-overview-title">Applicant Performance</h2><p>Live counts from High_Match_Profile. Approval and rejection use clear candidate workflow statuses.</p></div><Link className="dashboard-panel-link" href="/applicants">View Applicants <span aria-hidden="true">&rarr;</span></Link></div>
-      <div className="dashboard-candidate-feature-grid">
-        <article className="dashboard-candidate-feature dashboard-candidate-feature-today"><CandidateIcon name="calendar" /><div><span>Applicants Today</span><strong>{applicantMetrics.today}</strong><small>Submitted in the portal today</small></div></article>
-        <article className="dashboard-candidate-feature"><CandidateIcon name="applicants" /><div><span>Total Applicants</span><strong>{applicantMetrics.total}</strong><small>All candidate records</small></div></article>
-        <article className="dashboard-candidate-feature"><CandidateIcon name="resume" /><div><span>Resume Screened</span><strong>{applicantMetrics.screened}</strong><small>{percentage(applicantMetrics.screened, applicantMetrics.total)}% of applicants</small></div></article>
-        <article className="dashboard-candidate-feature"><CandidateIcon name="voice" /><div><span>Voice Interviewed</span><strong>{applicantMetrics.interviewed}</strong><small>{percentage(applicantMetrics.interviewed, applicantMetrics.total)}% completed voice interview</small></div></article>
-      </div>
+      <div className="dashboard-candidate-heading"><div><span className="dashboard-metrics-overview-label dashboard-stat-title-with-info">Applicant Workflow<InfoTip label="What is the Applicant Workflow?">These sections show where applicants are in the hiring process and which actions are waiting for HR.</InfoTip></span><h2 id="dashboard-candidate-overview-title">Candidate Pipeline</h2><p>Focus on the current workflow stage and the next HR decision.</p></div><Link className="dashboard-panel-link" href="/applicants">View Applicants <span aria-hidden="true">&rarr;</span></Link></div>
       <div className="dashboard-candidate-body">
         <div className="dashboard-candidate-progress">
           <div className="dashboard-candidate-section-heading"><div><h3 className="dashboard-stat-title-with-info">Pipeline Progress<InfoTip label="How is Pipeline Progress counted?">An applicant is counted when the connected sheet shows that they have reached the stage.</InfoTip></h3><p>Where applicants are in the HR workflow right now.</p></div><strong>{applicantMetrics.total} Total</strong></div>

@@ -19,7 +19,8 @@ test("dashboard includes candidate pipeline metrics without exposing them to cre
   const dashboard = read("src/components/DashboardMetrics.tsx");
   assert.match(api, /getApplicantMetrics/);
   assert.match(api, /canReviewRole === true \|\| user\.canApproveRole === true/);
-  assert.match(dashboard, /Applicants Today/);
+  assert.match(dashboard, /Pipeline Progress/);
+  assert.match(dashboard, /Decision Snapshot/);
   assert.match(dashboard, /Awaiting Voice Booking Invitation/);
   assert.match(dashboard, /Awaiting Final Booking Invitation/);
   assert.match(dashboard, /Rejected Candidates/);

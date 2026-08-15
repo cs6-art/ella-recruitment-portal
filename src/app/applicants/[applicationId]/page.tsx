@@ -78,12 +78,16 @@ function FinalInterviewCard({ applicant, role }: { applicant: ApplicantDetails; 
     ? [hodName, hodEmail && hodEmail !== hodName ? hodEmail : ""].filter(Boolean).join(" · ")
     : recordValue(finalInterview, "Interviewer_Name", "Interviewer Name") || "Not assigned";
   const storedRecommendation = recordValue(finalInterview, "Final_Recommendation", "Final Recommendation");
-  const hasFinalOutcome = /^(passed|rejected|hired|not selected|do not recommend|recommend)$/i.test(storedRecommendation) || /(completed|passed|rejected)/i.test(statusLower);
+  const finalOutcomeSource = [applicant.finalStatus, applicant.finalInterviewStatus, status].join(" ");
+  const hasFinalOutcome = /(final interview (passed|rejected)|interview (completed|passed|rejected)|hired|not selected)/i.test(finalOutcomeSource);
   const recommendation = hasFinalOutcome && storedRecommendation
     ? storedRecommendation
     : isScheduled
       ? "Final Interview Scheduled"
       : "Awaiting Final Interview Scheduling";
+  const displayedStatus = isScheduled && /(awaiting schedule|not started|pending)/i.test(statusLower)
+    ? "Interview Scheduled"
+    : status;
   const calendarStatus = recordValue(slot, "Google_Calendar_Event_Status");
   const calendarError = recordValue(slot, "Google_Calendar_Event_Error");
 
@@ -93,7 +97,7 @@ function FinalInterviewCard({ applicant, role }: { applicant: ApplicantDetails; 
       <div className="applicant-detail-inline-fields">
         <DetailField label="Applicant" value={applicant.candidateName} />
         <DetailField label="Role" value={applicant.selectedRole} />
-        <DetailField label="Status" value={status} />
+        <DetailField label="Status" value={displayedStatus} />
         <DetailField label="Booking Status" value={bookingStatus} />
         <DetailField label="Scheduled" value={[scheduledDate, scheduledTime].filter(Boolean).join(" ") || "Not scheduled"} />
         <DetailField label="Timezone" value={timezone || "Not provided"} />
@@ -173,12 +177,13 @@ export default async function ApplicantDetailsPage({ params }: { params: Promise
   const role = applicant.voiceDecision.toLowerCase() === "approve" ? await getRoleRequestById(applicant.roleId) : null;
   const resumeComments = applicant.resumeComments || latestDecisionComment(history, "resume");
   const voiceComments = applicant.voiceComments || latestDecisionComment(history, "voice");
+  const finalComments = applicant.finalComments || latestDecisionComment(history, "final");
 
   return <AppShell user={user}><main className="container page applicant-details-page">
     <header className="applicant-detail-header"><Link href="/applicants" className="applicant-back-link"><UiIcon name="arrow-left" size={15} />Back to Applicants</Link><div className="applicant-detail-title-row"><div><span className="eyebrow-dark">APPLICANT PROFILE</span><h1>{applicant.candidateName || "Unnamed Candidate"}</h1><p>{applicant.applicationId} · {applicant.email || "No Email Provided"}</p></div><span className={applicantStageClass(applicant.currentStage)}>{applicant.currentStage}</span></div><div className="applicant-detail-actions"><Link className="btn btn-secondary" href={`/roles/${encodeURIComponent(applicant.roleId)}`}><UiIcon name="briefcase" size={15} />View Role</Link><Link className="btn btn-secondary" href={`/roles/${encodeURIComponent(applicant.roleId)}/applicants`}><UiIcon name="applicants" size={15} />Role Applicants</Link><ApplicantDetailActions applicationId={applicant.applicationId} candidateName={applicant.candidateName} /></div></header>
     <div className="applicant-detail-summary"><DetailField label="Selected Role" value={applicant.selectedRole} /><DetailField label="Department" value={applicant.department} /><DetailField label="Applied" value={dateValue(applicant.appliedAt)} /><DetailField label="Match Score" value={formatMatchScore(applicant.matchScore)} /><DetailField label="Recommendation" value={applicant.recommendation} /><DetailField label="Next Action" value={applicant.nextAction} /></div>
     <div className="applicant-detail-grid"><div className="applicant-detail-main">
-      <ApplicantDecisionPanel applicationId={applicant.applicationId} resumeDecision={applicant.resumeDecision} resumeComments={resumeComments} voiceDecision={applicant.voiceDecision} voiceComments={voiceComments} voiceStatus={applicant.voiceStatus} finalInterviewStatus={applicant.finalInterviewStatus} finalBookingLink={applicant.finalBookingLink} canReview={user.canReviewRole === true || user.canApproveRole === true} />
+      <ApplicantDecisionPanel applicationId={applicant.applicationId} resumeDecision={applicant.resumeDecision} resumeComments={resumeComments} voiceDecision={applicant.voiceDecision} voiceComments={voiceComments} voiceStatus={applicant.voiceStatus} finalInterviewStatus={applicant.finalInterviewStatus} finalStatus={applicant.finalStatus} finalComments={finalComments} finalBookingLink={applicant.finalBookingLink} canReview={user.canReviewRole === true || user.canApproveRole === true} />
       <CombinedScreeningEvidence applicant={applicant} />
       <section className="card applicant-detail-card"><DetailCardHeader icon="document" title="Resume / CV" description="The candidate's submitted resume document." /><ResumeResource value={applicant.resumeText} fileId={applicant.resumeFileId} fileName={applicant.resumeFileName} expiresAt={applicant.resumeFileExpiresAt} /></section>
       <section className="card applicant-detail-card"><DetailCardHeader icon="microphone" title="Interview Questions" description="Questions prepared for the candidate's interview." /><InterviewQuestions value={applicant.interviewQuestions} /></section>

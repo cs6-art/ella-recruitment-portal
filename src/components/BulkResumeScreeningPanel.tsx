@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
 type RoleOption = { roleId: string; label: string };
 type QueueItem = {
@@ -27,6 +28,7 @@ function statusClass(status: string) {
 }
 
 export default function BulkResumeScreeningPanel({ roleOptions, driveUrl }: { roleOptions: RoleOption[]; driveUrl: string }) {
+  const router = useRouter();
   const [roleId, setRoleId] = useState("");
   const [items, setItems] = useState<QueueItem[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
@@ -81,6 +83,7 @@ export default function BulkResumeScreeningPanel({ roleOptions, driveUrl }: { ro
       setUploadMessage(`${uploadSummary}${alreadyScreened ? `; ${alreadyScreened} already screened and skipped` : ""}${alreadyActive ? `; ${alreadyActive} already queued or processing` : ""}.`);
       setFiles([]);
       await refreshStatus();
+      router.refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to submit the bulk resumes.");
     } finally {

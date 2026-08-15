@@ -9,6 +9,8 @@ import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const runtimeSettingKeys = new Set(["Voice_Interview_Duration_Minutes"]);
+
 const settingSchema = z.object({ key: z.string().trim().min(1).max(200), value: z.string().max(10000), category: z.string().trim().max(100), description: z.string().max(1000), updatedAt: z.string().optional(), updatedBy: z.string().optional() });
 const settingsSchema = z.object({ settings: z.array(settingSchema).max(500) });
 const secretKey = (key: string) => /(secret|password|token|private.?key|credential|api.?key)/i.test(key);
@@ -26,8 +28,13 @@ export async function GET() {
     const storedByKey = new Map(stored.map((setting) => [setting.key, setting]));
     const settings = [...defaultPortalSettings.map((setting) => storedByKey.get(setting.key) || setting), ...stored.filter((setting) => !defaultPortalSettings.some((defaultSetting) => defaultSetting.key === setting.key))]
       .filter((setting) => !secretKey(setting.key))
-      .map((setting) => ({ ...setting, value: secretKey(setting.key) ? "" : setting.value }));
-    return NextResponse.json({ success: true, settings }, { headers: { "Cache-Control": "no-store" } });
+      .map((setting) => ({ ...setting, connectionStatus: runtimeSettingKeys.has(setting.key) ? "active" : "stored" }));
+    const integrations = [
+      { key: "google-sheets", label: "Google Sheets", configured: Boolean(process.env.GOOGLE_SHEETS_SPREADSHEET_ID && process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY), note: "Portal data and permissions" },
+      { key: "google-calendar", label: "Google Calendar", configured: Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_OAUTH_CLIENT_SECRET && process.env.GOOGLE_OAUTH_REDIRECT_URI), note: "HOD calendar availability" },
+      { key: "n8n", label: "n8n automation", configured: Boolean(process.env.N8N_WEBHOOK_SECRET && (process.env.N8N_ROLE_WEBHOOK_URL || process.env.N8N_ROLE_REQUEST_WEBHOOK_URL || process.env.N8N_CANDIDATE_APPLICATION_WEBHOOK_URL)), note: "Recruitment workflow handoffs" },
+    ];
+    return NextResponse.json({ success: true, settings, integrations }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("[API Settings] GET failed:", error);
     return NextResponse.json({ success: false, error: "Unable to load portal settings." }, { status: 500 });

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import ActionFeedback from "@/components/ActionFeedback";
 import {
@@ -29,6 +30,7 @@ function slotsMatch(left: DraftSlot[], right: DraftSlot[]) {
 }
 
 export default function HodAvailabilityEditor({ roleId, status, availability, editable, onSaved }: Props) {
+  const router = useRouter();
   const initialSlots = useMemo(() => parseHodAvailabilitySlots(availability), [availability]);
   const [slots, setSlots] = useState<DraftSlot[]>(initialSlots);
   const [savedSlots, setSavedSlots] = useState<DraftSlot[]>(initialSlots);
@@ -79,6 +81,7 @@ export default function HodAvailabilityEditor({ roleId, status, availability, ed
       setSavedSlots(slots);
       setMessage(result.message || "HOD availability updated successfully.");
       onSaved();
+      router.refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to update HOD availability.");
     } finally {

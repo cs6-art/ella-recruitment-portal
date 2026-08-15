@@ -55,6 +55,7 @@ export type DirectoryUser = {
   canReviewRole: boolean;
   canApproveRole: boolean;
   canEditSettings: boolean;
+  canManageUsers: boolean;
   active: boolean;
 };
 
@@ -75,6 +76,12 @@ export type RoleRequestSummary = {
   postingChannels?: string;
   hodEmail: string;
   hodAvailabilitySlots: string;
+  interviewAvailabilityRules?: string;
+  voiceInterviewAvailabilityMode?: string;
+  voiceInterviewSlots?: string;
+  voiceInterviewAutoStartDate?: string;
+  voiceInterviewAutoEndDate?: string;
+  voiceInterviewTimezone?: string;
 };
 
 export type RoleRequestDetails = {
@@ -107,6 +114,7 @@ export type RoleRequestDetails = {
   voiceInterviewAutoEndDate: string;
   voiceInterviewTimezone: string;
   voiceInterviewSlotsGeneratedAt: string;
+  interviewAvailabilityRules: string;
   customScreeningQuestion1: string;
   customScreeningQuestion2: string;
   aiGeneratedScreeningQuestions: string;
@@ -417,6 +425,7 @@ function mapRoleRequest(
     hodAvailabilityDates: getField(record, ["HOD_Availability_Dates"]),
     hodAvailabilityTimes: getField(record, ["HOD_Availability_Times"]),
     hodAvailabilitySlots: getField(record, ["HOD_Availability_Slots"]),
+    interviewAvailabilityRules: getField(record, ["Interview_Availability_Rules"]),
     voiceInterviewAvailabilityMode: getField(record, ["Voice_Interview_Availability_Mode"]),
     voiceInterviewSlots: getField(record, ["Voice_Interview_Slots"]),
     voiceInterviewAutoStartDate: getField(record, ["Voice_Interview_Auto_Start_Date"]),
@@ -633,10 +642,10 @@ export async function findDirectoryUser(
   // Cached: this runs on essentially every authenticated request, so it is
   // the single hottest read in the app. A short cache turns repeated
   // per-request permission checks into one real API read per TTL window.
-  const rows = await cachedSheetsRead(`User_Directory:I:${spreadsheetId}`, async () => {
+  const rows = await cachedSheetsRead(`User_Directory:J:${spreadsheetId}`, async () => {
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId,
-      range: "User_Directory!A2:I",
+      range: "User_Directory!A2:J",
     });
     return response.data.values ?? [];
   });
@@ -660,8 +669,12 @@ export async function findDirectoryUser(
       canReviewRole,
       canApproveRole,
       canEditSettings,
+      canManageUsers,
       active,
     ] = row;
+    const legacyDirectoryRow = row.length < 10;
+    const activeValue = legacyDirectoryRow ? canManageUsers : active;
+    const manageUsersValue = legacyDirectoryRow ? "" : canManageUsers;
 
     const normalizedSheetEmail =
       toText(sheetEmail).toLowerCase();
@@ -682,7 +695,10 @@ export async function findDirectoryUser(
       canApproveRole: toBoolean(canApproveRole),
       canEditSettings:
         toBoolean(canEditSettings),
-      active: toBoolean(active),
+      canManageUsers: toText(manageUsersValue) === ""
+        ? toBoolean(canEditSettings)
+        : toBoolean(manageUsersValue),
+      active: toBoolean(activeValue),
     };
 
     console.log(
@@ -705,6 +721,102 @@ export async function findDirectoryUser(
   );
 
   return null;
+}
+
+function directoryUserFromRow(row: unknown[]): DirectoryUser | null {
+  const [
+    sheetEmail,
+    fullName,
+    accessRole,
+    department,
+    canCreateRole,
+    canReviewRole,
+    canApproveRole,
+    canEditSettings,
+    canManageUsers,
+    active,
+  ] = row;
+  const normalizedEmail = toText(sheetEmail).toLowerCase();
+  const legacyDirectoryRow = row.length < 10;
+  const activeValue = legacyDirectoryRow ? canManageUsers : active;
+  const manageUsersValue = legacyDirectoryRow ? "" : canManageUsers;
+
+  if (!normalizedEmail) {
+    return null;
+  }
+
+  return {
+    email: normalizedEmail,
+    fullName: toText(fullName),
+    accessRole: toText(accessRole),
+    department: toText(department),
+    canCreateRole: toBoolean(canCreateRole),
+    canReviewRole: toBoolean(canReviewRole),
+    canApproveRole: toBoolean(canApproveRole),
+    canEditSettings: toBoolean(canEditSettings),
+    canManageUsers: toText(manageUsersValue) === ""
+      ? toBoolean(canEditSettings)
+      : toBoolean(manageUsersValue),
+    active: toBoolean(activeValue),
+  };
+}
+
+export async function getDirectoryUsers(): Promise<DirectoryUser[]> {
+  const rows = await cachedSheetsRead(`User_Directory:J:${spreadsheetId}`, async () => {
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: "User_Directory!A2:J",
+    });
+    return response.data.values ?? [];
+  });
+
+  return rows
+    .map((row) => directoryUserFromRow(row))
+    .filter((user): user is DirectoryUser => user !== null);
+}
+
+export async function upsertDirectoryUser(user: DirectoryUser): Promise<void> {
+  const rows = await cachedSheetsRead(`User_Directory:J:${spreadsheetId}`, async () => {
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: "User_Directory!A2:J",
+    });
+    return response.data.values ?? [];
+  });
+  const normalizedEmail = user.email.trim().toLowerCase();
+  const rowValues = [[
+    normalizedEmail,
+    user.fullName.trim(),
+    user.accessRole.trim(),
+    user.department.trim(),
+    user.canCreateRole,
+    user.canReviewRole,
+    user.canApproveRole,
+    user.canEditSettings,
+    user.canManageUsers,
+    user.active,
+  ]];
+  const rowIndex = rows.findIndex((row) => toText(row[0]).toLowerCase() === normalizedEmail);
+
+  if (rowIndex >= 0) {
+    const sheetRow = rowIndex + 2;
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: `User_Directory!A${sheetRow}:J${sheetRow}`,
+      valueInputOption: "RAW",
+      requestBody: { values: rowValues },
+    });
+  } else {
+    await sheets.spreadsheets.values.append({
+      spreadsheetId,
+      range: "User_Directory!A:J",
+      valueInputOption: "RAW",
+      insertDataOption: "INSERT_ROWS",
+      requestBody: { values: rowValues },
+    });
+  }
+
+  invalidateSheetsCache("User_Directory");
 }
 
 export async function getRoleRequests(): Promise<
@@ -740,6 +852,12 @@ export async function getRoleRequests(): Promise<
         postingChannels: role.postingChannels,
         hodEmail: role.hodEmail,
         hodAvailabilitySlots: role.hodAvailabilitySlots,
+        interviewAvailabilityRules: role.interviewAvailabilityRules,
+        voiceInterviewAvailabilityMode: role.voiceInterviewAvailabilityMode,
+        voiceInterviewSlots: role.voiceInterviewSlots,
+        voiceInterviewAutoStartDate: role.voiceInterviewAutoStartDate,
+        voiceInterviewAutoEndDate: role.voiceInterviewAutoEndDate,
+        voiceInterviewTimezone: role.voiceInterviewTimezone,
       }));
 
   // Role_ID is the identity used by every role list and detail link. A
