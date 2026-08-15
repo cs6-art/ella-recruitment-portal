@@ -627,6 +627,13 @@ a { color: inherit; text-decoration: none; }
 .calendar-availability-note > span { width: 7px; height: 7px; border-radius: 50%; background: #2584ca; }
 .calendar-availability-note .calendar-hod-legend { margin-left: 5px; background: #8066c7; }
 .calendar-availability-note strong { font-weight: 800; }
+.calendar-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-top: 10px; color: #64798e; font-size: 10px; line-height: 1.35; }
+.calendar-legend span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.calendar-legend-dot { width: 7px; height: 7px; border-radius: 50%; background: #91a3b5; }
+.calendar-legend-dot.is-generated { background: #91a3b5; }
+.calendar-legend-dot.is-available { background: #2584ca; }
+.calendar-legend-dot.is-booked { background: #2b9b68; }
+.calendar-legend-dot.is-blocked { background: #d68a25; }
 .calendar-panel-counts { display: grid; flex: 0 0 auto; gap: 5px; color: #71869a; font-size: 10px; text-align: right; }
 .calendar-panel-counts span { display: flex; align-items: center; justify-content: flex-end; gap: 5px; }
 .calendar-panel-counts svg { color: #1684d1; }

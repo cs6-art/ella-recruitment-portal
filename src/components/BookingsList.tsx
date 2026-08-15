@@ -53,9 +53,63 @@ function virtualBookings(role: BookingRole, rulesOverride?: string): InterviewBo
 function summarizeBookings(bookings: InterviewBooking[]) { const summary = { available: 0, booked: 0, blocked: 0, expired: 0, cancelled: 0 }; bookings.forEach((booking) => { const status = booking.status.toLowerCase() as keyof typeof summary; if (status in summary) summary[status] += 1; }); return summary; }
 
 function CalendarPanel({ kind, month, bookings, selectedDate, selectedKind, onSelectDate }: { kind: BookingKind; month: Date; bookings: InterviewBooking[]; selectedDate: string; selectedKind: BookingKind | ""; onSelectDate: (date: string, kind: BookingKind) => void }) {
-  const days = calendarDays(month); const byDate = bookings.reduce<Map<string, InterviewBooking[]>>((map, booking) => { const key = dateKey(booking.date); map.set(key, [...(map.get(key) || []), booking]); return map; }, new Map()); const title = titleFor(kind); const stats = summarizeBookings(bookings);
-  const note = kind === "voice" ? "Available dates show a count. HR-defined time windows stay open no matter what — voice interview slots are never blocked by Google Calendar." : "Available dates show a count. Blocked dates reflect Google Calendar conflicts on the HOD's calendar.";
-  return <section className={`card booking-calendar-card booking-calendar-${kind}`}><div className="calendar-panel-heading"><div><span className="calendar-panel-kicker">{kind === "voice" ? "VOICE SCREENING" : "HR INTERVIEW"}</span><div className="calendar-panel-title"><h2>{title} Calendar</h2><InfoTip label={`About the ${title} calendar`}>HR manages availability rules. Select a date to see the individual times and booking status.</InfoTip></div><p>Dates are summarized so the calendar stays easy to scan.</p><span className="calendar-availability-note"><span aria-hidden="true" /> {note}</span></div><div className="calendar-panel-counts"><span><UiIcon name="clock" size={13} /><b>{stats.available}</b> Available</span><span><UiIcon name="check" size={13} /><b>{stats.booked}</b> Booked</span>{stats.blocked > 0 && <span><UiIcon name="close" size={13} /><b>{stats.blocked}</b> Blocked</span>}</div></div><div className="booking-calendar-weekdays">{weekdayOptions.map((day) => <span key={day}>{day}</span>)}</div><div className="booking-calendar-grid">{days.map((day, index) => { const key = day ? new Intl.DateTimeFormat("en-CA").format(day) : `empty-${index}`; const events = day ? byDate.get(key) || [] : []; const dayStats = summarizeBookings(events); const isToday = key === todayInputValue(); const isSelected = selectedKind === kind && selectedDate === key; return <div className={`booking-calendar-day booking-calendar-summary-day ${!day ? "is-empty" : ""} ${isToday ? "is-today" : ""} ${isSelected ? "is-selected" : ""}`} key={key}>{day && <button type="button" className="calendar-day-button" aria-label={`View ${title} details for ${dateLabel(key)}`} aria-pressed={isSelected} onClick={() => onSelectDate(key, kind)}><strong className="calendar-day-number">{day.getDate()}</strong>{events.length > 0 ? <div className="calendar-day-summary"><span className="summary-total">{events.length} time{events.length === 1 ? "" : "s"}</span>{dayStats.available > 0 && <span className="summary-available">{dayStats.available} available</span>}{dayStats.booked > 0 && <span className="summary-booked">{dayStats.booked} booked</span>}{dayStats.blocked > 0 && <span className="summary-blocked">{dayStats.blocked} blocked</span>}</div> : <small className="calendar-day-empty-label">No schedule</small>}</button>}</div>; })}</div></section>;
+  const days = calendarDays(month);
+  const byDate = bookings.reduce<Map<string, InterviewBooking[]>>((map, booking) => {
+    const key = dateKey(booking.date);
+    map.set(key, [...(map.get(key) || []), booking]);
+    return map;
+  }, new Map());
+  const title = titleFor(kind);
+  const stats = summarizeBookings(bookings);
+  const note = kind === "voice"
+    ? "Available dates show a count. Voice slots are not blocked by Google Calendar."
+    : "Available dates show a count. Blocked dates reflect Google Calendar conflicts on the HOD's calendar.";
+
+  return <section className={`card booking-calendar-card booking-calendar-${kind}`}>
+    <div className="calendar-panel-heading">
+      <div>
+        <span className="calendar-panel-kicker">{kind === "voice" ? "VOICE SCREENING" : "HR INTERVIEW"}</span>
+        <div className="calendar-panel-title">
+          <h2>{title} Calendar</h2>
+          <InfoTip label={`About the ${title} calendar`}>HR manages availability rules. Select a date to see individual candidate slots and booking status.</InfoTip>
+        </div>
+        <p>Dates are summarized so the calendar stays easy to scan.</p>
+        <span className="calendar-availability-note"><span aria-hidden="true" /> {note}</span>
+        <div className="calendar-legend" aria-label={`${title} calendar legend`}>
+          <span><i className="calendar-legend-dot is-generated" aria-hidden="true" />Candidate slots</span>
+          <span><i className="calendar-legend-dot is-available" aria-hidden="true" />Available</span>
+          <span><i className="calendar-legend-dot is-booked" aria-hidden="true" />Booked</span>
+          {kind === "final" && <span><i className="calendar-legend-dot is-blocked" aria-hidden="true" />Blocked by Google Calendar</span>}
+        </div>
+      </div>
+      <div className="calendar-panel-counts">
+        <span><UiIcon name="clock" size={13} /><b>{stats.available}</b> Available slots</span>
+        <span><UiIcon name="check" size={13} /><b>{stats.booked}</b> Booked</span>
+        {stats.blocked > 0 && <span><UiIcon name="close" size={13} /><b>{stats.blocked}</b> Blocked</span>}
+      </div>
+    </div>
+    <div className="booking-calendar-weekdays">{weekdayOptions.map((day) => <span key={day}>{day}</span>)}</div>
+    <div className="booking-calendar-grid">
+      {days.map((day, index) => {
+        const key = day ? new Intl.DateTimeFormat("en-CA").format(day) : `empty-${index}`;
+        const events = day ? byDate.get(key) || [] : [];
+        const dayStats = summarizeBookings(events);
+        const isToday = key === todayInputValue();
+        const isSelected = selectedKind === kind && selectedDate === key;
+        return <div className={`booking-calendar-day booking-calendar-summary-day ${!day ? "is-empty" : ""} ${isToday ? "is-today" : ""} ${isSelected ? "is-selected" : ""}`} key={key}>
+          {day && <button type="button" className="calendar-day-button" aria-label={`View ${title} details for ${dateLabel(key)}`} aria-pressed={isSelected} onClick={() => onSelectDate(key, kind)}>
+            <strong className="calendar-day-number">{day.getDate()}</strong>
+            {events.length > 0 ? <div className="calendar-day-summary">
+              <span className="summary-total">{events.length} candidate slot{events.length === 1 ? "" : "s"}</span>
+              {dayStats.available > 0 && <span className="summary-available">{dayStats.available} available</span>}
+              {dayStats.booked > 0 && <span className="summary-booked">{dayStats.booked} booked</span>}
+              {dayStats.blocked > 0 && <span className="summary-blocked">{dayStats.blocked} blocked</span>}
+            </div> : <small className="calendar-day-empty-label">No schedule</small>}
+          </button>}
+        </div>;
+      })}
+    </div>
+  </section>;
 }
 
 function NoShowAction({ booking, onUpdated }: { booking: InterviewBooking; onUpdated: (slotId: string) => void }) { const [saving, setSaving] = useState(false); const [error, setError] = useState(""); async function submit() { if (!window.confirm("Mark this scheduled interview as No Show?")) return; setSaving(true); setError(""); try { const response = await fetch(`/api/bookings/${encodeURIComponent(booking.slotId)}/status`, { method: "POST" }); const data = await response.json(); if (!response.ok || !data.success) throw new Error(data.error || "Unable to mark interview as No Show."); onUpdated(booking.slotId); } catch (caught) { setError(caught instanceof Error ? caught.message : "Unable to update status."); } finally { setSaving(false); } } return <div className="booking-no-show-action"><button type="button" className="booking-inline-action" disabled={saving} onClick={() => void submit()}>{saving ? "Saving..." : "Mark No Show"}</button>{error && <ActionFeedback kind="error">{error}</ActionFeedback>}</div>; }
