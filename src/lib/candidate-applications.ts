@@ -362,6 +362,10 @@ export async function getBulkResumeQueue(roleId = ""): Promise<BulkResumeQueueIt
   const { rows } = await readTab("Bulk_Resume_Queue", "R");
   const normalizedRoleId = roleId.trim().toLowerCase();
   const latestByFile = new Map<string, BulkResumeQueueItem>();
+  const eventTimestamp = (item: BulkResumeQueueItem) => {
+    const timestamp = Date.parse(item.lastUpdated || item.processedAt || item.processingStartedAt || item.discoveredAt);
+    return Number.isFinite(timestamp) ? timestamp : 0;
+  };
   rows
     .map((record) => ({
       driveFileId: field(record, "Drive_File_ID", "Drive File ID", "driveFileId"),
@@ -380,8 +384,18 @@ export async function getBulkResumeQueue(roleId = ""): Promise<BulkResumeQueueIt
       lastUpdated: field(record, "Last_Updated", "Last Updated", "lastUpdated"),
     }))
     .filter((item) => item.driveFileId && (!normalizedRoleId || item.roleId.toLowerCase() === normalizedRoleId))
-    .forEach((item) => latestByFile.set(item.driveFileId, item));
-  return [...latestByFile.values()].sort((left, right) => Date.parse(right.lastUpdated || right.discoveredAt) - Date.parse(left.lastUpdated || left.discoveredAt));
+    .forEach((item) => {
+      const previous = latestByFile.get(item.driveFileId);
+      const itemTime = eventTimestamp(item);
+      const previousTime = previous ? eventTimestamp(previous) : Number.NEGATIVE_INFINITY;
+      // Queue rows are append-only events. Prefer the most recently timestamped
+      // event so a reordered or manually edited sheet cannot make a Screened
+      // resume look Queued and send it through AI again.
+      if (!previous || (Number.isFinite(itemTime) && (!Number.isFinite(previousTime) || itemTime >= previousTime))) {
+        latestByFile.set(item.driveFileId, item);
+      }
+    });
+  return [...latestByFile.values()].sort((left, right) => eventTimestamp(right) - eventTimestamp(left));
 }
 
 export async function getApplicantById(id: string): Promise<ApplicantDetails | null> {

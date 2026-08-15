@@ -48,13 +48,19 @@ const text = (value) => String(value ?? '').trim();
 const queueId = text(body.queueId);
 const rows = $('Read Bulk Resume Queue').all().map((item) => item.json);
 const latest = new Map();
+const eventTime = (row) => Date.parse(String(row.Last_Updated || row.lastUpdated || row.Processed_At || row.processedAt || row.Discovered_At || row.discoveredAt || '')) || 0;
 for (const row of rows) {
   const id = text(row.Drive_File_ID || row.driveFileId);
-  if (id) latest.set(id, text(row.Status || row.status).toLowerCase());
+  const roleId = text(row.Role_ID || row.roleId).toLowerCase();
+  const key = `${roleId}|${id}`;
+  const previous = latest.get(key);
+  if (id && (!previous || eventTime(row) >= previous.time)) latest.set(key, { status: text(row.Status || row.status).toLowerCase(), time: eventTime(row) });
 }
-const previousStatus = latest.get(queueId) || '';
 if (!queueId || !text(body.roleId) || !text(body.resumeText)) throw new Error('Bulk resume payload is incomplete.');
-if (previousStatus === 'screened' || previousStatus === 'processing') return [{ json: { skip: true, queueId, status: 'Skipped', lastUpdated: new Date().toISOString() } }];
+const roleKey = text(body.roleId).toLowerCase();
+const queueState = latest.get(`${roleKey}|${queueId}`) || latest.get(`|${queueId}`);
+const previousStatus = queueState?.status || '';
+if (['screened', 'processing', 'queued'].includes(previousStatus)) return [{ json: { skip: true, queueId, roleId: text(body.roleId), status: 'Skipped', lastUpdated: new Date().toISOString(), errorMessage: previousStatus === 'screened' ? 'Resume was already screened for this role.' : 'Resume is already queued or being screened for this role.' } }];
 const now = new Date().toISOString();
 return [{ json: { skip: false, queueId, driveFileId: queueId, driveFileName: text(body.fileName), driveFileUrl: '', driveFileMimeType: text(body.mimeType), roleId: text(body.roleId), resumeText: text(body.resumeText), resumeFile: body.resumeFile || {}, applicationId: text(body.applicationId), status: 'Processing', discoveredAt: text(body.submittedAt) || now, processingStartedAt: now, processedAt: '', attemptCount: String(Number(body.attemptCount || 0) + 1), lastUpdated: now } }];`,
     },

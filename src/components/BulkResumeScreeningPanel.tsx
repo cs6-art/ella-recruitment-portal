@@ -74,8 +74,11 @@ export default function BulkResumeScreeningPanel({ roleOptions, driveUrl }: { ro
       const result = await response.json();
       if (!response.ok || result.success !== true) throw new Error(result.error || "Unable to submit the bulk resumes.");
       const submitted = Number(result.submitted || 0);
-      const skipped = (result.results || []).filter((item: { skipped?: boolean }) => item.skipped).length;
-      setUploadMessage(`${submitted} resume${submitted === 1 ? "" : "s"} queued for screening${skipped ? `; ${skipped} already in the queue` : ""}.`);
+      const skippedResults = (result.results || []).filter((item: { skipped?: boolean }) => item.skipped) as Array<{ status?: string; message?: string }>;
+      const alreadyScreened = skippedResults.filter((item) => item.status?.toLowerCase() === "screened").length;
+      const alreadyActive = skippedResults.length - alreadyScreened;
+      const uploadSummary = submitted ? `${submitted} resume${submitted === 1 ? "" : "s"} queued for screening` : "No new resumes were queued";
+      setUploadMessage(`${uploadSummary}${alreadyScreened ? `; ${alreadyScreened} already screened and skipped` : ""}${alreadyActive ? `; ${alreadyActive} already queued or processing` : ""}.`);
       setFiles([]);
       await refreshStatus();
     } catch (caught) {
@@ -133,7 +136,7 @@ export default function BulkResumeScreeningPanel({ roleOptions, driveUrl }: { ro
             <li>Choose a published role.</li>
             <li>Select multiple PDF or DOCX files and start screening.</li>
             <li>Ella extracts the candidate details, submits each resume to the screening workflow, and updates the queue.</li>
-            <li>Files marked Screened are identified by file hash and are never analyzed again.</li>
+            <li>Files marked Screened are identified by role and file hash and are never analyzed again for that role.</li>
           </ol>
         </div>
 

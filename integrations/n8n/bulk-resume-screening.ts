@@ -74,16 +74,21 @@ const selectFiles = node({
       language: 'javaScript',
       jsCode: `const rows = $('Read Bulk Resume Queue').all().map((item) => item.json);
 const latest = new Map();
+const eventTime = (row) => Date.parse(String(row.Last_Updated || row.lastUpdated || row.Processed_At || row.processedAt || row.Discovered_At || row.discoveredAt || '')) || 0;
 for (const row of rows) {
   const id = String(row.Drive_File_ID || row.driveFileId || '').trim();
-  if (id) latest.set(id, String(row.Status || row.status || '').toLowerCase());
+  const roleId = String(row.Role_ID || row.roleId || '').trim().toLowerCase();
+  const key = `${roleId}|${id}`;
+  const previous = latest.get(key);
+  if (id && (!previous || eventTime(row) >= previous.time)) latest.set(key, { status: String(row.Status || row.status || '').trim().toLowerCase(), time: eventTime(row) });
 }
 return $input.all().map((item) => item.json).filter((file) => {
   const name = String(file.name || '');
   const mime = String(file.mimeType || '').toLowerCase();
   const role = name.match(/^([A-Za-z]{2,12}\\d{1,8})\\s*[-_ ]/);
-  const prior = latest.get(String(file.id || '').trim());
-  return file.id && /\\.(pdf|docx)$/i.test(name) && (mime.includes('pdf') || mime.includes('word') || mime === 'application/octet-stream') && role && !['screened','processing','failed','skipped'].includes(prior || '');
+  const roleId = role ? role[1].toLowerCase() : '';
+  const prior = latest.get(`${roleId}|${String(file.id || '').trim()}`);
+  return file.id && /\\.(pdf|docx)$/i.test(name) && (mime.includes('pdf') || mime.includes('word') || mime === 'application/octet-stream') && role && !['screened','processing','queued','failed','skipped'].includes(prior?.status || '');
 }).map((file) => {
   const role = String(file.name).match(/^([A-Za-z]{2,12}\\d{1,8})\\s*[-_ ]/);
   const now = new Date().toISOString();

@@ -18,7 +18,12 @@ function responseError(error: string, status: number, extra: Record<string, unkn
   return NextResponse.json({ success: false, error, ...extra }, { status });
 }
 
-function queueIdForHash(sha256: string) {
+function queueIdForHash(roleId: string, sha256: string) {
+  const roleKey = roleId.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, "-");
+  return `BULK-${roleKey}-${sha256}`;
+}
+
+function legacyQueueIdForHash(sha256: string) {
   return `BULK-${sha256}`;
 }
 
@@ -57,11 +62,12 @@ export async function POST(request: Request) {
       try {
         if (file.size > MAX_RESUME_FILE_BYTES) throw new Error("Resume files must be 10 MB or smaller.");
         stored = await storeResumeFile(file);
-        const queueId = queueIdForHash(stored.record.sha256);
-        const previous = latestByFile.get(queueId);
-        if (["screened", "processing"].includes(previous?.status.toLowerCase() || "")) {
+        const queueId = queueIdForHash(roleId, stored.record.sha256);
+        const previous = latestByFile.get(queueId) || latestByFile.get(legacyQueueIdForHash(stored.record.sha256));
+        const previousStatus = previous?.status.toLowerCase() || "";
+        if (["screened", "processing", "queued"].includes(previousStatus)) {
           await deleteResumeFile(stored.record);
-          results.push({ fileName: file.name, queueId, status: previous?.status || "Processing", skipped: true, message: previous?.status.toLowerCase() === "screened" ? "This resume was already screened." : "This resume is already being screened." });
+          results.push({ fileName: file.name, queueId, status: previous?.status || "Queued", skipped: true, message: previousStatus === "screened" ? "This resume was already screened for this role." : previousStatus === "queued" ? "This resume is already queued for this role." : "This resume is already being screened for this role." });
           continue;
         }
 
@@ -104,7 +110,7 @@ export async function POST(request: Request) {
         });
         results.push({ fileName: stored.record.fileName, queueId, applicationId: payload.applicationId, status: "Processing" });
       } catch (error) {
-        if (stored && !results.some((result) => result.queueId === queueIdForHash(stored?.record.sha256 || ""))) await deleteResumeFile(stored.record).catch(() => undefined);
+        if (stored && !results.some((result) => result.queueId === queueIdForHash(roleId, stored?.record.sha256 || ""))) await deleteResumeFile(stored.record).catch(() => undefined);
         results.push({ fileName: file.name, status: "Failed", error: error instanceof Error ? error.message : "Unable to submit this resume." });
       }
     }

@@ -4387,10 +4387,31 @@ textarea:focus-visible {
 .applicants-table th, .applicants-table td { padding-top: 16px; padding-bottom: 16px; }
 .roles-table th, .roles-table td { padding-top: 15px; padding-bottom: 15px; }
 .applicants-toolbar { row-gap: 14px; }
+.bulk-selection-toolbar { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-left: auto; color: var(--muted); font-size: 12px; font-weight: 700; white-space: nowrap; }
+.bulk-selection-toolbar .btn { min-height: 36px; padding: 8px 12px; font-size: 12px; }
+.selection-column { width: 44px !important; min-width: 44px; padding-inline: 10px !important; text-align: center; }
+.selection-column input[type="checkbox"] { width: 16px; height: 16px; margin: 0; accent-color: var(--blue); cursor: pointer; }
+.selection-column input[type="checkbox"]:disabled { cursor: not-allowed; opacity: .5; }
+.applicants-table tbody tr.is-selected { background: #eaf4ff; box-shadow: inset 3px 0 0 var(--blue); }
+.applicants-table tbody tr.is-selected:hover { background: #e3f0fc; }
+.applicants-table th, .applicants-table td { padding-top: 12px; padding-bottom: 12px; }
+.applicants-table .applicant-table-actions { gap: 7px; }
+.applicants-table .applicant-table-actions a, .applicants-table .applicant-table-actions .table-danger-action { min-height: 30px; padding: 6px 9px; }
+.roles-table th.selection-column, .roles-table td.selection-column { width: 44px !important; }
+.roles-table th:nth-child(2) { width: 16%; }
+.roles-table th:nth-child(3) { width: 10%; }
+.roles-table th:nth-child(4) { width: 10%; }
+.roles-table th:nth-child(5) { width: 8%; }
+.roles-table th:nth-child(6) { width: 13%; }
+.roles-table th:nth-child(7) { width: 12%; }
+.roles-table th:nth-child(8) { width: 11%; }
+.roles-table th:nth-child(9) { width: 12%; }
+.roles-table th:nth-child(10) { width: 225px; }
 .applicant-detail-actions { flex-wrap: wrap; column-gap: 12px; row-gap: 14px; }
 .applicant-record-actions { margin-left: 6px; padding-left: 14px; border-left: 1px solid #dce6f0; gap: 10px; }
 .role-request-actions { gap: 12px; padding-bottom: 8px; }
 @media (max-width: 760px) {
+  .bulk-selection-toolbar { width: 100%; justify-content: space-between; margin-left: 0; }
   .applicant-record-actions { margin-left: 0; padding-left: 0; border-left: 0; }
   .applicant-table-actions, .role-table-actions { gap: 8px; }
 }

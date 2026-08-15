@@ -38,8 +38,10 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
   const [roleFilter, setRoleFilter] = useState("All Roles");
   const [stageFilter, setStageFilter] = useState("All Stages");
   const [deletingId, setDeletingId] = useState("");
+  const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
   const [actionError, setActionError] = useState("");
   const [actionMessage, setActionMessage] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
 
   const publishedRoleKeys = useMemo(() => new Set((publishedRoles || []).flatMap((role) => [role.roleId, role.label])), [publishedRoles]);
@@ -67,6 +69,8 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
 
   const totalPages = Math.max(1, Math.ceil(visibleApplicants.length / pageSize));
   const pagedApplicants = visibleApplicants.slice((page - 1) * pageSize, page * pageSize);
+  const selectedApplicants = activeApplicants.filter((applicant) => selectedIds.has(applicant.applicationId));
+  const allVisibleSelected = canManageApplicants && visibleApplicants.length > 0 && visibleApplicants.every((applicant) => selectedIds.has(applicant.applicationId));
 
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
@@ -75,20 +79,64 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
   const voiceCount = activeApplicants.filter((applicant) => applicant.voiceStatus || applicant.finalStatus.toLowerCase().includes("voice")).length;
   const finalInterviewCount = activeApplicants.filter((applicant) => applicant.finalInterviewStatus && applicant.finalInterviewStatus.toLowerCase() !== "pending").length;
 
-  async function deleteApplicant(applicationId: string, candidateName: string) {
-    if (!window.confirm(`Delete ${candidateName || "this applicant"}? This removes the applicant, screening evidence, history, and linked interview slots.`)) return;
-    setDeletingId(applicationId); setActionError(""); setActionMessage("");
-    try {
-      const response = await fetch(`/api/applicants/${encodeURIComponent(applicationId)}`, { method: "DELETE", credentials: "same-origin" });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || data.success !== true) throw new Error(data.error || "Unable to delete the applicant.");
-      setRemovedIds((current) => new Set(current).add(applicationId));
-      setActionMessage("Applicant deleted successfully.");
-    } catch (caught) {
-      setActionError(caught instanceof Error ? caught.message : "Unable to delete the applicant.");
-    } finally {
-      setDeletingId("");
+  async function deleteApplicants(applicantsToDelete: ApplicantSummary[]) {
+    if (applicantsToDelete.length === 0) return;
+    const countLabel = applicantsToDelete.length === 1 ? applicantsToDelete[0].candidateName || "this applicant" : `${applicantsToDelete.length} applicants`;
+    if (!window.confirm(`Delete ${countLabel}? This removes the applicant, screening evidence, history, and linked interview slots.`)) return;
+
+    const ids = applicantsToDelete.map((applicant) => applicant.applicationId);
+    setDeletingId(ids.length === 1 ? ids[0] : "bulk");
+    setDeletingIds(new Set(ids));
+    setActionError("");
+    setActionMessage("");
+
+    const results: PromiseSettledResult<string>[] = [];
+    for (const applicationId of ids) {
+      try {
+        const response = await fetch(`/api/applicants/${encodeURIComponent(applicationId)}`, { method: "DELETE", credentials: "same-origin" });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.success !== true) throw new Error(data.error || `Unable to delete ${applicationId}.`);
+        results.push({ status: "fulfilled", value: applicationId });
+      } catch (error) {
+        results.push({ status: "rejected", reason: error });
+      }
     }
+    const deletedIds = results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
+    const failedCount = results.length - deletedIds.length;
+
+    if (deletedIds.length > 0) {
+      setRemovedIds((current) => new Set([...current, ...deletedIds]));
+      setSelectedIds((current) => {
+        const next = new Set(current);
+        deletedIds.forEach((id) => next.delete(id));
+        return next;
+      });
+      setActionMessage(`${deletedIds.length} applicant${deletedIds.length === 1 ? "" : "s"} deleted successfully.${failedCount ? ` ${failedCount} could not be deleted.` : ""}`);
+    }
+    if (failedCount > 0) {
+      const firstFailure = results.find((result) => result.status === "rejected");
+      setActionError(firstFailure?.status === "rejected" && firstFailure.reason instanceof Error ? firstFailure.reason.message : "Some applicants could not be deleted.");
+    }
+    setDeletingIds(new Set());
+    setDeletingId("");
+  }
+
+  function toggleApplicantSelection(applicationId: string) {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(applicationId)) next.delete(applicationId);
+      else next.add(applicationId);
+      return next;
+    });
+  }
+
+  function toggleAllVisibleApplicants() {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (allVisibleSelected) visibleApplicants.forEach((applicant) => next.delete(applicant.applicationId));
+      else visibleApplicants.forEach((applicant) => next.add(applicant.applicationId));
+      return next;
+    });
   }
 
   return (
@@ -116,6 +164,7 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
       <section className="card applicants-card">
         <div className="applicants-toolbar">
           <div><h2>Applicant Pipeline</h2><span>{visibleApplicants.length} matching applicant{visibleApplicants.length === 1 ? "" : "s"}</span></div>
+          {canManageApplicants && <div className="bulk-selection-toolbar"><span>{selectedApplicants.length} selected</span><button type="button" className="btn btn-danger-outline" disabled={selectedApplicants.length === 0 || deletingId !== ""} onClick={() => void deleteApplicants(selectedApplicants)}>Delete selected</button></div>}
           <div className="applicants-filters">
             <input aria-label="Search applicants" placeholder="Search candidate, role, or ID" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} />
             <select aria-label="Filter by role" value={roleFilter} onChange={(event) => { setRoleFilter(event.target.value); setPage(1); }}><option>All Roles</option>{roles.map((role) => <option key={role}>{role}</option>)}</select>
@@ -133,17 +182,18 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
         ) : (
           <div className="table-wrap">
             <table className="applicants-table">
-              <thead><tr><th>Candidate</th><th>Role</th><th>Applied</th><th>Match</th><th>Current Stage</th><th>Next Action</th><th>Action</th></tr></thead>
+              <thead><tr>{canManageApplicants && <th className="selection-column"><input type="checkbox" aria-label="Select all visible applicants" checked={allVisibleSelected} onChange={toggleAllVisibleApplicants} /></th>}<th>Candidate</th><th>Role</th><th>Applied</th><th>Match</th><th>Current Stage</th><th>Next Action</th><th>Action</th></tr></thead>
               <tbody>
                 {pagedApplicants.map((applicant) => (
-                  <tr key={applicant.applicationId}>
+                  <tr key={applicant.applicationId} className={selectedIds.has(applicant.applicationId) ? "is-selected" : undefined}>
+                    {canManageApplicants && <td className="selection-column"><input type="checkbox" aria-label={`Select ${applicant.candidateName || applicant.applicationId}`} checked={selectedIds.has(applicant.applicationId)} disabled={deletingIds.has(applicant.applicationId)} onChange={() => toggleApplicantSelection(applicant.applicationId)} /></td>}
                     <td><Link className="applicant-name-link" href={`/applicants/${encodeURIComponent(applicant.applicationId)}`}><strong>{applicant.candidateName || "Unnamed candidate"}</strong><span>{applicant.email || applicant.applicationId}</span></Link></td>
                     <td><strong>{applicant.selectedRole || "Role not provided"}</strong><span className="applicant-subtext">{applicant.roleId}</span></td>
                     <td>{formatDate(applicant.appliedAt)}</td>
                     <td><strong className="applicant-score">{scoreValue(applicant.matchScore)}</strong>{applicant.recommendation && <span className="applicant-subtext">{applicant.recommendation}</span>}</td>
                     <td><span className={stageClass(applicant.currentStage)}>{applicant.currentStage || "Submitted"}</span></td>
                     <td>{applicant.nextAction}</td>
-                    <td><div className="applicant-table-actions"><Link href={`/applicants/${encodeURIComponent(applicant.applicationId)}`}>View</Link>{canManageApplicants && <><Link href={`/applicants/${encodeURIComponent(applicant.applicationId)}/edit`}>Edit</Link><button type="button" className="table-danger-action" disabled={deletingId === applicant.applicationId} onClick={() => void deleteApplicant(applicant.applicationId, applicant.candidateName)}>{deletingId === applicant.applicationId ? "Deleting..." : "Delete"}</button></>}</div></td>
+                    <td><div className="applicant-table-actions"><Link href={`/applicants/${encodeURIComponent(applicant.applicationId)}`}>View</Link>{canManageApplicants && <><Link href={`/applicants/${encodeURIComponent(applicant.applicationId)}/edit`}>Edit</Link><button type="button" className="table-danger-action" disabled={deletingIds.has(applicant.applicationId) || deletingId === "bulk"} onClick={() => void deleteApplicants([applicant])}>{deletingIds.has(applicant.applicationId) ? "Deleting..." : "Delete"}</button></>}</div></td>
                   </tr>
                 ))}
               </tbody>

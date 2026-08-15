@@ -72,6 +72,8 @@ export default function RolesList({
   const [totalPages, setTotalPages] = useState(1);
   const [totalRoles, setTotalRoles] = useState(0);
   const [deletingRoleId, setDeletingRoleId] = useState("");
+  const [deletingRoleIds, setDeletingRoleIds] = useState<Set<string>>(new Set());
+  const [selectedRoleIds, setSelectedRoleIds] = useState<Set<string>>(new Set());
   const [actionError, setActionError] = useState("");
   const [actionMessage, setActionMessage] = useState("");
 
@@ -120,6 +122,7 @@ export default function RolesList({
           ? data.roles
           : [],
       );
+      setSelectedRoleIds(new Set());
       setTotalPages(data.pagination?.totalPages || 1);
       setTotalRoles(data.pagination?.total || 0);
     } catch (loadError) {
@@ -149,6 +152,9 @@ export default function RolesList({
         return rightDate.localeCompare(leftDate);
       })
     : roles;
+  const selectableRoles = visibleRoles.filter((role) => canEditRole(role));
+  const selectedRoles = selectableRoles.filter((role) => selectedRoleIds.has(role.roleId));
+  const allVisibleRolesSelected = selectableRoles.length > 0 && selectableRoles.every((role) => selectedRoleIds.has(role.roleId));
 
   const filtersActive =
     statusFilter !== "All" ||
@@ -197,23 +203,64 @@ export default function RolesList({
     return canEditRoleRequest({ email: userEmail, canReviewRole, canApproveRole }, role);
   }
 
-  async function deleteRole(role: RoleRequest) {
-    const activeWarning = ["Approved", "Recruitment Setup", "Job Posted"].includes(role.status.trim())
-      ? " This may also remove an approved or published role from the role list."
-      : "";
-    if (!window.confirm(`Delete ${role.jobTitle || role.roleId}? This role request cannot be recovered.${activeWarning}`)) return;
-    setDeletingRoleId(role.roleId); setActionError(""); setActionMessage("");
-    try {
-      const response = await fetch(`/api/roles/${encodeURIComponent(role.roleId)}`, { method: "DELETE", credentials: "same-origin" });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || data.success !== true) throw new Error(data.error || "Unable to delete the role request.");
-      setActionMessage("Role request deleted successfully.");
-      await loadRoles();
-    } catch (caught) {
-      setActionError(caught instanceof Error ? caught.message : "Unable to delete the role request.");
-    } finally {
-      setDeletingRoleId("");
+  async function deleteRoles(rolesToDelete: RoleRequest[]) {
+    if (rolesToDelete.length === 0) return;
+    const activeCount = rolesToDelete.filter((role) => ["Approved", "Recruitment Setup", "Job Posted"].includes(role.status.trim())).length;
+    const activeWarning = activeCount > 0 ? " This may also remove approved or published roles from the role list." : "";
+    const countLabel = rolesToDelete.length === 1 ? rolesToDelete[0].jobTitle || rolesToDelete[0].roleId : `${rolesToDelete.length} role requests`;
+    if (!window.confirm(`Delete ${countLabel}? These role requests cannot be recovered.${activeWarning}`)) return;
+
+    const ids = rolesToDelete.map((role) => role.roleId);
+    setDeletingRoleId(ids.length === 1 ? ids[0] : "bulk");
+    setDeletingRoleIds(new Set(ids));
+    setActionError("");
+    setActionMessage("");
+    const results: PromiseSettledResult<string>[] = [];
+    for (const roleId of ids) {
+      try {
+        const response = await fetch(`/api/roles/${encodeURIComponent(roleId)}`, { method: "DELETE", credentials: "same-origin" });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.success !== true) throw new Error(data.error || `Unable to delete ${roleId}.`);
+        results.push({ status: "fulfilled", value: roleId });
+      } catch (error) {
+        results.push({ status: "rejected", reason: error });
+      }
     }
+    const deletedIds = results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
+    const failedCount = results.length - deletedIds.length;
+    if (deletedIds.length > 0) {
+      setSelectedRoleIds((current) => {
+        const next = new Set(current);
+        deletedIds.forEach((id) => next.delete(id));
+        return next;
+      });
+      setActionMessage(`${deletedIds.length} role request${deletedIds.length === 1 ? "" : "s"} deleted successfully.${failedCount ? ` ${failedCount} could not be deleted.` : ""}`);
+      await loadRoles();
+    }
+    if (failedCount > 0) {
+      const firstFailure = results.find((result) => result.status === "rejected");
+      setActionError(firstFailure?.status === "rejected" && firstFailure.reason instanceof Error ? firstFailure.reason.message : "Some role requests could not be deleted.");
+    }
+    setDeletingRoleIds(new Set());
+    setDeletingRoleId("");
+  }
+
+  function toggleRoleSelection(roleId: string) {
+    setSelectedRoleIds((current) => {
+      const next = new Set(current);
+      if (next.has(roleId)) next.delete(roleId);
+      else next.add(roleId);
+      return next;
+    });
+  }
+
+  function toggleAllVisibleRoles() {
+    setSelectedRoleIds((current) => {
+      const next = new Set(current);
+      if (allVisibleRolesSelected) selectableRoles.forEach((role) => next.delete(role.roleId));
+      else selectableRoles.forEach((role) => next.add(role.roleId));
+      return next;
+    });
   }
 
   return (
@@ -272,6 +319,8 @@ export default function RolesList({
                 : `${visibleRoles.length} ${visibleRoles.length === 1 ? "Request" : "Requests"}`}
             </span>
           </div>
+
+          {selectableRoles.length > 0 && <div className="bulk-selection-toolbar"><span>{selectedRoles.length} selected</span><button type="button" className="btn btn-danger-outline" disabled={selectedRoles.length === 0 || deletingRoleId !== ""} onClick={() => void deleteRoles(selectedRoles)}>Delete selected</button></div>}
 
           {filtersActive && (
             <button type="button" className="btn btn-secondary roles-clear-button" onClick={clearFilters}>
@@ -379,6 +428,7 @@ export default function RolesList({
               <table className="roles-table">
                 <thead>
                   <tr>
+                    <th className="selection-column"><input type="checkbox" aria-label="Select all selectable role requests on this page" checked={allVisibleRolesSelected} onChange={toggleAllVisibleRoles} disabled={selectableRoles.length === 0} /></th>
                     <th className="roles-column-role">Role</th>
                     <th>Department</th>
                     <th>Request Type</th>
@@ -398,7 +448,7 @@ export default function RolesList({
                       tabIndex={0}
                       role="link"
                       onClick={(event) => {
-                        if ((event.target as HTMLElement).closest("a,button")) return;
+                        if ((event.target as HTMLElement).closest("a,button,input,label")) return;
                         openRole(role.roleId);
                       }}
                       onKeyDown={(event) => {
@@ -408,6 +458,7 @@ export default function RolesList({
                         }
                       }}
                     >
+                      <td className="selection-column"><input type="checkbox" aria-label={`Select ${role.jobTitle || role.roleId}`} checked={selectedRoleIds.has(role.roleId)} disabled={!canEditRole(role) || deletingRoleIds.has(role.roleId)} onChange={() => toggleRoleSelection(role.roleId)} /></td>
                       <td className="roles-column-role">
                         <Link className="roles-role-link" href={`/roles/${encodeURIComponent(role.roleId)}`}>
                           <strong>{role.jobTitle || "Not provided"}</strong>
@@ -433,7 +484,7 @@ export default function RolesList({
                           {role.status || "Submitted"}
                         </span>
                       </td>
-                      <td><div className="role-table-actions"><Link href={`/roles/${encodeURIComponent(role.roleId)}`}>View</Link>{canEditRole(role) && <><Link href={`/roles/${encodeURIComponent(role.roleId)}/edit`}>Edit</Link><button type="button" className="table-danger-action" disabled={deletingRoleId === role.roleId} onClick={() => void deleteRole(role)}>{deletingRoleId === role.roleId ? "Deleting..." : "Delete"}</button></>}</div></td>
+                      <td><div className="role-table-actions"><Link href={`/roles/${encodeURIComponent(role.roleId)}`}>View</Link>{canEditRole(role) && <><Link href={`/roles/${encodeURIComponent(role.roleId)}/edit`}>Edit</Link><button type="button" className="table-danger-action" disabled={deletingRoleIds.has(role.roleId) || deletingRoleId === "bulk"} onClick={() => void deleteRoles([role])}>{deletingRoleIds.has(role.roleId) ? "Deleting..." : "Delete"}</button></>}</div></td>
                     </tr>
                   ))}
                 </tbody>

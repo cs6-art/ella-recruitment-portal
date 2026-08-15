@@ -188,11 +188,15 @@ candidateName, candidateEmail, preferredMobile, applicantCountry, status,
 applicationId, errorMessage, discoveredAt, processingStartedAt, processedAt,
 attemptCount, lastUpdated`
 
-The workflow appends `Processing`, `Screened`, and `Failed` events. The portal
-groups events by `driveFileId` and displays only the latest status, so a file
-that is already `Screened` is not analyzed again. A failed file remains visible
-as `Failed` and is not automatically retried; correct the source file or queue
-entry before retrying it.
+The queue uses `Queued`, `Processing`, `Screened`, `Failed`, and `Skipped`
+statuses. The portal groups events by `driveFileId` and displays only the latest
+timestamped status. `Screened` is terminal for the selected role: uploading the
+same resume again returns a `Skipped` result and does not call the AI screening
+workflow or create another queue item.
+The queue identity is role-scoped for portal uploads, so the same resume may be
+screened independently for a different published role. A failed file remains
+visible as `Failed` and is not automatically retried by the Drive poller;
+correct the source file or queue entry before retrying it.
 
 Configure the n8n environment with `GOOGLE_BULK_RESUME_DRIVE_FOLDER_ID` and
 `N8N_BULK_RESUME_PORTAL_BASE_URL`. The latter must be a URL reachable from n8n
