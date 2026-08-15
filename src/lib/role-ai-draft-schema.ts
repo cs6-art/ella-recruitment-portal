@@ -23,8 +23,8 @@ export const roleAiRecruitmentSetupDraftSchema = z.object({
 
 export const roleAiDraftSchema = z.object({
   role: z.object({
-    requestType: z.enum(["Staff Addition", "Staff Replacement"]).default("Staff Addition"),
-    department: text(100),
+    requestType: z.preprocess((value) => String(value ?? "").trim() || "Staff Addition", z.enum(["Staff Addition", "Staff Replacement"])),
+    department: z.preprocess((value) => String(value ?? "").trim() || "Not specified", z.string().max(100)),
     jobTitle: text(150),
     numberOfVacancies: z.coerce.number().int().min(1).max(100).default(1),
     reasonForRequest: text(2000),

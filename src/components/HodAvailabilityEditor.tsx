@@ -19,6 +19,10 @@ type Props = {
 };
 
 const emptySlot = (): DraftSlot => ({ date: "", startTime: "", endTime: "", timezone: "Asia/Singapore" });
+function todayInputValue() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
 
 function slotsMatch(left: DraftSlot[], right: DraftSlot[]) {
   return JSON.stringify(left) === JSON.stringify(right);
@@ -88,9 +92,9 @@ export default function HodAvailabilityEditor({ roleId, status, availability, ed
     {error && <ActionFeedback kind="error">{error}</ActionFeedback>}
     <div className="availability-entry-list">
       {slots.map((slot, index) => <div className="availability-entry" key={`${index}-${slot.date}-${slot.startTime}`}>
-        <label>Date<input type="date" value={slot.date} disabled={!editable || saving} onChange={(event) => updateSlot(index, "date", event.target.value)} /></label>
-        <label>Start time<input type="time" value={slot.startTime} disabled={!editable || saving} onChange={(event) => updateSlot(index, "startTime", event.target.value)} /></label>
-        <label>End time<input type="time" value={slot.endTime} disabled={!editable || saving} onChange={(event) => updateSlot(index, "endTime", event.target.value)} /></label>
+        <label>Date<input type="date" min={todayInputValue()} value={slot.date} disabled={!editable || saving} onChange={(event) => updateSlot(index, "date", event.target.value)} /></label>
+        <label>Start time<input type="time" step="900" value={slot.startTime} disabled={!editable || saving} onChange={(event) => updateSlot(index, "startTime", event.target.value)} /></label>
+        <label>End time<input type="time" step="900" value={slot.endTime} disabled={!editable || saving} onChange={(event) => updateSlot(index, "endTime", event.target.value)} /></label>
         <label>Timezone<select value={slot.timezone} disabled={!editable || saving} onChange={(event) => updateSlot(index, "timezone", event.target.value)}><option>Asia/Singapore</option><option>Asia/Manila</option><option>Asia/Hong_Kong</option><option>UTC</option><option>America/Los_Angeles</option></select></label>
         <button type="button" className="btn btn-secondary availability-entry-remove" disabled={!editable || saving} onClick={() => removeSlot(index)}>Remove</button>
       </div>)}

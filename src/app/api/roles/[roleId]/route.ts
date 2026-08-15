@@ -128,7 +128,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     const access = await getRoleAndUser(roleId);
     if (access.error || !access.user || !access.role) return access.error;
     if (!canEditRoleRequest(access.user, access.role)) {
-      return NextResponse.json({ success: false, error: "This role request can no longer be edited at its current workflow stage." }, { status: 409 });
+      return NextResponse.json({ success: false, error: "You do not have permission to edit this role request." }, { status: 403 });
     }
 
     const body = await request.json() as Record<string, unknown>;
@@ -175,7 +175,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
     const access = await getRoleAndUser(roleId);
     if (access.error || !access.user || !access.role) return access.error;
     if (!canDeleteRoleRequest(access.user, access.role)) {
-      return NextResponse.json({ success: false, error: "This role request cannot be deleted after it has entered recruitment processing." }, { status: 409 });
+      return NextResponse.json({ success: false, error: "You do not have permission to delete this role request." }, { status: 403 });
     }
 
     await deleteRoleRequest(access.role.roleId);

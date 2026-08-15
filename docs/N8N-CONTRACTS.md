@@ -171,6 +171,42 @@ not allowed to approve or reject a candidate. HR decisions remain portal-owned
 and are written to candidate status history. Binary or base64 resume content is
 never sent to or stored in Google Sheets.
 
+## Bulk Resume Screening
+
+The Resume Screening page can direct HR to a shared Google Drive folder for
+bulk intake. Upload PDF or DOCX files using a role-prefixed filename such as
+`AC01 - Candidate Name.pdf`. The n8n poller searches that folder every five
+minutes, claims one file at a time, extracts its text through the portal, and
+submits the same candidate-application contract used by the existing screening
+workflow.
+
+Create a `Bulk_Resume_Queue` tab in the candidate workbook with this header
+row, in this order:
+
+`driveFileId, driveFileName, driveFileUrl, driveFileMimeType, roleId,
+candidateName, candidateEmail, preferredMobile, applicantCountry, status,
+applicationId, errorMessage, discoveredAt, processingStartedAt, processedAt,
+attemptCount, lastUpdated`
+
+The workflow appends `Processing`, `Screened`, and `Failed` events. The portal
+groups events by `driveFileId` and displays only the latest status, so a file
+that is already `Screened` is not analyzed again. A failed file remains visible
+as `Failed` and is not automatically retried; correct the source file or queue
+entry before retrying it.
+
+Configure the n8n environment with `GOOGLE_BULK_RESUME_DRIVE_FOLDER_ID` and
+`N8N_BULK_RESUME_PORTAL_BASE_URL`. The latter must be a URL reachable from n8n
+(a local `http://localhost:3000` URL will not work from a hosted n8n instance).
+
+For local HR testing, the primary flow is the portal's direct multi-file upload.
+The portal extracts each PDF/DOCX locally and sends one JSON request at a time
+to `N8N_BULK_RESUME_UPLOAD_WEBHOOK_URL` at `/webhook/bulk-resume-upload`.
+The `McLink - Bulk Resume Upload Intake` workflow extracts candidate contact
+details, writes the processing claim, calls the existing candidate screening
+workflow, and records the final queue status. It uses the SHA-256 file hash as
+the queue ID, so uploading the same file again does not create another
+screening request after it is marked `Screened`.
+
 ## Recruitment Setup stage actions
 
 The portal keeps the event name `recruitment_setup_updated` and adds a

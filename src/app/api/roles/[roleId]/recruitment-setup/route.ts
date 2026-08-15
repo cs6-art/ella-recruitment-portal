@@ -9,7 +9,7 @@ import { consumeRateLimit, rateLimitHeaders, requestClientKey } from "@/lib/rate
 import { BASELINE_EVALUATION_FIELDS, EVALUATION_FIELD_CATALOG, recruitmentSetupSchema } from "@/lib/recruitment-setup-schema";
 import { getSetupReadiness, setupStatusForAction } from "@/lib/recruitment-setup-readiness";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
-import { createConfiguredVoiceInterviewSlots } from "@/lib/applicant-workflow";
+import { createConfiguredVoiceInterviewSlots, synchronizeFinalInterviewSlots } from "@/lib/applicant-workflow";
 import { serializeVoiceInterviewSlots } from "@/lib/voice-interview-availability";
 
 export const runtime = "nodejs";
@@ -40,22 +40,26 @@ export async function POST(request: Request, context: Context) {
     // "Recruitment setup is only available for Approved or Recruitment Setup
     // roles", which reads as a failure even though the publish succeeded.
     // Report the settled state instead of re-running the workflow.
-    if (setupAction === "publish_role" && role.status === "Job Posted") {
+    // Publishing is idempotent. Permit a retry for an already-posted role so
+    // a successful n8n write with a lost/empty response can restore setup
+    // fields and regenerate its booking slots instead of leaving the role in
+    // a partially published state.
+    const canRetryPublishedSetup = setupAction === "publish_role" && role.status === "Job Posted";
+    if (canRetryPublishedSetup) {
+      invalidateSheetsCache("Role_Requests");
+      invalidateSheetsCache("Role_Status_History");
       return NextResponse.json({
         success: true,
         roleId: role.roleId,
-        status: role.status,
+        status: "Job Posted",
         action: "recruitment_setup_updated",
         recruitmentSetupStatus: role.recruitmentSetupStatus || "Published",
-        alreadyPublished: true,
-        updatedAt: role.recruitmentSetupUpdatedAt || "",
+        message: "This role is already published. No further publish action was needed.",
         notificationStatus: "not_configured",
         notificationError: "",
-        message: "This role is already published.",
       });
     }
-
-    if (!canUseRecruitmentSetup(role.status)) return NextResponse.json({ success: false, error: "Recruitment setup is only available for Approved or Recruitment Setup roles." }, { status: 409 });
+    if (!canUseRecruitmentSetup(role.status)) return NextResponse.json({ success: false, error: `Recruitment setup is unavailable while this role is \"${role.status || "Unknown"}\". Refresh the role and try again.` }, { status: 409 });
     const readinessLevel = setupAction === "mark_recruitment_ready" ? "recruitment-ready" : setupAction === "mark_ready_for_publishing" || setupAction === "publish_role" ? "ready-for-publishing" : "draft";
     const readiness = getSetupReadiness(setup, readinessLevel);
     if (!readiness.valid) return NextResponse.json({ success: false, code: "RECRUITMENT_SETUP_INCOMPLETE", message: setupAction === "save_draft" ? "Complete the three required draft fields before saving." : "The recruitment setup is not ready for this stage.", missingFields: readiness.missingFields.map((field) => field.key), missingFieldLabels: readiness.missingFields.map((field) => field.label) }, { status: 422 });
@@ -70,7 +74,8 @@ export async function POST(request: Request, context: Context) {
     if (setupAction === "publish_role" && !readiness.valid) return NextResponse.json({ success: false, code: "RECRUITMENT_SETUP_NOT_READY", message: "Mark the setup as Ready for Publishing before publishing the role." }, { status: 409 });
     const webhookUrl = process.env.N8N_RECRUITMENT_SETUP_WEBHOOK_URL || process.env.N8N_ROLE_REQUEST_WEBHOOK_URL || process.env.N8N_ROLE_WEBHOOK_URL;
     const webhookSecret = process.env.N8N_WEBHOOK_SECRET;
-    if (!webhookUrl || !webhookSecret) return NextResponse.json({ success: false, error: "The recruitment setup workflow is not configured." }, { status: 503 });
+    const workflowConfigured = Boolean(webhookUrl && webhookSecret);
+    if (!workflowConfigured && setupAction !== "save_draft") return NextResponse.json({ success: false, error: "The recruitment setup workflow is not configured. Save Draft can still be used, but publishing requires the workflow." }, { status: 503 });
 
     const updatedAt = new Date().toISOString();
     const actionRequestId = setup.actionRequestId || crypto.randomUUID();
@@ -230,31 +235,43 @@ export async function POST(request: Request, context: Context) {
       Recruitment_Setup_Updated_By_Name: user.name,
       Recruitment_Setup_Updated_By_Email: performerEmail,
     });
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
-    let response: Response;
-    try {
-      response = await fetch(webhookUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Webhook-Secret": webhookSecret, "X-Idempotency-Key": actionRequestId },
-        body: JSON.stringify(payload),
-        cache: "no-store",
-        signal: controller.signal,
-      });
-    } finally {
-      clearTimeout(timeout);
-    }
-    const raw = await response.text();
     let result: Record<string, unknown> = {};
-    try { result = raw ? JSON.parse(raw) as Record<string, unknown> : {}; } catch { /* handled below */ }
-    if (!response.ok || result.success !== true) {
-      console.error("[API Recruitment Setup] n8n rejected update:", response.status, result);
-      const workflowMessage = typeof result.message === "string"
-        ? result.message
-        : typeof result.error === "string"
-          ? result.error
-          : "The recruitment setup could not be saved.";
-      return NextResponse.json({ success: false, error: workflowMessage }, { status: response.status === 409 ? 409 : 502 });
+    let workflowWarning = "";
+    if (workflowConfigured) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), Number(process.env.N8N_RECRUITMENT_SETUP_TIMEOUT_MS || 45000));
+      try {
+        const response = await fetch(webhookUrl!, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Webhook-Secret": webhookSecret!, "X-Idempotency-Key": actionRequestId },
+          body: JSON.stringify(payload),
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        const raw = await response.text();
+        try { result = raw ? JSON.parse(raw) as Record<string, unknown> : {}; } catch { /* handled below */ }
+        // The workflow may complete its Sheets writes and return an empty
+        // 200 response when the Respond to Webhook body is omitted.
+        const workflowRejected = !response.ok || (raw.trim() !== "" && result.success !== true);
+        if (workflowRejected) {
+          console.error("[API Recruitment Setup] n8n rejected update:", response.status, result);
+          const workflowMessage = typeof result.message === "string"
+            ? result.message
+            : typeof result.error === "string"
+              ? result.error
+              : "The recruitment setup workflow did not confirm the update.";
+          if (setupAction !== "save_draft") return NextResponse.json({ success: false, error: workflowMessage }, { status: response.status === 409 ? 409 : 502 });
+          workflowWarning = `Draft saved, but the workflow did not confirm its audit update: ${workflowMessage}`;
+        }
+      } catch (workflowError) {
+        if (setupAction !== "save_draft") throw workflowError;
+        workflowWarning = "Draft saved. The workflow confirmation timed out, so its audit notification may still be processing.";
+        console.warn("[API Recruitment Setup] Draft workflow confirmation failed after direct save:", workflowError);
+      } finally {
+        clearTimeout(timeout);
+      }
+    } else {
+      workflowWarning = "Draft saved. The recruitment setup workflow is not configured, so no workflow notification was sent.";
     }
     // n8n has just written the new Status/Recruitment_Setup_Status outside
     // this process. The editor refetches the role immediately after this
@@ -266,7 +283,7 @@ export async function POST(request: Request, context: Context) {
 
     let voiceSlotWarning = "";
     let voiceSlotsGeneratedAt = setup.voiceInterviewSlotsGeneratedAt || "";
-    if (setupAction === "publish_role" && setup.voiceInterviewAvailabilityMode !== "none") {
+    if (setup.voiceInterviewAvailabilityMode !== "none") {
       try {
         const voiceSlots = await createConfiguredVoiceInterviewSlots({
           roleId: role.roleId,
@@ -283,18 +300,34 @@ export async function POST(request: Request, context: Context) {
         console.error("[API Recruitment Setup] Voice slot generation failed:", voiceSlotError);
       }
     }
+    let finalSlotWarning = "";
+    try {
+      const finalSlots = await synchronizeFinalInterviewSlots({
+        roleId: role.roleId,
+        hodEmail: role.hodEmail || role.requesterEmail,
+        availability: role.hodAvailabilitySlots,
+      });
+      if (finalSlots.warnings.length > 0) {
+        finalSlotWarning = `Some final-interview slots were blocked: ${finalSlots.warnings.join(" ")}`;
+      }
+    } catch (finalSlotError) {
+      finalSlotWarning = finalSlotError instanceof Error ? `Final-interview slots could not be synchronized: ${finalSlotError.message}` : "Final-interview slots could not be synchronized.";
+      console.error("[API Recruitment Setup] Final slot synchronization failed:", finalSlotError);
+    }
+    const slotWarning = [voiceSlotWarning, finalSlotWarning].filter(Boolean).join(" ");
     return NextResponse.json({
       success: true,
       roleId: role.roleId,
-      status: typeof result.status === "string" ? result.status : role.status,
+      status: typeof result.status === "string" ? result.status : setupAction === "publish_role" ? "Job Posted" : role.status,
       action: "recruitment_setup_updated",
       recruitmentSetupStatus: setupStatusForAction(setupAction, role.recruitmentSetupStatus || "Draft"),
       updatedAt,
       actionRequestId,
       notificationStatus: typeof result.notificationStatus === "string" ? result.notificationStatus : "not_configured",
       notificationError: typeof result.notificationError === "string" ? result.notificationError : "",
-      message: voiceSlotWarning || "Recruitment setup saved successfully.",
+      message: slotWarning || workflowWarning || "Recruitment setup saved successfully.",
       voiceSlotWarning,
+      finalSlotWarning,
       voiceSlotsGeneratedAt,
     });
   } catch (error) {

@@ -72,7 +72,7 @@ type Props = {
   updatedAt?: string;
   updatedBy?: string;
   updatedByEmail?: string;
-  onSaved: () => void;
+  onSaved: (expectedStatus?: string) => void;
 };
 
 type SetupField = keyof Setup;
@@ -290,6 +290,7 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
   const [values, setValues] = useState<Setup>(() => buildInitialValues(setup));
   const [advancedPrompt, setAdvancedPrompt] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [savingAction, setSavingAction] = useState("");
   const [message, setMessage] = useState("");
   const [warning, setWarning] = useState("");
   const [error, setError] = useState("");
@@ -517,6 +518,7 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
 
   async function save(action: string) {
     setSaving(true);
+    setSavingAction(action);
     setMessage("");
     setWarning("");
     setError("");
@@ -526,6 +528,7 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
     if (!parsed.success) {
       setError(`Please complete the required setup fields: ${parsed.error.issues.map((issue) => issue.message).join(" ")}`);
       setSaving(false);
+      setSavingAction("");
       return;
     }
 
@@ -538,6 +541,7 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
     if (!readiness.valid) {
       setError(`Complete these items before continuing: ${readiness.missingFields.map((field) => field.label).join(", ")}.`);
       setSaving(false);
+      setSavingAction("");
       return;
     }
 
@@ -554,7 +558,7 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
       setMessage(result.message || "VAPI setup saved successfully.");
       setWarning([notification.warning, typeof result.voiceSlotWarning === "string" ? result.voiceSlotWarning : ""].filter(Boolean).join(" "));
       actionRequestId.current = globalThis.crypto.randomUUID();
-      onSaved();
+      onSaved(typeof result.status === "string" ? result.status : undefined);
     } catch (caught) {
       setError(`${caught instanceof Error ? caught.message : "Unable to save recruitment setup."} Your entries were reloaded from the saved record below, so you can see exactly what was kept before retrying.`);
       // The setup fields are written to the sheet before the workflow call, so
@@ -564,8 +568,11 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
       onSaved();
     } finally {
       setSaving(false);
+      setSavingAction("");
     }
   }
+
+  const actionLabel = (action: string, idle: string) => savingAction === action ? `Saving ${idle.replace(/^Mark as /, "").toLowerCase()}…` : idle;
 
   return (
     <section id="recruitment-setup" className="card role-section recruitment-editor vapi-setup-editor">
@@ -754,7 +761,7 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
         </div>
         <label className="field vapi-voice-availability-mode" htmlFor="vapi-voice-availability-mode"><span>Voice interview availability</span><select id="vapi-voice-availability-mode" value={values.voiceInterviewAvailabilityMode || "none"} disabled={!editable || saving} onChange={(event) => changeVoiceAvailabilityMode(event.target.value)}><option value="none">Set later in Bookings</option><option value="manual">Enter specific slots now</option><option value="automatic">Generate weekday slots · 9:00 AM–5:00 PM</option></select></label>
         {values.voiceInterviewAvailabilityMode === "manual" && <div className="vapi-voice-slot-list">
-          {editorVoiceSlots(values.voiceInterviewSlots).map((slot, index) => <div className="vapi-voice-slot-row" key={`${index}-${slot.date}`}><label><span>Date</span><input type="date" value={slot.date} disabled={!editable || saving} onChange={(event) => updateVoiceSlot(index, "date", event.target.value)} /></label><label><span>Start</span><input type="time" value={slot.startTime} disabled={!editable || saving} onChange={(event) => updateVoiceSlot(index, "startTime", event.target.value)} /></label><label><span>End</span><input type="time" value={slot.endTime} disabled={!editable || saving} onChange={(event) => updateVoiceSlot(index, "endTime", event.target.value)} /></label><label><span>Timezone</span><input value={slot.timezone} disabled={!editable || saving} onChange={(event) => updateVoiceSlot(index, "timezone", event.target.value)} /></label><button type="button" className="btn btn-secondary" disabled={!editable || saving} onClick={() => removeVoiceSlot(index)}>Remove</button></div>)}
+          {editorVoiceSlots(values.voiceInterviewSlots).map((slot, index) => <div className="vapi-voice-slot-row" key={`${index}-${slot.date}`}><label><span>Date</span><input type="date" min={dateInputValue(new Date())} value={slot.date} disabled={!editable || saving} onChange={(event) => updateVoiceSlot(index, "date", event.target.value)} /></label><label><span>Start</span><input type="time" step="900" value={slot.startTime} disabled={!editable || saving} onChange={(event) => updateVoiceSlot(index, "startTime", event.target.value)} /></label><label><span>End</span><input type="time" step="900" value={slot.endTime} disabled={!editable || saving} onChange={(event) => updateVoiceSlot(index, "endTime", event.target.value)} /></label><label><span>Timezone</span><input value={slot.timezone} disabled={!editable || saving} onChange={(event) => updateVoiceSlot(index, "timezone", event.target.value)} /></label><button type="button" className="btn btn-secondary" disabled={!editable || saving} onClick={() => removeVoiceSlot(index)}>Remove</button></div>)}
           <button type="button" className="btn btn-secondary" disabled={!editable || saving || editorVoiceSlots(values.voiceInterviewSlots).length >= 100} onClick={addVoiceSlot}>Add voice interview slot</button>
           {editorVoiceSlots(values.voiceInterviewSlots).length === 0 && <small className="vapi-voice-availability-help">Add at least one date and time before saving this option.</small>}
         </div>}
@@ -817,10 +824,10 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
         <div className="vapi-save-note"><strong>{editable ? "Review the prompt before saving." : status === "Job Posted" ? "Read-only — this role is already published" : "Read-only setup"}</strong><small>{status === "Job Posted" ? `This is the setup Ella uses for applicants to this role.${updatedByEmail ? ` Last updated by ${updatedByEmail}.` : ""}` : updatedByEmail ? `Last updated by ${updatedByEmail}` : "The standard template remains available for this role."}</small></div>
         <div className="vapi-save-actions">
           {editable && <>
-            <button type="button" className="btn btn-secondary" disabled={saving} onClick={() => void save("save_draft")}>{saving ? "Saving..." : "Save Draft"}</button>
-            <button type="button" className="btn btn-secondary" disabled={saving || !recruitmentReadiness.valid} onClick={() => void save("mark_recruitment_ready")}>Mark as Recruitment Ready</button>
-            <button type="button" className="btn btn-secondary" disabled={saving || !publishingReadiness.valid} onClick={() => void save("mark_ready_for_publishing")}>Mark as Ready for Publishing</button>
-            <button type="button" className="btn btn-primary" disabled={saving || !publishingReadiness.valid} onClick={() => void save("publish_role")}>{saving ? "Saving..." : "Publish Role"}</button>
+            <button type="button" className="btn btn-secondary" aria-busy={savingAction === "save_draft"} disabled={saving} onClick={() => void save("save_draft")}>{actionLabel("save_draft", "Save Draft")}</button>
+            <button type="button" className="btn btn-secondary" aria-busy={savingAction === "mark_recruitment_ready"} disabled={saving || !recruitmentReadiness.valid} onClick={() => void save("mark_recruitment_ready")}>{actionLabel("mark_recruitment_ready", "Mark as Recruitment Ready")}</button>
+            <button type="button" className="btn btn-secondary" aria-busy={savingAction === "mark_ready_for_publishing"} disabled={saving || !publishingReadiness.valid} onClick={() => void save("mark_ready_for_publishing")}>{actionLabel("mark_ready_for_publishing", "Mark as Ready for Publishing")}</button>
+            <button type="button" className="btn btn-primary" aria-busy={savingAction === "publish_role"} disabled={saving || !publishingReadiness.valid} onClick={() => void save("publish_role")}>{actionLabel("publish_role", "Publish Role")}</button>
           </>}
         </div>
       </div>

@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import AppShell from "@/components/AppShell";
+import BulkResumeScreeningPanel from "@/components/BulkResumeScreeningPanel";
 import CandidateApplicationForm from "@/components/CandidateApplicationForm";
 import { getRoleRequests } from "@/lib/google-sheets";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
@@ -28,6 +29,10 @@ export default async function ResumeScreeningPage() {
             <p>Start an automated CV analysis for a candidate applying to a published role.</p>
           </div>
         </header>
+        <BulkResumeScreeningPanel
+          driveUrl={process.env.GOOGLE_BULK_RESUME_DRIVE_URL || ""}
+          roleOptions={roleOptions}
+        />
         <CandidateApplicationForm
           submitUrl="/api/applicants"
           title="Start a resume screening"

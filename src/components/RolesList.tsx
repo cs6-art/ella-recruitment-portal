@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 import ActionFeedback from "@/components/ActionFeedback";
 import Pagination from "@/components/Pagination";
 import UiIcon from "@/components/UiIcon";
+import { canEditRoleRequest } from "@/lib/access-control";
 
 const statusFilters = [
   "All",
@@ -17,6 +18,8 @@ const statusFilters = [
   "Approved",
   "Rejected",
   "Recruitment Setup",
+  "Job Posted",
+  "Posted",
 ] as const;
 
 type RoleRequest = {
@@ -191,12 +194,14 @@ export default function RolesList({
   }
 
   function canEditRole(role: RoleRequest) {
-    const editableStatuses = new Set(["Pending HR Discussion", "Pending Management Approval", "Returned for Revision", "On Hold"]);
-    return editableStatuses.has(role.status.trim()) && (canReviewRole || canApproveRole || role.requesterEmail.trim().toLowerCase() === userEmail.trim().toLowerCase());
+    return canEditRoleRequest({ email: userEmail, canReviewRole, canApproveRole }, role);
   }
 
   async function deleteRole(role: RoleRequest) {
-    if (!window.confirm(`Delete ${role.jobTitle || role.roleId}? This role request cannot be recovered.`)) return;
+    const activeWarning = ["Approved", "Recruitment Setup", "Job Posted"].includes(role.status.trim())
+      ? " This may also remove an approved or published role from the role list."
+      : "";
+    if (!window.confirm(`Delete ${role.jobTitle || role.roleId}? This role request cannot be recovered.${activeWarning}`)) return;
     setDeletingRoleId(role.roleId); setActionError(""); setActionMessage("");
     try {
       const response = await fetch(`/api/roles/${encodeURIComponent(role.roleId)}`, { method: "DELETE", credentials: "same-origin" });

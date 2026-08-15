@@ -366,13 +366,17 @@ export async function POST(request: Request) {
         ? result.roleId
         : typeof result.Role_ID === "string"
           ? result.Role_ID
-          : undefined;
+          : raw.trim() === ""
+            ? roleId
+            : undefined;
     const returnedStatus =
       typeof result.status === "string"
         ? result.status
         : typeof result.Status === "string"
           ? result.Status
-          : undefined;
+          : raw.trim() === ""
+            ? initialStatus
+            : undefined;
 
     if (!webhookResponse.ok) {
       console.error(

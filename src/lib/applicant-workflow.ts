@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { google } from "googleapis";
 import { z } from "zod";
 
-import { createFinalInterviewEvent, deleteFinalInterviewEvent, checkCalendarAvailability } from "@/lib/google-calendar";
+import { createFinalInterviewEvent, deleteFinalInterviewEvent, checkCalendarAvailability, type CalendarAvailabilityResult } from "@/lib/google-calendar";
 import { getPortalSettings, getRoleRequestById } from "@/lib/google-sheets";
 import { parseHodAvailabilitySlots, slotMatchesHodAvailability } from "@/lib/hod-availability";
 import { isValidTimezone, scheduledInstant } from "@/lib/interview-time";
@@ -500,6 +500,13 @@ export async function getBookingContext(kind: BookingKind, token: string): Promi
     .filter((slot) => field(slot, "Interview_Type", "Interview Type") === bookingKindValue(kind))
     .filter((slot) => field(slot, "Status").toLowerCase() === "available")
     .map(slotFrom)
+    .filter((slot) => {
+      try {
+        return scheduledInstant(slot.date, slot.startTime, slot.timezone || "Asia/Singapore").getTime() > Date.now();
+      } catch {
+        return false;
+      }
+    })
     .filter((slot) => slot.slotId)
     .sort(slotSort);
   const scheduledDate = currentSlot?.slot.date || (kind === "voice"
@@ -913,6 +920,7 @@ export async function createInterviewSlot(input: CreateInterviewSlotInput) {
   if (input.interviewType !== "AI Voice Interview" && input.interviewType !== "Final Interview") throw new Error("Choose a valid interview type.");
   if (Number.isNaN(Date.parse(`${date}T${startTime}:00`)) || Number.isNaN(Date.parse(`${date}T${endTime}:00`)) || startTime >= endTime) throw new Error("Choose a valid interview time range.");
   if (!isValidTimezone(timezone)) throw new Error("Choose a valid interview timezone.");
+  if (scheduledInstant(date, startTime, timezone).getTime() <= Date.now()) throw new Error("Interview slots must start in the future. Choose a later date or time.");
   const role = input.interviewType === "Final Interview" ? await getRoleRequestById(roleId) : null;
   if (input.interviewType === "Final Interview" && !role) throw new Error("Role request not found.");
   if (input.interviewType === "Final Interview" && role) {
@@ -955,11 +963,13 @@ export async function createConfiguredVoiceInterviewSlots({ roleId, mode, manual
   if (mode === "none") return { created: 0, skipped: 0, slots: [] };
   const settings = await getPortalSettings();
   const durationMinutes = Number(settings.find((setting) => setting.key === "Voice_Interview_Duration_Minutes")?.value || 30);
-  const slots = mode === "automatic"
+  const configuredSlots = mode === "automatic"
     ? generateAutomaticVoiceInterviewSlots({ startDate: autoStartDate, endDate: autoEndDate, timezone, durationMinutes })
     : manualSlots;
-  if (slots.length === 0) throw new Error("No AI Voice Interview slots were generated from the selected availability.");
-  if (slots.some((slot) => !isValidTimezone(slot.timezone))) throw new Error("Choose a valid timezone for every AI Voice Interview slot.");
+  if (configuredSlots.length === 0) throw new Error("No AI Voice Interview slots were generated from the selected availability.");
+  if (configuredSlots.some((slot) => !isValidTimezone(slot.timezone))) throw new Error("Choose a valid timezone for every AI Voice Interview slot.");
+  const slots = configuredSlots.filter((slot) => scheduledInstant(slot.date, slot.startTime, slot.timezone).getTime() > Date.now());
+  if (slots.length === 0) throw new Error("All selected AI Voice Interview slots are in the past. Choose a future date or time.");
 
   const data = await readSheet("Interview_Slots", "X");
   const existing = new Set(data.rows.map((row) => `${field(row, "Interview_Type", "Interview Type").toLowerCase()}|${field(row, "Role_ID", "Role ID").toLowerCase()}|${field(row, "Date")}|${field(row, "Start_Time", "Start Time")}`));
@@ -990,6 +1000,153 @@ export async function createConfiguredVoiceInterviewSlots({ roleId, mode, manual
   await sheets.spreadsheets.values.append({ spreadsheetId, range: "'Interview_Slots'!A1", valueInputOption: "USER_ENTERED", insertDataOption: "INSERT_ROWS", requestBody: { values: rows } });
   invalidateSheetsCache("Interview_Slots");
   return { created: uniqueSlots.length, skipped: slots.length - uniqueSlots.length, slots: uniqueSlots };
+}
+
+export type FinalInterviewSlotSyncResult = {
+  created: number;
+  blocked: number;
+  unblocked: number;
+  skipped: number;
+  warnings: string[];
+};
+
+type ConfiguredInterviewSlot = {
+  date: string;
+  startTime: string;
+  endTime: string;
+  timezone: string;
+};
+
+function configuredSlotKey(slot: ConfiguredInterviewSlot) {
+  return `${slot.date}|${slot.startTime}|${slot.endTime}|${slot.timezone}`;
+}
+
+function calendarBlockReason(result: CalendarAvailabilityResult) {
+  if (result.checked && !result.available) return "HOD Google Calendar is busy during this interview window.";
+  if ("reason" in result && result.reason === "not_connected") return "The HOD Google Calendar is not connected.";
+  return "error" in result ? result.error || "The HOD Google Calendar could not be verified." : "The HOD Google Calendar could not be verified.";
+}
+
+function configuredSlotRow(data: SheetData, slot: ConfiguredInterviewSlot, roleId: string, status: string) {
+  const slotId = `SLOT-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+  return data.headers.map((header) => {
+    const key = normalize(header);
+    if (key === normalize("Slot_ID")) return slotId;
+    if (key === normalize("Interview_Type")) return "Final Interview";
+    if (key === normalize("Role_ID")) return roleId;
+    if (key === normalize("Date")) return slot.date;
+    if (key === normalize("Start_Time")) return slot.startTime;
+    if (key === normalize("End_Time")) return slot.endTime;
+    if (key === normalize("Timezone")) return slot.timezone;
+    if (key === normalize("Status")) return status;
+    if (key === normalize("Last_Updated")) return new Date().toISOString();
+    if (key === normalize("Google_Calendar_Event_Status")) return status === "Blocked" ? "Blocked by HOD Calendar" : "Availability Checked";
+    if (key === normalize("Google_Calendar_Event_Error")) return status === "Blocked" ? "The slot is not available for candidate booking." : "";
+    return "";
+  });
+}
+
+/**
+ * Makes HOD availability usable by the candidate booking flow. Each saved HOD
+ * window is represented by a final-interview slot, but it is only bookable
+ * when the assigned HOD's connected Google Calendar is free. Existing
+ * unbooked slots are rechecked so a calendar conflict cannot remain open.
+ */
+export async function synchronizeFinalInterviewSlots({ roleId, hodEmail, availability }: { roleId: string; hodEmail: string; availability: string }): Promise<FinalInterviewSlotSyncResult> {
+  const cleanRoleId = text(roleId);
+  const configured = [...new Map(parseHodAvailabilitySlots(availability).map((slot) => [configuredSlotKey(slot), slot])).values()];
+  const data = await readSheet("Interview_Slots", "X");
+  const roleRows = data.rows
+    .map((row, index) => ({ row, rowNumber: data.rowNumbers[index] }))
+    .filter(({ row }) => field(row, "Interview_Type", "Interview Type").toLowerCase() === "final interview" && field(row, "Role_ID", "Role ID").toLowerCase() === cleanRoleId.toLowerCase());
+  const updates: CellUpdate[] = [];
+  const appendValues: string[][] = [];
+  const warnings = new Set<string>();
+  let created = 0;
+  let blocked = 0;
+  let unblocked = 0;
+  let skipped = 0;
+
+  async function check(slot: ConfiguredInterviewSlot) {
+    if (!text(hodEmail)) return { available: false as const, checked: false as const, reason: "not_connected" as const };
+    return checkCalendarAvailability({ hodEmail: text(hodEmail), date: slot.date, startTime: slot.startTime, endTime: slot.endTime, timezone: slot.timezone });
+  }
+
+  async function applyCalendarState(row: Row, rowNumber: number, slot: ConfiguredInterviewSlot) {
+    const currentStatus = field(row, "Status").trim();
+    const result = await check(slot);
+    if (result.checked && result.available) {
+      if (currentStatus.toLowerCase() === "blocked") {
+        updates.push(
+          { tab: "Interview_Slots", row: rowNumber, header: "Status", value: "Available" },
+          { tab: "Interview_Slots", row: rowNumber, header: "Google_Calendar_Event_Status", value: "Availability Checked" },
+          { tab: "Interview_Slots", row: rowNumber, header: "Google_Calendar_Event_Error", value: "" },
+          { tab: "Interview_Slots", row: rowNumber, header: "Last_Updated", value: new Date().toISOString() },
+        );
+        unblocked += 1;
+      }
+      return;
+    }
+    const reason = calendarBlockReason(result);
+    warnings.add(reason);
+    if (currentStatus.toLowerCase() !== "blocked") blocked += 1;
+    updates.push(
+      { tab: "Interview_Slots", row: rowNumber, header: "Status", value: "Blocked" },
+      { tab: "Interview_Slots", row: rowNumber, header: "Google_Calendar_Event_Status", value: "Blocked by HOD Calendar" },
+      { tab: "Interview_Slots", row: rowNumber, header: "Google_Calendar_Event_Error", value: reason },
+      { tab: "Interview_Slots", row: rowNumber, header: "Last_Updated", value: new Date().toISOString() },
+    );
+  }
+
+  for (const { row, rowNumber } of roleRows) {
+    const currentStatus = field(row, "Status").trim().toLowerCase();
+    const applicationId = field(row, "Application_ID", "Application ID").trim();
+    if (currentStatus === "booked" || applicationId) continue;
+    const slot = {
+      date: field(row, "Date"),
+      startTime: field(row, "Start_Time", "Start Time"),
+      endTime: field(row, "End_Time", "End Time"),
+      timezone: field(row, "Timezone", "Time Zone"),
+    };
+    if (configured.length === 0 || !slotMatchesHodAvailability(slot, configured)) {
+      if (currentStatus !== "blocked") blocked += 1;
+      updates.push(
+        { tab: "Interview_Slots", row: rowNumber, header: "Status", value: "Blocked" },
+        { tab: "Interview_Slots", row: rowNumber, header: "Google_Calendar_Event_Status", value: "Blocked by HOD Availability" },
+        { tab: "Interview_Slots", row: rowNumber, header: "Google_Calendar_Event_Error", value: "This slot is outside the current HOD availability." },
+        { tab: "Interview_Slots", row: rowNumber, header: "Last_Updated", value: new Date().toISOString() },
+      );
+      continue;
+    }
+    await applyCalendarState(row, rowNumber, slot);
+  }
+
+  for (const slot of configured) {
+    const existing = roleRows.find(({ row }) => configuredSlotKey({
+      date: field(row, "Date"),
+      startTime: field(row, "Start_Time", "Start Time"),
+      endTime: field(row, "End_Time", "End Time"),
+      timezone: field(row, "Timezone", "Time Zone"),
+    }) === configuredSlotKey(slot));
+    if (existing) {
+      skipped += 1;
+      continue;
+    }
+    const result = await check(slot);
+    if (result.checked && result.available) {
+      appendValues.push(configuredSlotRow(data, slot, cleanRoleId, "Available"));
+      created += 1;
+    } else {
+      const reason = calendarBlockReason(result);
+      warnings.add(reason);
+      appendValues.push(configuredSlotRow(data, slot, cleanRoleId, "Blocked"));
+      blocked += 1;
+    }
+  }
+
+  if (updates.length > 0) await updateCells(updates);
+  if (appendValues.length > 0) await appendRows("Interview_Slots", appendValues);
+  return { created, blocked, unblocked, skipped, warnings: [...warnings] };
 }
 
 /**

@@ -10,6 +10,8 @@ import {
   type HodAvailabilitySlot,
 } from "@/lib/hod-availability";
 import { getRoleRequestById, updateRoleRequestFields } from "@/lib/google-sheets";
+import { synchronizeFinalInterviewSlots } from "@/lib/applicant-workflow";
+import { scheduledInstant } from "@/lib/interview-time";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
 
 export const runtime = "nodejs";
@@ -51,6 +53,9 @@ export async function POST(request: Request, context: Context) {
     })) {
       return NextResponse.json({ success: false, error: "Remove duplicate HOD availability windows before saving." }, { status: 400 });
     }
+    if (slots.some((slot) => scheduledInstant(slot.date, slot.startTime, slot.timezone).getTime() <= Date.now())) {
+      return NextResponse.json({ success: false, error: "HOD availability must start in the future. Remove past windows before saving." }, { status: 400 });
+    }
 
     const updatedAt = new Date().toISOString();
     await updateRoleRequestFields(role.roleId, {
@@ -62,7 +67,15 @@ export async function POST(request: Request, context: Context) {
       Last_Updated_By_Email: user.email.trim().toLowerCase(),
     });
 
-    return NextResponse.json({ success: true, slots, updatedAt, message: "HOD availability updated successfully." });
+    let slotWarning = "";
+    try {
+      const sync = await synchronizeFinalInterviewSlots({ roleId: role.roleId, hodEmail: role.hodEmail || role.requesterEmail, availability: serializeHodAvailabilitySlots(slots) });
+      if (sync.warnings.length > 0) slotWarning = ` Some final-interview slots were blocked: ${sync.warnings.join(" ")}`;
+    } catch (syncError) {
+      slotWarning = syncError instanceof Error ? ` Final-interview slots could not be synchronized: ${syncError.message}` : " Final-interview slots could not be synchronized.";
+      console.error("[API HOD Availability] Final slot synchronization failed:", syncError);
+    }
+    return NextResponse.json({ success: true, slots, updatedAt, message: `HOD availability updated successfully.${slotWarning}`, slotWarning });
   } catch (error) {
     console.error("[API HOD Availability] Update failed:", error instanceof Error ? { name: error.name, message: error.message } : error);
     return NextResponse.json({ success: false, error: "Unable to update HOD availability." }, { status: 500 });

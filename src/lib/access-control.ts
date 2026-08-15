@@ -31,18 +31,13 @@ export function canEditHodAvailability(user: Pick<SessionUser, "email" | "canRev
   return [role.hodEmail, role.requesterEmail].some((value) => value.trim().toLowerCase() === email);
 }
 
-const editableRoleRequestStatuses = new Set([
-  "Pending HR Discussion",
-  "Pending Management Approval",
-  "Returned for Revision",
-  "On Hold",
-]);
-
 export function canEditRoleRequest(
   user: Pick<SessionUser, "email" | "canReviewRole" | "canApproveRole">,
   role: Pick<RoleRequestDetails, "requesterEmail" | "status">,
 ): boolean {
-  if (!editableRoleRequestStatuses.has(role.status.trim())) return false;
+  // Role-request actions remain available after approval, setup, publication,
+  // or rejection so HR can correct or remove records from any workflow stage.
+  // Visibility and ownership still control who may perform the action.
   if (user.canReviewRole === true || user.canApproveRole === true) return true;
   return role.requesterEmail.trim().toLowerCase() === user.email.trim().toLowerCase();
 }

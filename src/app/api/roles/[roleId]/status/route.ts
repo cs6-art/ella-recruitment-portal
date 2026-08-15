@@ -363,7 +363,11 @@ export async function POST(
       );
     }
 
-    if (result.success !== true) {
+    // The canonical role workflow may persist the transition and return an
+    // empty 200 response when its response node has no body. Treat that as a
+    // successful transition; reject only a non-empty response that explicitly
+    // fails the workflow contract.
+    if (raw.trim() !== "" && result.success !== true) {
       console.error("[API Role Status] Invalid n8n success response:", result);
       return jsonError("The role status workflow returned an invalid response.", 502);
     }

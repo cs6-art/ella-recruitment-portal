@@ -124,6 +124,23 @@ export type InterviewBooking = {
   calendarEventError: string;
 };
 
+export type BulkResumeQueueItem = {
+  driveFileId: string;
+  driveFileName: string;
+  driveFileUrl: string;
+  roleId: string;
+  candidateName: string;
+  candidateEmail: string;
+  status: string;
+  applicationId: string;
+  errorMessage: string;
+  discoveredAt: string;
+  processingStartedAt: string;
+  processedAt: string;
+  attemptCount: string;
+  lastUpdated: string;
+};
+
 type SheetRow = Record<string, string>;
 
 function text(value: unknown) {
@@ -154,7 +171,9 @@ async function readTab(tabName: string, endColumn: string): Promise<{ headers: s
   const values = await cachedSheetsRead(`${tabName}:${endColumn}:${spreadsheetId}`, async () => {
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId,
-      range: `'${escapedTabName}'!A1:${endColumn}`,
+      // Google Sheets rejects mixed open-ended ranges such as A1:R. Use
+      // whole-column notation so newly appended queue rows are included.
+      range: `'${escapedTabName}'!A:${endColumn}`,
     });
     return response.data.values ?? [];
   });
@@ -337,6 +356,32 @@ export async function getInterviewBookings(): Promise<InterviewBooking[]> {
     calendarEventStatus: field(record, "Google_Calendar_Event_Status"),
     calendarEventError: field(record, "Google_Calendar_Event_Error"),
   })).filter((booking) => booking.slotId).sort((left, right) => `${left.date} ${left.startTime}`.localeCompare(`${right.date} ${right.startTime}`));
+}
+
+export async function getBulkResumeQueue(roleId = ""): Promise<BulkResumeQueueItem[]> {
+  const { rows } = await readTab("Bulk_Resume_Queue", "R");
+  const normalizedRoleId = roleId.trim().toLowerCase();
+  const latestByFile = new Map<string, BulkResumeQueueItem>();
+  rows
+    .map((record) => ({
+      driveFileId: field(record, "Drive_File_ID", "Drive File ID", "driveFileId"),
+      driveFileName: field(record, "Drive_File_Name", "Drive File Name", "driveFileName"),
+      driveFileUrl: field(record, "Drive_File_URL", "Drive File URL", "driveFileUrl"),
+      roleId: field(record, "Role_ID", "Role ID", "roleId"),
+      candidateName: field(record, "Candidate_Name", "Candidate Name", "candidateName"),
+      candidateEmail: field(record, "Candidate_Email", "Candidate Email", "candidateEmail"),
+      status: field(record, "Status"),
+      applicationId: field(record, "Application_ID", "Application ID", "applicationId"),
+      errorMessage: field(record, "Error_Message", "Error Message", "errorMessage"),
+      discoveredAt: field(record, "Discovered_At", "Discovered At", "discoveredAt"),
+      processingStartedAt: field(record, "Processing_Started_At", "Processing Started At", "processingStartedAt"),
+      processedAt: field(record, "Processed_At", "Processed At", "processedAt"),
+      attemptCount: field(record, "Attempt_Count", "Attempt Count", "attemptCount"),
+      lastUpdated: field(record, "Last_Updated", "Last Updated", "lastUpdated"),
+    }))
+    .filter((item) => item.driveFileId && (!normalizedRoleId || item.roleId.toLowerCase() === normalizedRoleId))
+    .forEach((item) => latestByFile.set(item.driveFileId, item));
+  return [...latestByFile.values()].sort((left, right) => Date.parse(right.lastUpdated || right.discoveredAt) - Date.parse(left.lastUpdated || left.discoveredAt));
 }
 
 export async function getApplicantById(id: string): Promise<ApplicantDetails | null> {

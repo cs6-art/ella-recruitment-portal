@@ -55,9 +55,11 @@ export async function POST(request: Request) {
     if (!response.ok) {
       const message = responseBody && typeof responseBody === "object" && "error" in responseBody
         ? String((responseBody as { error?: unknown }).error || "The AI parser rejected the document.")
-        : "The AI parser rejected the document.";
+        : raw.trim() || "The AI parser rejected the document.";
       return failure(message, 502);
     }
+
+    if (!raw.trim()) return failure("The AI parser returned no response. Check the n8n parser workflow and its AI credentials.", 502);
 
     const candidate = responseBody && typeof responseBody === "object" && "draft" in responseBody
       ? (responseBody as { draft?: unknown }).draft
