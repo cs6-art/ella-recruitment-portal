@@ -4389,11 +4389,14 @@ textarea:focus-visible {
 .applicants-toolbar { row-gap: 14px; }
 .bulk-selection-toolbar { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-left: auto; color: var(--muted); font-size: 12px; font-weight: 700; white-space: nowrap; }
 .bulk-selection-toolbar .btn { min-height: 36px; padding: 8px 12px; font-size: 12px; }
-.selection-column { width: 44px !important; min-width: 44px; padding-inline: 10px !important; text-align: center; }
-.selection-column input[type="checkbox"] { width: 16px; height: 16px; margin: 0; accent-color: var(--blue); cursor: pointer; }
+.selection-column { width: 44px !important; min-width: 44px; padding: 0 !important; text-align: center !important; vertical-align: middle !important; }
+.applicants-table td.selection-column, .applicants-table th.selection-column { width: 44px !important; min-width: 44px !important; max-width: 44px; }
+.selection-column input[type="checkbox"] { display: block; width: 16px; height: 16px; margin: 0 auto; accent-color: var(--blue); cursor: pointer; }
 .selection-column input[type="checkbox"]:disabled { cursor: not-allowed; opacity: .5; }
 .applicants-table tbody tr.is-selected { background: #eaf4ff; box-shadow: inset 3px 0 0 var(--blue); }
 .applicants-table tbody tr.is-selected:hover { background: #e3f0fc; }
+.roles-table tbody tr.is-selected { background: #eaf4ff; box-shadow: inset 3px 0 0 var(--blue); }
+.roles-table tbody tr.is-selected:hover { background: #e3f0fc; }
 .applicants-table th, .applicants-table td { padding-top: 12px; padding-bottom: 12px; }
 .applicants-table .applicant-table-actions { gap: 7px; }
 .applicants-table .applicant-table-actions a, .applicants-table .applicant-table-actions .table-danger-action { min-height: 30px; padding: 6px 9px; }

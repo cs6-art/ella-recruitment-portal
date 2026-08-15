@@ -445,6 +445,7 @@ export default function RolesList({
                   {visibleRoles.map((role) => (
                     <tr
                       key={role.roleId}
+                      className={selectedRoleIds.has(role.roleId) ? "is-selected" : undefined}
                       tabIndex={0}
                       role="link"
                       onClick={(event) => {
