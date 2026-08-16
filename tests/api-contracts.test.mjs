@@ -58,10 +58,10 @@ test("saved recruitment templates stay isolated from role request rows", () => {
   const editor = fs.readFileSync("src/components/RecruitmentSetupEditor.tsx", "utf8");
   assert.match(templateRoute, /Recruitment_Templates/);
   assert.doesNotMatch(templateRoute, /Role_Requests/);
-  assert.match(editor, /Save as template/);
-  assert.match(editor, /Saved template/);
-  assert.match(editor, /Load standard script/);
-  assert.match(editor, /Delete/);
+  assert.doesNotMatch(editor, /CALL SCRIPT TEMPLATES/);
+  assert.doesNotMatch(editor, /SAVED TEMPLATES/);
+  assert.match(editor, /Reset changes/);
+  assert.doesNotMatch(editor, /Load standard script/);
 });
 
 test("candidate duplicate prevention is shared by public and HR routes", () => {

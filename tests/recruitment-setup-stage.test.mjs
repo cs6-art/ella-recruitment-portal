@@ -27,6 +27,8 @@ test("publishing uses explicit conditional requirements", () => {
   assert.match(readiness, /Salary_Disclosure_Status/);
   assert.doesNotMatch(readiness, /Experience_Requirement_Status/);
   assert.match(readiness, /HOD_Interview_Required/);
+  assert.match(readiness, /hodAvailabilitySlots/);
+  assert.match(readiness, /future HOD interview availability window/);
   assert.match(readiness, /License_Requirement_Status/);
 });
 
@@ -42,13 +44,13 @@ test("publishing is blocked until Ready for Publishing", () => {
   assert.match(route, /Job Posted/);
 });
 
-test("voice interview availability is configured separately and generated on publish", async () => {
+test("voice interview availability is not part of Recruitment Setup", async () => {
   const voiceAvailability = fs.readFileSync("src/lib/voice-interview-availability.ts", "utf8");
-  assert.match(editor, /AI VOICE INTERVIEW AVAILABILITY/);
-  assert.match(editor, /Enter specific slots now/);
-  assert.match(editor, /Generate weekday slots/);
-  assert.match(route, /createConfiguredVoiceInterviewSlots/);
-  assert.match(route, /setupAction === "publish_role"/);
+  assert.doesNotMatch(editor, /AI VOICE INTERVIEW AVAILABILITY/);
+  assert.doesNotMatch(editor, /Enter specific slots now/);
+  assert.doesNotMatch(editor, /Generate weekday slots/);
+  // The availability library remains available to the Bookings workflow for
+  // legacy roles; it is no longer exposed in the setup editor.
   assert.match(route, /Voice_Interview_Availability_Mode/);
   assert.match(voiceAvailability, /9 \* 60/);
 
@@ -115,7 +117,7 @@ test("evaluation field catalog is shared between the schema, editor, and n8n pay
   assert.match(editor, /Always included/);
 
   assert.match(route, /Evaluation_Fields: JSON\.stringify/);
-  assert.match(route, /BASELINE_EVALUATION_FIELDS/);
+  assert.match(route, /evaluationFieldsForSetup/);
 
   const { recruitmentSetupSchema } = await import("../src/lib/recruitment-setup-schema.ts");
   const base = {

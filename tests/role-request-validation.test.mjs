@@ -59,6 +59,10 @@ test("required-field and vacancy rules remain in the shared schema", () => {
 });
 
 test("role creation only renders the requisition and HOD screening fields", () => {
+  assert.match(formSource, /id=\"employmentType\"/);
+  assert.match(apiSource, /employmentType: input\.employmentType/);
+  assert.match(schemaSource, /employmentType: z\.enum/);
+
   for (const field of [
     "jobDescription",
     "jobTitle",
@@ -80,7 +84,6 @@ test("role creation only renders the requisition and HOD screening fields", () =
 
   for (const removedField of [
     "workLocation",
-    "employmentType",
     "jobResponsibilities",
     "requiredSkills",
     "experienceRequired",

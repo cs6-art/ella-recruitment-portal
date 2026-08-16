@@ -13,7 +13,7 @@ import {
   type ApplicantDetails,
   type CandidateStatusHistoryEntry,
 } from "@/lib/candidate-applications";
-import { getRoleRequestById, type RoleRequestDetails } from "@/lib/google-sheets";
+import type { RoleRequestDetails } from "@/lib/google-sheets";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
 import { formatMatchScore } from "@/lib/score-format";
 
@@ -138,6 +138,7 @@ function CombinedScreeningEvidence({ applicant }: { applicant: ApplicantDetails 
         <div className="applicant-copy-block"><span>AI Summary</span><p>{applicant.voiceSummary || "No AI summary is available."}</p></div>
         <div className="applicant-copy-columns"><div><span>Strengths</span><p>{applicant.voiceStrengths || "No strengths recorded."}</p></div><div><span>Concerns</span><p>{applicant.voiceConcerns || "No concerns recorded."}</p></div></div>
         <div className="applicant-copy-columns"><div><span>Communication Quality</span><p>{applicant.voiceCommunicationQuality || "Not provided."}</p></div><div><span>Answer Completeness</span><p>{applicant.voiceAnswerCompleteness || "Not provided."}</p></div></div>
+        {applicant.voiceEvaluationFields.length > 0 && <div className="applicant-copy-columns">{applicant.voiceEvaluationFields.map((evaluation) => <div key={evaluation.key}><span>{evaluation.label}</span><p>{evaluation.value}</p></div>)}</div>}
         <div className="applicant-copy-block"><span>Recommended Follow-up Questions</span><p>{applicant.voiceFollowUpQuestions || "No follow-up questions were recommended."}</p></div>
         {applicant.voiceTranscript ? <details className="applicant-transcript"><summary>View full transcript</summary><pre>{applicant.voiceTranscript}</pre></details> : <div className="applicant-copy-block"><span>Transcript</span><p>No transcript is available.</p></div>}
       </div>
@@ -174,13 +175,13 @@ export default async function ApplicantDetailsPage({ params }: { params: Promise
   const applicationId = decodeURIComponent((await params).applicationId);
   const [applicant, history] = await Promise.all([getApplicantById(applicationId), getCandidateStatusHistory(applicationId)]);
   if (!applicant) return <AppShell user={user}><main className="container page"><section className="card"><div className="empty"><p>Applicant Not Found.</p><Link className="btn btn-secondary" href="/applicants">Back to Applicants</Link></div></section></main></AppShell>;
-  const role = applicant.voiceDecision.toLowerCase() === "approve" ? await getRoleRequestById(applicant.roleId) : null;
+  const role = applicant.voiceDecision.toLowerCase() === "approve" ? applicant.roleDetails || null : null;
   const resumeComments = applicant.resumeComments || latestDecisionComment(history, "resume");
   const voiceComments = applicant.voiceComments || latestDecisionComment(history, "voice");
   const finalComments = applicant.finalComments || latestDecisionComment(history, "final");
 
   return <AppShell user={user}><main className="container page applicant-details-page">
-    <header className="applicant-detail-header"><Link href="/applicants" className="applicant-back-link"><UiIcon name="arrow-left" size={15} />Back to Applicants</Link><div className="applicant-detail-title-row"><div><span className="eyebrow-dark">APPLICANT PROFILE</span><h1>{applicant.candidateName || "Unnamed Candidate"}</h1><p>{applicant.applicationId} · {applicant.email || "No Email Provided"}</p></div><span className={applicantStageClass(applicant.currentStage)}>{applicant.currentStage}</span></div><div className="applicant-detail-actions"><Link className="btn btn-secondary" href={`/roles/${encodeURIComponent(applicant.roleId)}`}><UiIcon name="briefcase" size={15} />View Role</Link><Link className="btn btn-secondary" href={`/roles/${encodeURIComponent(applicant.roleId)}/applicants`}><UiIcon name="applicants" size={15} />Role Applicants</Link><ApplicantDetailActions applicationId={applicant.applicationId} candidateName={applicant.candidateName} /></div></header>
+    <header className="applicant-detail-header"><Link href="/applicants" className="portal-back-link applicant-back-link"><UiIcon name="arrow-left" size={15} />Back to Applicants</Link><div className="applicant-detail-title-row"><div><span className="eyebrow-dark">APPLICANT PROFILE</span><h1>{applicant.candidateName || "Unnamed Candidate"}</h1><p>{applicant.applicationId} · {applicant.email || "No Email Provided"}</p></div><span className={applicantStageClass(applicant.currentStage)}>{applicant.currentStage}</span></div><div className="applicant-detail-actions"><Link className="btn btn-secondary" href={`/roles/${encodeURIComponent(applicant.roleId)}`}><UiIcon name="briefcase" size={15} />View Role</Link><Link className="btn btn-secondary" href={`/roles/${encodeURIComponent(applicant.roleId)}/applicants`}><UiIcon name="applicants" size={15} />Role Applicants</Link><ApplicantDetailActions applicationId={applicant.applicationId} candidateName={applicant.candidateName} /></div></header>
     <div className="applicant-detail-summary"><DetailField label="Selected Role" value={applicant.selectedRole} /><DetailField label="Department" value={applicant.department} /><DetailField label="Applied" value={dateValue(applicant.appliedAt)} /><DetailField label="Match Score" value={formatMatchScore(applicant.matchScore)} /><DetailField label="Recommendation" value={applicant.recommendation} /><DetailField label="Next Action" value={applicant.nextAction} /></div>
     <div className="applicant-detail-grid"><div className="applicant-detail-main">
       <ApplicantDecisionPanel applicationId={applicant.applicationId} resumeDecision={applicant.resumeDecision} resumeComments={resumeComments} voiceDecision={applicant.voiceDecision} voiceComments={voiceComments} voiceStatus={applicant.voiceStatus} finalInterviewStatus={applicant.finalInterviewStatus} finalStatus={applicant.finalStatus} finalComments={finalComments} finalBookingLink={applicant.finalBookingLink} canReview={user.canReviewRole === true || user.canApproveRole === true} />

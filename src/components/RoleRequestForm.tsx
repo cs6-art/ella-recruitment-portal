@@ -5,6 +5,7 @@ import type { FormEvent } from "react";
 
 import ActionFeedback from "@/components/ActionFeedback";
 import UiIcon from "@/components/UiIcon";
+import ValidationSummary from "@/components/ValidationSummary";
 import {
   legacyAvailabilityDates,
   legacyAvailabilityTimes,
@@ -33,6 +34,7 @@ type FormState = {
   requestType: string;
   department: string;
   jobTitle: string;
+  employmentType: string;
   numberOfVacancies: number;
   reasonForRequest: string;
   jobDescription: string;
@@ -52,6 +54,7 @@ const initial: FormState = {
   requestType: "Staff Addition",
   department: "",
   jobTitle: "",
+  employmentType: "Full-Time",
   numberOfVacancies: 1,
   reasonForRequest: "",
   jobDescription: "",
@@ -128,6 +131,8 @@ export default function RoleRequestForm({ user, roleId, initialValues }: RoleReq
         ? { replacementEmployee: "" }
         : {}),
     }));
+    setError("");
+    setFieldErrors((current) => ({ ...current, [name]: "" }));
   }
 
   function updateAvailability(index: number, name: keyof HodAvailabilitySlot, value: string) {
@@ -137,6 +142,8 @@ export default function RoleRequestForm({ user, roleId, initialValues }: RoleReq
         slotIndex === index ? { ...slot, [name]: value } : slot
       )),
     }));
+    setError("");
+    setFieldErrors((current) => ({ ...current, hodAvailabilitySlots: "" }));
   }
 
   function addAvailability() {
@@ -306,38 +313,7 @@ export default function RoleRequestForm({ user, roleId, initialValues }: RoleReq
           </div>
         )}
 
-        {error && (
-          <div className="section">
-            <div ref={errorSummaryRef} className="error-box message-box" role="alert" tabIndex={-1} aria-label="Form errors">
-              <span className="message-box-icon" aria-hidden="true"><UiIcon name="alert" size={17} /></span>
-              <div className="message-box-body">
-                <strong className="message-box-title">
-                  {Object.entries(fieldErrors).length > 0
-                    ? `${Object.entries(fieldErrors).length} ${Object.entries(fieldErrors).length === 1 ? "field needs" : "fields need"} your attention`
-                    : error}
-                </strong>
-                {Object.entries(fieldErrors).length > 0 && (
-                  <>
-                    <p className="message-box-text">{error}</p>
-                    <ul className="field-error-list">
-                      {Object.entries(fieldErrors).map(([field, message]) => {
-                        const formatted = formatFieldError(field, message);
-                        return (
-                          <li key={field}>
-                            <a href={`#${field}`}>
-                              <span className="field-error-link-label">{formatted.label}</span>
-                              <span className="field-error-link-text">{formatted.message}</span>
-                            </a>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+        {error && <div className="section"><ValidationSummary error={error} issues={Object.entries(fieldErrors).map(([field, message]) => { const formatted = formatFieldError(field, message); return { field, label: formatted.label, message: formatted.message, href: `#${field}` }; })} summaryRef={errorSummaryRef} /></div>}
 
         <section className="section">
           <div className="section-title">
@@ -377,6 +353,17 @@ export default function RoleRequestForm({ user, roleId, initialValues }: RoleReq
             <div className="field">
               <label htmlFor="department">Department</label>
               <input id="department" {...fieldErrorProps("department")} required value={form.department} onChange={(event) => update("department", event.target.value)} placeholder="e.g. Inside Sales" />
+            </div>
+
+            <div className="field">
+              <label htmlFor="employmentType">Employment Type</label>
+              <select id="employmentType" {...fieldErrorProps("employmentType")} value={form.employmentType} onChange={(event) => update("employmentType", event.target.value)}>
+                <option>Full-Time</option>
+                <option>Part-Time</option>
+                <option>Contract</option>
+                <option>Temporary</option>
+                <option>Internship</option>
+              </select>
             </div>
 
             <div className="field">

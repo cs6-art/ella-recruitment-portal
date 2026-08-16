@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import ActionFeedback from "@/components/ActionFeedback";
+import { useConfirmation } from "@/components/ConfirmationModal";
+import ValidationSummary, { type ValidationIssue } from "@/components/ValidationSummary";
 
 type DirectoryUser = {
   email: string;
@@ -33,6 +35,18 @@ const emptyForm: AccountForm = {
   active: true,
 };
 
+const accountFieldLabels: Record<string, string> = {
+  fullName: "Full name",
+  email: "Email address",
+  accessRole: "Access role",
+};
+
+const accountFieldAnchors: Record<string, string> = {
+  fullName: "#user-full-name",
+  email: "#user-email",
+  accessRole: "#user-access-role",
+};
+
 function permissionLabels(user: DirectoryUser) {
   return [
     user.canCreateRole && "Create roles",
@@ -45,6 +59,7 @@ function permissionLabels(user: DirectoryUser) {
 
 export default function UserAccountsEditor({ currentEmail }: { currentEmail: string }) {
   const router = useRouter();
+  const { confirm } = useConfirmation();
   const [users, setUsers] = useState<DirectoryUser[]>([]);
   const [form, setForm] = useState<AccountForm>(emptyForm);
   const [originalEmail, setOriginalEmail] = useState("");
@@ -52,6 +67,8 @@ export default function UserAccountsEditor({ currentEmail }: { currentEmail: str
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [saveError, setSaveError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState("");
 
   async function loadUsers() {
@@ -79,6 +96,8 @@ export default function UserAccountsEditor({ currentEmail }: { currentEmail: str
     setForm(emptyForm);
     setError("");
     setMessage("");
+    setSaveError("");
+    setFieldErrors({});
     setShowForm(true);
   }
 
@@ -87,18 +106,46 @@ export default function UserAccountsEditor({ currentEmail }: { currentEmail: str
     setForm({ ...user });
     setError("");
     setMessage("");
+    setSaveError("");
+    setFieldErrors({});
     setShowForm(true);
   }
 
   function updateForm<Key extends keyof AccountForm>(key: Key, value: AccountForm[Key]) {
     setForm((current) => ({ ...current, [key]: value }));
+    setError("");
+    setMessage("");
+    setSaveError("");
+    setFieldErrors((current) => ({ ...current, [String(key)]: "" }));
+  }
+
+  function closeForm() {
+    setShowForm(false);
+    setError("");
+    setMessage("");
+    setSaveError("");
+    setFieldErrors({});
   }
 
   async function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setSaving(true);
     setError("");
     setMessage("");
+    setSaveError("");
+    setFieldErrors({});
+
+    const issues: ValidationIssue[] = [];
+    if (!form.fullName.trim()) issues.push({ field: "fullName", label: accountFieldLabels.fullName, message: "Enter the user's full name.", href: accountFieldAnchors.fullName });
+    if (!form.email.trim()) issues.push({ field: "email", label: accountFieldLabels.email, message: "Enter an email address.", href: accountFieldAnchors.email });
+    else if (!/^\S+@\S+\.\S+$/.test(form.email.trim())) issues.push({ field: "email", label: accountFieldLabels.email, message: "Enter a valid email address.", href: accountFieldAnchors.email });
+    if (!form.accessRole.trim()) issues.push({ field: "accessRole", label: accountFieldLabels.accessRole, message: "Enter an access role.", href: accountFieldAnchors.accessRole });
+    if (issues.length > 0) {
+      setFieldErrors(Object.fromEntries(issues.map((issue) => [issue.field || issue.label, issue.message])));
+      setSaveError("Please correct the highlighted fields before saving.");
+      return;
+    }
+
+    setSaving(true);
     try {
       const endpoint = originalEmail ? `/api/user-directory?originalEmail=${encodeURIComponent(originalEmail)}` : "/api/user-directory";
       const response = await fetch(endpoint, {
@@ -113,8 +160,8 @@ export default function UserAccountsEditor({ currentEmail }: { currentEmail: str
       setShowForm(false);
       await loadUsers();
       router.refresh();
-    } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Unable to save the user account.");
+    } catch (caught) {
+      setSaveError(caught instanceof Error ? caught.message : "Unable to save the user account.");
     } finally {
       setSaving(false);
     }
@@ -123,7 +170,7 @@ export default function UserAccountsEditor({ currentEmail }: { currentEmail: str
   async function toggleActive(user: DirectoryUser) {
     if (user.email === currentEmail.trim().toLowerCase()) return;
     const action = user.active ? "deactivate" : "reactivate";
-    if (!window.confirm(`Are you sure you want to ${action} ${user.fullName || user.email}?`)) return;
+    if (!(await confirm({ title: `${action === "deactivate" ? "Deactivate" : "Reactivate"} user account?`, message: `Are you sure you want to ${action} ${user.fullName || user.email}?`, confirmLabel: action === "deactivate" ? "Deactivate" : "Reactivate", tone: action === "deactivate" ? "danger" : "primary" }))) return;
     setError("");
     setMessage("");
     try {
@@ -163,6 +210,7 @@ export default function UserAccountsEditor({ currentEmail }: { currentEmail: str
       </section>
 
       {error && <ActionFeedback kind="error">{error}</ActionFeedback>}
+      {saveError && <ValidationSummary error={saveError} title="Save failed" issues={Object.entries(fieldErrors).filter(([, message]) => Boolean(message)).map(([field, message]) => ({ field, label: accountFieldLabels[field] || field, message, href: accountFieldAnchors[field] }))} />}
       {message && <ActionFeedback kind="success">{message}</ActionFeedback>}
 
       <section className="user-account-stats" aria-label="Account summary">
@@ -172,11 +220,11 @@ export default function UserAccountsEditor({ currentEmail }: { currentEmail: str
       </section>
 
       {showForm && <section className="card user-account-form-card">
-        <div className="card-header"><div><h2>{originalEmail ? "Edit user account" : "Add user account"}</h2><p>Set the account identity, department, and allowed actions.</p></div><button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)}>Cancel</button></div>
-        <form className="user-account-form" onSubmit={(event) => void save(event)}>
-          <div className="field"><label htmlFor="user-full-name">Full name</label><input id="user-full-name" value={form.fullName} onChange={(event) => updateForm("fullName", event.target.value)} required /></div>
-          <div className="field"><label htmlFor="user-email">Email address</label><input id="user-email" type="email" value={form.email} onChange={(event) => updateForm("email", event.target.value)} required /></div>
-          <div className="field"><label htmlFor="user-access-role">Access role</label><input id="user-access-role" value={form.accessRole} onChange={(event) => updateForm("accessRole", event.target.value)} placeholder="HR or HOD" required /></div>
+        <div className="card-header"><div><h2>{originalEmail ? "Edit user account" : "Add user account"}</h2><p>Set the account identity, department, and allowed actions.</p></div><button type="button" className="btn btn-secondary" onClick={closeForm}>Cancel</button></div>
+        <form className="user-account-form" noValidate onSubmit={(event) => void save(event)}>
+          <div className="field"><label htmlFor="user-full-name">Full name</label><input id="user-full-name" value={form.fullName} onChange={(event) => updateForm("fullName", event.target.value)} required aria-invalid={Boolean(fieldErrors.fullName)} />{fieldErrors.fullName && <small className="field-error">{fieldErrors.fullName}</small>}</div>
+          <div className="field"><label htmlFor="user-email">Email address</label><input id="user-email" type="email" value={form.email} onChange={(event) => updateForm("email", event.target.value)} required aria-invalid={Boolean(fieldErrors.email)} />{fieldErrors.email && <small className="field-error">{fieldErrors.email}</small>}</div>
+          <div className="field"><label htmlFor="user-access-role">Access role</label><input id="user-access-role" value={form.accessRole} onChange={(event) => updateForm("accessRole", event.target.value)} placeholder="HR or HOD" required aria-invalid={Boolean(fieldErrors.accessRole)} />{fieldErrors.accessRole && <small className="field-error">{fieldErrors.accessRole}</small>}</div>
           <div className="field"><label htmlFor="user-department">Department</label><input id="user-department" value={form.department} onChange={(event) => updateForm("department", event.target.value)} placeholder="AI, Finance, Operations" /></div>
           <fieldset className="user-account-permissions"><legend>Permissions</legend><label><input type="checkbox" checked={form.canCreateRole} onChange={(event) => updateForm("canCreateRole", event.target.checked)} /> Create role requests</label><label><input type="checkbox" checked={form.canReviewRole} onChange={(event) => updateForm("canReviewRole", event.target.checked)} /> Review role requests</label><label><input type="checkbox" checked={form.canApproveRole} onChange={(event) => updateForm("canApproveRole", event.target.checked)} /> Approve role requests</label><label><input type="checkbox" checked={form.canEditSettings} onChange={(event) => updateForm("canEditSettings", event.target.checked)} /> Edit settings</label><label><input type="checkbox" checked={form.canManageUsers} onChange={(event) => updateForm("canManageUsers", event.target.checked)} /> Manage user accounts and roles</label></fieldset>
           <label className="user-account-active"><input type="checkbox" checked={form.active} onChange={(event) => updateForm("active", event.target.checked)} /> Account is active</label>

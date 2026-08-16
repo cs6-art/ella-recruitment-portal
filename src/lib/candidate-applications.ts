@@ -1,13 +1,14 @@
 import { google } from "googleapis";
 import { cachedSheetsRead } from "@/lib/sheets-cache";
+import { getRoleRequestById, type RoleRequestDetails } from "@/lib/google-sheets";
+import { evaluationFieldsForSetup, type EvaluationField } from "@/lib/recruitment-setup-schema";
 
 export {
   getCandidateStatusHistory,
+  syncPastAvailableInterviewSlots,
   syncPastBookedInterviewsNoShow,
   type CandidateStatusHistoryEntry,
 } from "./applicant-workflow";
-
-import { syncPastBookedInterviewsNoShow } from "./applicant-workflow";
 
 const spreadsheetId = process.env.GOOGLE_CANDIDATE_SPREADSHEET_ID || process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
 const serviceAccountEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
@@ -46,6 +47,7 @@ export type ApplicantSummary = {
 };
 
 export type ApplicantDetails = ApplicantSummary & {
+  roleDetails?: RoleRequestDetails;
   aiAnalysisSummary: string;
   interviewQuestions: string;
   resumeText: string;
@@ -69,6 +71,7 @@ export type ApplicantDetails = ApplicantSummary & {
   voiceCommunicationQuality: string;
   voiceAnswerCompleteness: string;
   voiceFollowUpQuestions: string;
+  voiceEvaluationFields: { key: string; label: string; value: string }[];
   voiceTranscript: string;
   voiceScheduledDate: string;
   voiceScheduledTime: string;
@@ -170,6 +173,21 @@ function field(record: SheetRow, ...names: string[]) {
   return "";
 }
 
+function configuredVoiceEvaluationValues(
+  fields: EvaluationField[],
+  result: SheetRow | undefined,
+  fallback: SheetRow | undefined,
+) {
+  return fields
+    .filter((configured) => !["score", "recommendation", "strengths", "concerns"].includes(configured.key))
+    .map((configured) => {
+      const value = field(result || {}, configured.key, configured.label)
+        || field(fallback || {}, configured.key, configured.label);
+      return { key: configured.key, label: configured.label, value };
+    })
+    .filter((configured) => configured.value);
+}
+
 async function readTab(tabName: string, endColumn: string): Promise<{ headers: string[]; rows: SheetRow[] }> {
   const escapedTabName = tabName.replace(/'/g, "''");
   const values = await cachedSheetsRead(`${tabName}:${endColumn}:${spreadsheetId}`, async () => {
@@ -206,6 +224,8 @@ function nextActionFor(record: SheetRow) {
   const voiceDecision = field(record, "Voice_HR_Decision").toLowerCase();
   const finalInterviewStatus = field(record, "Status 3 (Final Interview)").toLowerCase();
 
+  if (voiceStatus.includes("no show") || finalStatus.includes("voice interview no show")) return "Reschedule Voice Interview";
+  if (finalInterviewStatus.includes("no show") || finalStatus.includes("final interview no show")) return "Reschedule Final Interview";
   if (finalStatus.includes("approved for ai voice") || voiceStatus === "awaiting schedule") return "Schedule Voice Interview";
   if (["calling", "initiated", "in progress"].includes(voiceStatus)) return "Voice Interview In Progress";
   if (voiceStatus === "scheduled" || finalStatus.includes("voice interview scheduled")) return "Complete Voice Interview";
@@ -224,6 +244,8 @@ function workflowRecommendationFor(record: SheetRow) {
   const voiceDecision = field(record, "Voice_HR_Decision").toLowerCase();
   const finalInterviewStatus = field(record, "Status 3 (Final Interview)").toLowerCase();
 
+  if (voiceStatus.includes("no show") || finalStatus.includes("voice interview no show")) return "AI Voice Interview No Show";
+  if (finalInterviewStatus.includes("no show") || finalStatus.includes("final interview no show")) return "Final Interview No Show";
   if (["calling", "initiated", "in progress"].includes(voiceStatus) || finalStatus.includes("voice interview in progress")) {
     return "AI Voice Interview In Progress";
   }
@@ -351,7 +373,8 @@ export function calculateApplicantMetrics(rows: SheetRow[], now = new Date(), ti
 }
 
 export async function getApplicants(): Promise<ApplicantSummary[]> {
-  await syncPastBookedInterviewsNoShow();
+  // No-show maintenance runs in the background. Keep the Applicants page
+  // focused on reading the data it needs to render.
   const { rows } = await readTab("High_Match_Profile", "BH");
   return rows
     .map(mapApplicant)
@@ -360,13 +383,16 @@ export async function getApplicants(): Promise<ApplicantSummary[]> {
 }
 
 export async function getApplicantMetrics(): Promise<ApplicantMetrics> {
-  await syncPastBookedInterviewsNoShow();
+  // The scheduled interview maintenance handles past no-show updates. Keep
+  // dashboard metrics read-only so the dashboard does not wait on that work.
   const { rows } = await readTab("High_Match_Profile", "BH");
   return calculateApplicantMetrics(rows.filter((record) => applicationId(record) !== ""));
 }
 
 export async function getInterviewBookings(): Promise<InterviewBooking[]> {
-  await syncPastBookedInterviewsNoShow();
+  // Maintenance runs from the server background task. Keep this read-only so
+  // the Bookings page is not blocked by several reconciliation sheet reads
+  // and writes before it can render.
   const { rows } = await readTab("Interview_Slots", "X");
   return rows.map((record) => ({
     slotId: field(record, "Slot_ID", "Slot ID"),
@@ -387,6 +413,40 @@ export async function getInterviewBookings(): Promise<InterviewBooking[]> {
     calendarEventStatus: field(record, "Google_Calendar_Event_Status"),
     calendarEventError: field(record, "Google_Calendar_Event_Error"),
   })).filter((booking) => booking.slotId).sort((left, right) => `${left.date} ${left.startTime}`.localeCompare(`${right.date} ${right.startTime}`));
+}
+
+function hasActiveBookingLink(record: SheetRow, kind: "voice" | "final") {
+  const token = kind === "voice"
+    ? field(record, "Booking_Token") || field(record, "Booking_Token_Hash")
+    : field(record, "Final_Interview_Booking_Token") || field(record, "Final_Interview_Booking_Token_Hash");
+  if (!token) return false;
+  const status = (kind === "voice"
+    ? field(record, "Booking_Token_Status")
+    : field(record, "Final_Interview_Booking_Token_Status")).toLowerCase();
+  if (["used", "booked", "expired", "revoked"].includes(status)) return false;
+  const expiresAt = kind === "voice"
+    ? field(record, "Booking_Token_Expires_At")
+    : field(record, "Final_Interview_Booking_Token_Expires_At");
+  const expiryTime = Date.parse(expiresAt);
+  return !expiresAt || !Number.isFinite(expiryTime) || expiryTime >= Date.now();
+}
+
+/**
+ * The admin calendar should only count generated availability for roles that
+ * currently have at least one candidate booking link. Persisted bookings are
+ * still returned separately so completed appointments remain visible.
+ */
+export async function getActiveBookingLinkRoleIds() {
+  const { rows } = await readTab("High_Match_Profile", "BH");
+  const voice = new Set<string>();
+  const final = new Set<string>();
+  rows.forEach((record) => {
+    const roleId = field(record, "Role_ID", "Role ID").trim().toLowerCase();
+    if (!roleId) return;
+    if (hasActiveBookingLink(record, "voice")) voice.add(roleId);
+    if (hasActiveBookingLink(record, "final")) final.add(roleId);
+  });
+  return { voice: [...voice], final: [...final] };
 }
 
 export async function getBulkResumeQueue(roleId = ""): Promise<BulkResumeQueueItem[]> {
@@ -430,7 +490,6 @@ export async function getBulkResumeQueue(roleId = ""): Promise<BulkResumeQueueIt
 }
 
 export async function getApplicantById(id: string): Promise<ApplicantDetails | null> {
-  await syncPastBookedInterviewsNoShow();
   const [{ rows: applicantRows }, { rows: voiceResults }, { rows: callLogs }, { rows: finalInterviews }, { rows: slots }] = await Promise.all([
     readTab("High_Match_Profile", "BH"),
     readTab("Voice_Interview_Results", "AF"),
@@ -465,9 +524,14 @@ export async function getApplicantById(id: string): Promise<ApplicantDetails | n
   const finalInterviewSlot = applicantSlots.find((row) => field(row, "Interview_Type", "Interview Type").toLowerCase().includes("final"));
   const interviewSlot = voiceInterviewSlot || applicantSlots[0];
   const displaySummary = applyFinalBookingState(summary, record, finalInterviewSlot);
+  const role = field(record, "Voice_HR_Decision").toLowerCase() === "approve" || voiceResult || callLog
+    ? await getRoleRequestById(summary.roleId)
+    : null;
+  const configuredEvaluationFields = evaluationFieldsForSetup(role?.evaluationFieldToggles, role?.customEvaluationFields);
 
   return {
     ...displaySummary,
+    roleDetails: role || undefined,
     aiAnalysisSummary: field(record, "AI_Analysis_Summary", "AI Analysis Summary"),
     interviewQuestions: field(record, "Interview_Questions", "Interview Questions"),
     resumeText: field(record, "Resume_Text", "Resume_CV", "Resume/CV", "Resume Text"),
@@ -494,6 +558,7 @@ export async function getApplicantById(id: string): Promise<ApplicantDetails | n
     voiceCommunicationQuality: field(voiceResult ?? {}, "Communication_Quality", "Communication Quality") || field(callLog ?? {}, "Communication_Quality", "Communication Quality"),
     voiceAnswerCompleteness: field(voiceResult ?? {}, "Answer_Completeness", "Answer Completeness") || field(callLog ?? {}, "Answer_Completeness", "Answer Completeness"),
     voiceFollowUpQuestions: field(voiceResult ?? {}, "Recommended_Follow_Up_Questions", "Recommended Follow Up Questions") || field(callLog ?? {}, "Recommended_Follow_Up_Questions", "Recommended Follow Up Questions"),
+    voiceEvaluationFields: configuredVoiceEvaluationValues(configuredEvaluationFields, voiceResult, callLog),
     voiceTranscript: field(voiceResult ?? {}, "Transcript", "Voice_Transcript", "Call_Transcript") || field(callLog ?? {}, "Transcript", "Voice_Transcript", "Call_Transcript"),
     voiceScheduledDate: field(record, "Voice_Interview_Scheduled_Date"),
     voiceScheduledTime: field(record, "Voice_Interview_Scheduled_Time"),

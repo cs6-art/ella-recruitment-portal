@@ -2,7 +2,6 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import AppShell from "@/components/AppShell";
-import BulkResumeScreeningPanel from "@/components/BulkResumeScreeningPanel";
 import CandidateApplicationForm from "@/components/CandidateApplicationForm";
 import { getRoleRequests } from "@/lib/google-sheets";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
@@ -18,6 +17,7 @@ export default async function ResumeScreeningPage() {
   const roleOptions = roles
     .filter((role) => role.status === "Job Posted" && role.recruitmentSetupStatus === "Published")
     .map((role) => ({ roleId: role.roleId, label: `${role.jobTitle || role.roleId} (${role.roleId})` }));
+  const driveUrl = process.env.GOOGLE_BULK_RESUME_DRIVE_URL?.trim() || "";
 
   return (
     <AppShell user={user}>
@@ -29,10 +29,18 @@ export default async function ResumeScreeningPage() {
             <p>Start an automated CV analysis for a candidate applying to a published role.</p>
           </div>
         </header>
-        <BulkResumeScreeningPanel
-          driveUrl={process.env.GOOGLE_BULK_RESUME_DRIVE_URL || ""}
-          roleOptions={roleOptions}
-        />
+        <section className="card resume-drive-option" aria-labelledby="resume-drive-title">
+          <div>
+            <span className="eyebrow-dark">ALTERNATIVE INTAKE</span>
+            <h2 id="resume-drive-title">Upload from Google Drive</h2>
+            <p>Open the shared resume folder to add candidate files for the connected screening workflow.</p>
+          </div>
+          {driveUrl ? (
+            <a className="btn btn-secondary" href={driveUrl} target="_blank" rel="noreferrer">Upload from Google Drive</a>
+          ) : (
+            <span className="resume-drive-unavailable">Google Drive upload is not configured.</span>
+          )}
+        </section>
         <CandidateApplicationForm
           submitUrl="/api/applicants"
           title="Start a resume screening"

@@ -12,6 +12,7 @@ import {
 } from "@/lib/applicant-workflow";
 import { candidateBodyForValidation, readCandidateIntakeRequest } from "@/lib/candidate-intake";
 import { getRoleRequestById } from "@/lib/google-sheets";
+import { evaluationFieldsForSetup } from "@/lib/recruitment-setup-schema";
 import { consumeRateLimit, rateLimitHeaders, requestClientKey } from "@/lib/rate-limit";
 import { deleteResumeFile, storeResumeFile } from "@/lib/resume-files";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
@@ -72,6 +73,7 @@ export async function POST(request: Request) {
       roleId,
       jobTitle: role.jobTitle,
       department: role.department,
+      evaluationFields: evaluationFieldsForSetup(role.evaluationFieldToggles, role.customEvaluationFields),
       source: "HR Manual Intake",
       submittedAt,
       candidate: {

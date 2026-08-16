@@ -5,15 +5,17 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import ActionFeedback from "@/components/ActionFeedback";
+import { useConfirmation } from "@/components/ConfirmationModal";
 import UiIcon from "@/components/UiIcon";
 
 export default function ApplicantDetailActions({ applicationId, candidateName }: { applicationId: string; candidateName: string }) {
   const router = useRouter();
+  const { confirm } = useConfirmation();
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
 
   async function deleteRecord() {
-    if (!window.confirm(`Delete ${candidateName || "this applicant"}? This removes the applicant, screening evidence, history, and linked interview slots.`)) return;
+    if (!(await confirm({ title: "Delete applicant record?", message: `Delete ${candidateName || "this applicant"}? This removes the applicant, screening evidence, history, and linked interview slots.`, confirmLabel: "Delete", tone: "danger" }))) return;
     setDeleting(true); setError("");
     try {
       const response = await fetch(`/api/applicants/${encodeURIComponent(applicationId)}`, { method: "DELETE", credentials: "same-origin" });

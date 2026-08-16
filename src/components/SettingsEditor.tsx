@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import ActionFeedback from "@/components/ActionFeedback";
+import ValidationSummary from "@/components/ValidationSummary";
 
 type Setting = {
   key: string;
@@ -45,6 +46,7 @@ export default function SettingsEditor() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [saveError, setSaveError] = useState("");
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -67,11 +69,13 @@ export default function SettingsEditor() {
 
   function update(key: string, value: string) {
     setSettings((current) => current.map((setting) => setting.key === key ? { ...setting, value } : setting));
+    setSaveError("");
   }
 
   async function save() {
     setSaving(true);
     setError("");
+    setSaveError("");
     setMessage("");
     try {
       const response = await fetch("/api/settings", { method: "PUT", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ settings }) });
@@ -79,8 +83,8 @@ export default function SettingsEditor() {
       if (!response.ok || data.success !== true) throw new Error(data.error || "Unable to save settings.");
       setMessage(data.message || "Settings saved successfully.");
       router.refresh();
-    } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Unable to save settings.");
+    } catch (caught) {
+      setSaveError(caught instanceof Error ? caught.message : "Unable to save settings.");
     } finally {
       setSaving(false);
     }
@@ -97,6 +101,7 @@ export default function SettingsEditor() {
 
       {loading && <div className="empty">Loading settings...</div>}
       {error && <ActionFeedback kind="error">{error}</ActionFeedback>}
+      {saveError && <ValidationSummary error={saveError} title="Save failed" />}
       {message && <ActionFeedback kind="success">{message}</ActionFeedback>}
 
       {!loading && !error && <section className="card settings-integrations">

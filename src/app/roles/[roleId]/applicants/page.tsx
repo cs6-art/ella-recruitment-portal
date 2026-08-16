@@ -21,7 +21,7 @@ export default async function RoleApplicantsPage({ params }: { params: Promise<{
 
   return (
     <AppShell user={user}>
-      <div className="role-applicants-context"><Link href={`/roles/${encodeURIComponent(roleId)}`}>← Back to role details</Link><span>{role?.jobTitle || roleId}</span></div>
+      <div className="role-applicants-context"><Link className="portal-back-link" href={`/roles/${encodeURIComponent(roleId)}`}>← Back to role details</Link><span>{role?.jobTitle || roleId}</span></div>
       <ApplicantsList applicants={roleApplicants} canManageApplicants={user.canReviewRole === true || user.canApproveRole === true} title={`${role?.jobTitle || roleId} Applicants`} description="Review candidates connected to this role." />
     </AppShell>
   );

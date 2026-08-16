@@ -58,6 +58,20 @@ The portal sends this payload to `N8N_RECRUITMENT_SETUP_WEBHOOK_URL`, or to
 }
 ```
 
+The candidate-application event also carries `evaluationFields`, using the
+same baseline, optional, and custom field definitions saved in the role's
+`Evaluation_Fields` column. The resume-screening workflow and the post-call
+voice evaluator must use that list rather than maintaining separate rubrics.
+
+After a voice call, the Vapi result workflow is responsible for evaluating the
+completed transcript against `evaluationFields` and writing one result row to
+`Voice_Interview_Results`. It must persist at least `Voice_Score`,
+`Voice_Recommendation`, `Voice_Strengths`, `Voice_Concerns`, and one value for
+each configured optional/custom field, using the field key or label as the
+column name. The portal reads that row after the call and displays the result
+for HR review; it does not treat a call as graded merely because a prompt was
+saved.
+
 n8n must verify `X-Webhook-Secret`, verify the role is still in
 `expectedCurrentStatus`, persist the editable `AI_System_Prompt` template and
 the structured criteria values, and use `VAPI_Resolved_System_Prompt` (or

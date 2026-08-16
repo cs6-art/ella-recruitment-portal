@@ -2,7 +2,8 @@
 
 import { useRef, useState } from "react";
 
-import ActionFeedback from "@/components/ActionFeedback";
+import { useConfirmation } from "@/components/ConfirmationModal";
+import ValidationSummary from "@/components/ValidationSummary";
 import { STATUS_ACTION_LABELS } from "@/lib/status-actions";
 import { notificationPresentation } from "@/lib/notification-status";
 
@@ -74,6 +75,7 @@ export default function HrReview({
   const [comments, setComments] = useState("");
   const [submittingAction, setSubmittingAction] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const { confirm } = useConfirmation();
   const submissionLock = useRef(false);
   const retryRequest = useRef<{ action: string; id: string } | null>(null);
 
@@ -115,7 +117,7 @@ export default function HrReview({
       return;
     }
 
-    if (!window.confirm(actionPrompt(action))) return;
+    if (!(await confirm({ title: actionLabels[action] || "Confirm status change", message: actionPrompt(action), confirmLabel: actionLabels[action] || "Confirm" }))) return;
 
     submissionLock.current = true;
     setSubmittingAction(action);
@@ -241,7 +243,7 @@ export default function HrReview({
               />
               <small>Required and saved in Status History.</small>
             </div>
-            {error && <ActionFeedback kind="error">{error}</ActionFeedback>}
+            {error && <ValidationSummary error={error} title="Status update failed" />}
           </div>
 
           <div className="form-actions">

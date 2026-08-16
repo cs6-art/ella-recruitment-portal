@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import ActionFeedback from "@/components/ActionFeedback";
+import ValidationSummary, { type ValidationIssue } from "@/components/ValidationSummary";
 import { notificationPresentation } from "@/lib/notification-status";
 import {
   renderRecruitmentSystemPrompt,
@@ -54,6 +55,7 @@ type Setup = {
   experienceRequirementStatus?: string;
   licenseRequirementStatus?: string;
   hodInterviewRequired?: string;
+  hodAvailabilitySlots?: string;
   voiceInterviewAvailabilityMode?: string;
   voiceInterviewSlots?: VoiceInterviewSlot[] | string;
   voiceInterviewAutoStartDate?: string;
@@ -77,16 +79,6 @@ type Props = {
 
 type SetupField = keyof Setup;
 type SetupValue = string | string[] | VoiceInterviewSlot[];
-
-type RecruitmentTemplate = {
-  id: string;
-  name: string;
-  sourceRoleId: string;
-  setup: Record<string, unknown>;
-  createdAt: string;
-  updatedAt: string;
-  createdByName: string;
-};
 
 const questionKeys = [
   "requiredInterviewQuestion1",
@@ -113,22 +105,36 @@ function valueText(value: unknown) {
   return String(value ?? "").trim();
 }
 
-function dateInputValue(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
+const setupFieldLabels: Record<string, string> = {
+  screeningCriteria: "Screening instructions",
+  requiredInterviewQuestion1: "Question 1",
+  requiredInterviewQuestion2: "Question 2",
+  requiredInterviewQuestion3: "Question 3",
+  requiredInterviewQuestion4: "Question 4",
+  requiredInterviewQuestion5: "Question 5",
+  postingChannels: "Posting channels",
+  salaryDisclosureStatus: "Salary visibility",
+  licenseRequirementStatus: "License requirement",
+  hodInterviewRequired: "HOD interview",
+  hodAvailabilitySlots: "HOD interview availability",
+  customEvaluationFields: "Custom evaluation fields",
+};
 
-function automaticAvailabilityDefaults() {
-  const start = new Date();
-  const end = new Date(start);
-  end.setDate(end.getDate() + 30);
-  return { startDate: dateInputValue(start), endDate: dateInputValue(end), timezone: "Asia/Singapore" };
-}
+const setupFieldAnchors: Record<string, string> = {
+  screeningCriteria: "#vapi-screeningCriteria",
+  requiredInterviewQuestion1: "#vapi-question-1",
+  requiredInterviewQuestion2: "#vapi-question-2",
+  requiredInterviewQuestion3: "#vapi-question-3",
+  requiredInterviewQuestion4: "#vapi-question-4",
+  requiredInterviewQuestion5: "#vapi-question-5",
+  salaryDisclosureStatus: "#vapi-salary-disclosure",
+  licenseRequirementStatus: "#vapi-license-requirement",
+  hodInterviewRequired: "#vapi-hod-interview",
+  hodAvailabilitySlots: "#hod-interview-availability",
+};
 
-function editorVoiceSlots(value: VoiceInterviewSlot[] | string | undefined): VoiceInterviewSlot[] {
-  return Array.isArray(value) ? value : parseVoiceInterviewSlots(value);
+function setupFieldLabel(field: string) {
+  return setupFieldLabels[field] || field.replace(/([A-Z])/g, " $1").replace(/^./, (value) => value.toUpperCase());
 }
 
 function questionFallbacks(setup: Setup) {
@@ -155,7 +161,6 @@ function buildInitialValues(setup: Setup): Setup {
   const questions = questionFallbacks(setup);
   const hodQuestion1 = valueText(setup.hodScreeningQuestion1);
   const hodQuestion2 = valueText(setup.hodScreeningQuestion2);
-  const automaticDefaults = setup.voiceInterviewAvailabilityMode === "automatic" ? automaticAvailabilityDefaults() : { startDate: "", endDate: "", timezone: "Asia/Singapore" };
   return {
     ...setup,
     // Slots 1-2 are reserved for the HOD's own screening questions from the
@@ -170,9 +175,6 @@ function buildInitialValues(setup: Setup): Setup {
     customEvaluationFields: Array.isArray(setup.customEvaluationFields) ? setup.customEvaluationFields.slice(0, 3) : [],
     voiceInterviewAvailabilityMode: setup.voiceInterviewAvailabilityMode || "none",
     voiceInterviewSlots: parseVoiceInterviewSlots(setup.voiceInterviewSlots),
-    voiceInterviewAutoStartDate: setup.voiceInterviewAutoStartDate || automaticDefaults.startDate,
-    voiceInterviewAutoEndDate: setup.voiceInterviewAutoEndDate || automaticDefaults.endDate,
-    voiceInterviewTimezone: setup.voiceInterviewTimezone || automaticDefaults.timezone,
     recruitmentSetupStatus: setup.recruitmentSetupStatus || "Draft",
   };
 }
@@ -214,10 +216,6 @@ function generatedPrompt(values: Setup, template = STANDARD_VAPI_SYSTEM_PROMPT_T
  * text instead of template syntax. */
 function generatedSamplePrompt(values: Setup, template = STANDARD_VAPI_SYSTEM_PROMPT_TEMPLATE) {
   return renderRecruitmentSystemPromptSample(template, promptRenderInput(values));
-}
-
-function defaultPrompt() {
-  return STANDARD_VAPI_SYSTEM_PROMPT_TEMPLATE;
 }
 
 function getQuestions(values: Setup) {
@@ -271,15 +269,6 @@ function Field({
   );
 }
 
-function ReadOnlyFact({ label, value }: { label: string; value?: string | number }) {
-  return (
-    <div className="vapi-fact">
-      <span>{label}</span>
-      <strong>{valueText(value) || "Not specified"}</strong>
-    </div>
-  );
-}
-
 export default function RecruitmentSetupEditor({ roleId, status, setup, editable: canReview, updatedAt, updatedBy, updatedByEmail, onSaved }: Props) {
   // Saving is server-side restricted to Approved / Recruitment Setup roles, so
   // a published role is viewable but not editable here. The section used to be
@@ -287,6 +276,7 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
   // see what Ella had actually been configured to ask.
   const editable = canReview && (status === "Approved" || status === "Recruitment Setup");
   const setupKey = JSON.stringify(setup);
+  const initialValues = useMemo(() => buildInitialValues(JSON.parse(setupKey) as Setup), [setupKey]);
   const [values, setValues] = useState<Setup>(() => buildInitialValues(setup));
   const [advancedPrompt, setAdvancedPrompt] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -294,38 +284,15 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
   const [message, setMessage] = useState("");
   const [warning, setWarning] = useState("");
   const [error, setError] = useState("");
-  const [templates, setTemplates] = useState<RecruitmentTemplate[]>([]);
-  const [selectedTemplateId, setSelectedTemplateId] = useState("");
-  const [templateName, setTemplateName] = useState("");
-  const [templateLoading, setTemplateLoading] = useState(false);
-  const [templateError, setTemplateError] = useState("");
-  const [templateActionId, setTemplateActionId] = useState("");
+  const [validationIssues, setValidationIssues] = useState<ValidationIssue[]>([]);
   const actionRequestId = useRef(globalThis.crypto.randomUUID());
+  const errorSummaryRef = useRef<HTMLDivElement>(null);
+  const initialSetupKey = useMemo(() => JSON.stringify(initialValues), [initialValues]);
 
   useEffect(() => {
-    setValues(buildInitialValues(setup));
+    setValues(initialValues);
     setAdvancedPrompt(false);
-  }, [setupKey]);
-
-  useEffect(() => {
-    let cancelled = false;
-    async function loadTemplates() {
-      setTemplateLoading(true);
-      setTemplateError("");
-      try {
-        const response = await fetch("/api/recruitment-templates", { credentials: "same-origin", cache: "no-store" });
-        const result = await response.json();
-        if (!response.ok || result.success !== true) throw new Error(result.error || "Unable to load recruitment templates.");
-        if (!cancelled) setTemplates(Array.isArray(result.templates) ? result.templates : []);
-      } catch (caught) {
-        if (!cancelled) setTemplateError(caught instanceof Error ? caught.message : "Unable to load recruitment templates.");
-      } finally {
-        if (!cancelled) setTemplateLoading(false);
-      }
-    }
-    void loadTemplates();
-    return () => { cancelled = true; };
-  }, []);
+  }, [initialValues]);
 
   const currentPrompt = valueText(values.aiSystemPrompt) || STANDARD_VAPI_SYSTEM_PROMPT_TEMPLATE;
   const generated = useMemo(() => generatedPrompt(values, currentPrompt), [currentPrompt, values]);
@@ -333,12 +300,13 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
   const questions = getQuestions(values);
   const suggestedQuestions = useMemo(() => suggestedQuestionItems(values.aiGeneratedScreeningQuestions), [values.aiGeneratedScreeningQuestions]);
   const draftPayload = promptPayload(values, currentPrompt, "save_draft", actionRequestId.current);
-  const draftReadiness = getSetupReadiness(draftPayload as SetupReadinessInput, "draft");
-  const recruitmentReadiness = getSetupReadiness(draftPayload as SetupReadinessInput, "recruitment-ready");
-  const publishingReadiness = getSetupReadiness(draftPayload as SetupReadinessInput, "ready-for-publishing");
+  const readinessInput = { ...draftPayload, hodAvailabilitySlots: setup.hodAvailabilitySlots } as SetupReadinessInput;
+  const draftReadiness = getSetupReadiness(readinessInput, "draft");
+  const recruitmentReadiness = getSetupReadiness(readinessInput, "recruitment-ready");
+  const publishingReadiness = getSetupReadiness(readinessInput, "ready-for-publishing");
   const setupStatus = values.recruitmentSetupStatus || setup.recruitmentSetupStatus || "Draft";
 
-  const savedTemplates = templates.filter((template) => template.id);
+  const setupHasChanges = JSON.stringify(values) !== initialSetupKey;
 
   if (!(status === "Approved" || status === "Recruitment Setup" || status === "Job Posted")) return null;
 
@@ -347,68 +315,12 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
     setMessage("");
     setWarning("");
     setError("");
-  };
-
-  const changeVoiceAvailabilityMode = (mode: string) => {
-    if (mode !== "automatic") {
-      update("voiceInterviewAvailabilityMode", mode);
-      return;
-    }
-    const defaults = automaticAvailabilityDefaults();
-    setValues((current) => ({
-      ...current,
-      voiceInterviewAvailabilityMode: mode,
-      voiceInterviewAutoStartDate: current.voiceInterviewAutoStartDate || defaults.startDate,
-      voiceInterviewAutoEndDate: current.voiceInterviewAutoEndDate || defaults.endDate,
-      voiceInterviewTimezone: current.voiceInterviewTimezone || defaults.timezone,
-    }));
-    setMessage("");
-    setWarning("");
-    setError("");
-  };
-
-  const updateVoiceSlot = (index: number, key: keyof VoiceInterviewSlot, value: string) => {
-    const slots = [...editorVoiceSlots(values.voiceInterviewSlots)];
-    slots[index] = { ...slots[index], [key]: value };
-    update("voiceInterviewSlots", slots);
-  };
-
-  const addVoiceSlot = () => {
-    const slots = editorVoiceSlots(values.voiceInterviewSlots);
-    if (slots.length >= 100) return;
-    update("voiceInterviewSlots", [...slots, { date: "", startTime: "09:00", endTime: "09:30", timezone: values.voiceInterviewTimezone || "Asia/Singapore" }]);
-  };
-
-  const removeVoiceSlot = (index: number) => update("voiceInterviewSlots", editorVoiceSlots(values.voiceInterviewSlots).filter((_, slotIndex) => slotIndex !== index));
-
-  const applySuggestedQuestion = (question: string) => {
-    const targetIndex = questionKeys.findIndex((key, index) => {
-      const lockedFromHod = index === 0 ? valueText(values.hodScreeningQuestion1) : index === 1 ? valueText(values.hodScreeningQuestion2) : "";
-      return !lockedFromHod && !valueText(values[key]);
-    });
-    if (targetIndex < 0) {
-      setWarning("All editable interview question fields are already filled. Clear one before using this suggestion.");
-      return;
-    }
-    update(questionKeys[targetIndex], question);
-    setMessage(`Suggestion added to Question ${targetIndex + 1}. Review or edit it before saving.`);
-  };
-
-  const applyStandardTemplate = () => {
-    setValues((current) => ({ ...current, aiSystemPrompt: defaultPrompt() }));
-    setAdvancedPrompt(true);
-    setMessage("Standard script loaded. Edit the script or the fields above before saving.");
+    setValidationIssues([]);
   };
 
   const openAdvancedPrompt = () => {
     setValues((current) => ({ ...current, aiSystemPrompt: valueText(current.aiSystemPrompt) || generated }));
     setAdvancedPrompt(true);
-  };
-
-  const resetToGeneratedPrompt = () => {
-    update("aiSystemPrompt", STANDARD_VAPI_SYSTEM_PROMPT_TEMPLATE);
-    setAdvancedPrompt(true);
-    setMessage("The standard script was restored. Your answers above will still be filled in automatically.");
   };
 
   const toggleChannel = (channel: string) => {
@@ -432,6 +344,7 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
     setMessage("");
     setWarning("");
     setError("");
+    setValidationIssues([]);
   };
 
   const addCustomField = () => {
@@ -443,78 +356,14 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
     setValues((current) => ({ ...current, customEvaluationFields: (current.customEvaluationFields || []).filter((_, itemIndex) => itemIndex !== index) }));
   };
 
-  const applyTemplate = (template: RecruitmentTemplate) => {
-    setValues(buildInitialValues({
-      ...template.setup,
-      postingChannels: normalizeChannels(template.setup.postingChannels as string[] | string | undefined),
-    } as Setup));
-    setSelectedTemplateId(template.id);
-    setAdvancedPrompt(true);
-    setMessage(`Loaded template "${template.name}" into the editor. Save the role only when you are ready.`);
+  const resetChanges = () => {
+    setValues(initialValues);
+    setAdvancedPrompt(false);
+    setMessage("");
     setWarning("");
     setError("");
+    setValidationIssues([]);
   };
-
-  async function saveTemplate() {
-    const name = templateName.trim();
-    if (!name) {
-      setTemplateError("Enter a template name before saving.");
-      return;
-    }
-
-    setTemplateActionId("saving");
-    setTemplateError("");
-    try {
-      const payload = {
-        id: "",
-        name,
-        sourceRoleId: roleId,
-        setup: {
-          ...values,
-          aiSystemPrompt: currentPrompt,
-          postingChannels: normalizeChannels(values.postingChannels),
-        },
-      };
-      const response = await fetch("/api/recruitment-templates", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const result = await response.json();
-      if (!response.ok || result.success !== true) throw new Error(result.error || "Unable to save recruitment template.");
-      const nextTemplate = result.template as RecruitmentTemplate;
-      setTemplates((current) => [...current.filter((template) => template.id !== nextTemplate.id), nextTemplate]);
-      setSelectedTemplateId(nextTemplate.id);
-      setTemplateName("");
-      setMessage(`Template "${name}" saved.`);
-    } catch (caught) {
-      setTemplateError(caught instanceof Error ? caught.message : "Unable to save recruitment template.");
-    } finally {
-      setTemplateActionId("");
-    }
-  }
-
-  async function deleteTemplate(template: RecruitmentTemplate) {
-    if (!window.confirm(`Delete template "${template.name}"?`)) return;
-    setTemplateActionId(template.id);
-    setTemplateError("");
-    try {
-      const response = await fetch(`/api/recruitment-templates?id=${encodeURIComponent(template.id)}`, {
-        method: "DELETE",
-        credentials: "same-origin",
-      });
-      const result = await response.json();
-      if (!response.ok || result.success !== true) throw new Error(result.error || "Unable to delete recruitment template.");
-      setTemplates((current) => current.filter((item) => item.id !== template.id));
-      if (selectedTemplateId === template.id) setSelectedTemplateId("");
-      setMessage(`Template "${template.name}" deleted.`);
-    } catch (caught) {
-      setTemplateError(caught instanceof Error ? caught.message : "Unable to delete recruitment template.");
-    } finally {
-      setTemplateActionId("");
-    }
-  }
 
   async function save(action: string) {
     setSaving(true);
@@ -522,11 +371,19 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
     setMessage("");
     setWarning("");
     setError("");
+    setValidationIssues([]);
 
     const payload = promptPayload(values, currentPrompt, action, actionRequestId.current);
     const parsed = recruitmentSetupSchema.safeParse(payload);
     if (!parsed.success) {
-      setError(`Please complete the required setup fields: ${parsed.error.issues.map((issue) => issue.message).join(" ")}`);
+      const issues = parsed.error.issues.map((issue) => {
+        const field = String(issue.path[0] || "setup");
+        return { field, label: setupFieldLabel(field), message: issue.message, href: setupFieldAnchors[field] };
+      });
+      setValidationIssues(issues);
+      setError("Please correct the highlighted setup fields before saving.");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      window.requestAnimationFrame(() => errorSummaryRef.current?.focus());
       setSaving(false);
       setSavingAction("");
       return;
@@ -537,9 +394,12 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
       : action === "mark_ready_for_publishing" || action === "publish_role"
         ? "ready-for-publishing"
         : "draft";
-    const readiness = getSetupReadiness(parsed.data as SetupReadinessInput, level);
+    const readiness = getSetupReadiness({ ...parsed.data, hodAvailabilitySlots: setup.hodAvailabilitySlots } as SetupReadinessInput, level);
     if (!readiness.valid) {
-      setError(`Complete these items before continuing: ${readiness.missingFields.map((field) => field.label).join(", ")}.`);
+      setValidationIssues(readiness.missingFields.map((field) => ({ field: field.key, label: field.label, message: "Complete this item before continuing.", href: setupFieldAnchors[field.key] })));
+      setError("Please complete the highlighted setup fields before continuing.");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      window.requestAnimationFrame(() => errorSummaryRef.current?.focus());
       setSaving(false);
       setSavingAction("");
       return;
@@ -555,11 +415,18 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
       const result = await response.json();
       if (!response.ok || result.success !== true) throw new Error(result.message || result.error || "Unable to save recruitment setup.");
       const notification = notificationPresentation(result.notificationStatus || "not_configured", result.notificationError);
-      setMessage(result.message || "VAPI setup saved successfully.");
+      const confirmationMessages: Record<string, string> = {
+        save_draft: "Draft saved successfully.",
+        mark_recruitment_ready: "Recruitment setup marked as ready.",
+        mark_ready_for_publishing: "Recruitment setup is ready for publishing.",
+        publish_role: "Role published successfully.",
+      };
+      setMessage(confirmationMessages[action] || result.message || "Recruitment setup saved successfully.");
       setWarning([notification.warning, typeof result.voiceSlotWarning === "string" ? result.voiceSlotWarning : ""].filter(Boolean).join(" "));
       actionRequestId.current = globalThis.crypto.randomUUID();
       onSaved(typeof result.status === "string" ? result.status : undefined);
     } catch (caught) {
+      setValidationIssues([]);
       setError(`${caught instanceof Error ? caught.message : "Unable to save recruitment setup."} Your entries were reloaded from the saved record below, so you can see exactly what was kept before retrying.`);
       // The setup fields are written to the sheet before the workflow call, so
       // a failure here does not necessarily mean nothing was saved. Reloading
@@ -572,7 +439,7 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
     }
   }
 
-  const actionLabel = (action: string, idle: string) => savingAction === action ? `Saving ${idle.replace(/^Mark as /, "").toLowerCase()}…` : idle;
+  const actionLabel = (action: string, idle: string) => savingAction === action ? action === "publish_role" ? "Publishing…" : "Saving…" : idle;
 
   return (
     <section id="recruitment-setup" className="card role-section recruitment-editor vapi-setup-editor">
@@ -586,86 +453,9 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
         <span className="setup-readonly">{editable ? "Editable by HR reviewers" : "Read-only"}</span>
       </div>
 
-      {error && <ActionFeedback kind="error" className="vapi-message">{error}</ActionFeedback>}
+      {error && <ValidationSummary error={error} title="Setup save failed" issues={validationIssues} summaryRef={errorSummaryRef} />}
       {message && <ActionFeedback kind="success" className="vapi-message">{message}</ActionFeedback>}
       {warning && <ActionFeedback kind="warning" className="vapi-message">{warning}</ActionFeedback>}
-
-      <div className="vapi-template-bar">
-        <div>
-          <span className="vapi-kicker">CALL SCRIPT</span>
-          <strong>Using the standard call script</strong>
-           <small>Everything you fill in below goes straight into Ella's phone script — nothing technical to write.</small>
-        </div>
-        <div className="vapi-template-actions">
-          <button type="button" className="btn btn-secondary" disabled={!editable || saving} onClick={applyStandardTemplate}>Load standard script</button>
-          <label className="field vapi-template-name">
-            <span>Template name</span>
-            <input value={templateName} disabled={!editable || saving || templateActionId === "saving"} placeholder="Save current setup as a template" onChange={(event) => setTemplateName(event.target.value)} />
-          </label>
-          <button type="button" className="btn btn-secondary" disabled={!editable || saving || templateActionId === "saving"} onClick={() => void saveTemplate()}>Save as template</button>
-        </div>
-      </div>
-
-      <div className="vapi-template-library">
-        <div className="vapi-section-heading">
-          <div>
-            <span className="vapi-kicker">SAVED TEMPLATES</span>
-            <h3>Reuse a saved setup</h3>
-            <p>Loading a template fills in the form below so you can adjust it. Nothing is saved until you click one of the save buttons.</p>
-          </div>
-          <span className="vapi-readonly-badge">{templateLoading ? "Loading..." : `${savedTemplates.length} saved`}</span>
-        </div>
-        {templateError && <ActionFeedback kind="error" className="vapi-message">{templateError}</ActionFeedback>}
-        <div className="vapi-template-picker">
-          <label className="field">
-            <span>Saved template</span>
-            <select
-              aria-label="Saved recruitment templates"
-              value={selectedTemplateId}
-              disabled={!editable || saving || templateLoading || savedTemplates.length === 0}
-              onChange={(event) => {
-                const selected = templates.find((template) => template.id === event.target.value);
-                setSelectedTemplateId(event.target.value);
-                if (selected) applyTemplate(selected);
-              }}
-            >
-              <option value="">{savedTemplates.length > 0 ? "Choose a saved template" : "No saved templates available"}</option>
-              {savedTemplates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}
-            </select>
-          </label>
-        </div>
-        {savedTemplates.length > 0 && (
-          <div className="vapi-template-list">
-            {savedTemplates.map((template) => (
-              <div className="vapi-template-item" key={template.id}>
-                <div>
-                  <strong>{template.name}</strong>
-                  <small>{template.sourceRoleId ? `Source role ${template.sourceRoleId}` : "No source role recorded"}</small>
-                </div>
-                <div className="vapi-template-item-actions">
-                  <button type="button" className="btn btn-secondary" disabled={!editable || saving || templateActionId === template.id} onClick={() => applyTemplate(template)}>Load</button>
-                  <button type="button" className="btn btn-secondary" disabled={!editable || saving || templateActionId === template.id} onClick={() => void deleteTemplate(template)}>Delete</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="vapi-role-context">
-        <div className="vapi-section-heading">
-          <div><span className="vapi-kicker">INITIAL ROLE CONTEXT</span><h3>Starting values from the role request</h3></div>
-          <span className="vapi-readonly-badge">Read-only</span>
-        </div>
-        <div className="vapi-fact-grid">
-          <ReadOnlyFact label="Role" value={values.roleTitle} />
-           <ReadOnlyFact label="Experience" value={valueText(values.minimumYearsOfExperience) || values.experienceRequired} />
-          <ReadOnlyFact label="Salary / budget" value={values.salaryOrBudgetRange || [values.salaryMin, values.salaryMax].filter(Boolean).join(" - ")} />
-          <ReadOnlyFact label="Availability" value={values.noticePeriodRequirement || values.earliestAvailabilityRule} />
-          <ReadOnlyFact label="Skills" value={values.keywordsToLookFor} />
-          <ReadOnlyFact label="Job description" value={values.jobDescription ? "Included" : "Not provided"} />
-        </div>
-      </div>
 
       <div className="vapi-builder">
         <div className="vapi-section-heading">
@@ -729,11 +519,11 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
         {suggestedQuestions.length > 0 && (
           <div className="vapi-suggested-questions">
             <div className="vapi-section-heading">
-              <div><span className="vapi-kicker">AI SUGGESTIONS</span><h4>Suggested interview questions</h4><p>Use these as ideas for HR and the hiring manager. Choose a suggestion to copy it into the next available editable question field.</p></div>
+              <div><span className="vapi-kicker">AI SUGGESTIONS</span><h4>Suggested interview questions</h4><p>Review these ideas with the hiring manager and enter the final wording in the question fields below.</p></div>
               <span className="vapi-readonly-badge">For review</span>
             </div>
             <ol>
-              {suggestedQuestions.map((question, index) => <li key={`${question}-${index}`}><p>{question}</p><button type="button" className="btn btn-secondary" disabled={!editable || saving} onClick={() => applySuggestedQuestion(question)}>Use suggestion</button></li>)}
+              {suggestedQuestions.map((question, index) => <li key={`${question}-${index}`}><p>{question}</p></li>)}
             </ol>
           </div>
         )}
@@ -754,27 +544,12 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
         </div>
       </div>
 
-      <div className="vapi-builder vapi-voice-availability-builder">
-        <div className="vapi-section-heading">
-          <div><span className="vapi-kicker">AI VOICE INTERVIEW AVAILABILITY</span><h3>How should candidates book the voice interview?</h3><p>This is an additional role-level schedule. Publishing creates these AI Voice Interview slots in the existing booking calendar; the separate Bookings page remains available for extra availability.</p></div>
-          {values.voiceInterviewSlotsGeneratedAt && <span className="vapi-readonly-badge">Generated on publish</span>}
-        </div>
-        <label className="field vapi-voice-availability-mode" htmlFor="vapi-voice-availability-mode"><span>Voice interview availability</span><select id="vapi-voice-availability-mode" value={values.voiceInterviewAvailabilityMode || "none"} disabled={!editable || saving} onChange={(event) => changeVoiceAvailabilityMode(event.target.value)}><option value="none">Set later in Bookings</option><option value="manual">Enter specific slots now</option><option value="automatic">Generate weekday slots · 9:00 AM–5:00 PM</option></select></label>
-        {values.voiceInterviewAvailabilityMode === "manual" && <div className="vapi-voice-slot-list">
-          {editorVoiceSlots(values.voiceInterviewSlots).map((slot, index) => <div className="vapi-voice-slot-row" key={`${index}-${slot.date}`}><label><span>Date</span><input type="date" min={dateInputValue(new Date())} value={slot.date} disabled={!editable || saving} onChange={(event) => updateVoiceSlot(index, "date", event.target.value)} /></label><label><span>Start</span><input type="time" step="900" value={slot.startTime} disabled={!editable || saving} onChange={(event) => updateVoiceSlot(index, "startTime", event.target.value)} /></label><label><span>End</span><input type="time" step="900" value={slot.endTime} disabled={!editable || saving} onChange={(event) => updateVoiceSlot(index, "endTime", event.target.value)} /></label><label><span>Timezone</span><input value={slot.timezone} disabled={!editable || saving} onChange={(event) => updateVoiceSlot(index, "timezone", event.target.value)} /></label><button type="button" className="btn btn-secondary" disabled={!editable || saving} onClick={() => removeVoiceSlot(index)}>Remove</button></div>)}
-          <button type="button" className="btn btn-secondary" disabled={!editable || saving || editorVoiceSlots(values.voiceInterviewSlots).length >= 100} onClick={addVoiceSlot}>Add voice interview slot</button>
-          {editorVoiceSlots(values.voiceInterviewSlots).length === 0 && <small className="vapi-voice-availability-help">Add at least one date and time before saving this option.</small>}
-        </div>}
-        {values.voiceInterviewAvailabilityMode === "automatic" && <div className="vapi-voice-automatic-grid"><p className="vapi-voice-availability-help">Weekdays only, 9:00 AM–5:00 PM in Asia/Singapore. Slots use the configured Voice Interview duration and are generated for the next 30 days when the role is published.</p></div>}
-      </div>
-
       <div className="vapi-preview">
         <div className="vapi-section-heading">
           <div><span className="vapi-kicker">{advancedPrompt ? "ADVANCED" : "SCRIPT PREVIEW"}</span><h3>{advancedPrompt ? "Edit the full interview script" : "See what Ella will say"}</h3><p>{advancedPrompt ? "For advanced use only. Keep the marker that says system_prompt exactly where it is — that's where your field answers above get inserted automatically." : "This includes your questions above and everything else Ella will say on the call, after your answers are filled in."}</p></div>
           <div className="vapi-preview-actions">
             {advancedPrompt && <button type="button" className="btn btn-secondary" disabled={!editable || saving} onClick={() => setAdvancedPrompt(false)}>Back to simple view</button>}
             {!advancedPrompt && <button type="button" className="btn btn-secondary" disabled={!editable || saving} onClick={openAdvancedPrompt}>Advanced: edit full script</button>}
-            {advancedPrompt && <button type="button" className="btn btn-secondary" disabled={!editable || saving} onClick={resetToGeneratedPrompt}>Reset to standard script</button>}
           </div>
         </div>
         {advancedPrompt ? (
@@ -803,9 +578,9 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
             </div>
           </fieldset>
           <div className="vapi-policy-grid">
-            <label>Salary visibility<select value={values.salaryDisclosureStatus || ""} disabled={!editable || saving} onChange={(event) => update("salaryDisclosureStatus", event.target.value)}><option value="">Choose one</option><option>Disclosed</option><option>Not disclosed</option></select></label>
-            <label>License requirement<select value={values.licenseRequirementStatus || ""} disabled={!editable || saving} onChange={(event) => update("licenseRequirementStatus", event.target.value)}><option value="">Choose one</option><option>Required</option><option>Preferred</option><option>Not required</option></select></label>
-            <label>HOD interview<select value={values.hodInterviewRequired || ""} disabled={!editable || saving} onChange={(event) => update("hodInterviewRequired", event.target.value)}><option value="">Choose one</option><option>Required</option><option>Not required</option></select></label>
+            <label htmlFor="vapi-salary-disclosure">Salary visibility<select id="vapi-salary-disclosure" value={values.salaryDisclosureStatus || ""} disabled={!editable || saving} onChange={(event) => update("salaryDisclosureStatus", event.target.value)}><option value="">Choose one</option><option>Disclosed</option><option>Not disclosed</option></select></label>
+            <label htmlFor="vapi-license-requirement">License requirement<select id="vapi-license-requirement" value={values.licenseRequirementStatus || ""} disabled={!editable || saving} onChange={(event) => update("licenseRequirementStatus", event.target.value)}><option value="">Choose one</option><option>Required</option><option>Preferred</option><option>Not required</option></select></label>
+            <label htmlFor="vapi-hod-interview">HOD interview<select id="vapi-hod-interview" value={values.hodInterviewRequired || ""} disabled={!editable || saving} onChange={(event) => update("hodInterviewRequired", event.target.value)}><option value="">Choose one</option><option>Required</option><option>Not required</option></select></label>
           </div>
         </div>
       </details>
@@ -824,6 +599,7 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
         <div className="vapi-save-note"><strong>{editable ? "Review the prompt before saving." : status === "Job Posted" ? "Read-only — this role is already published" : "Read-only setup"}</strong><small>{status === "Job Posted" ? `This is the setup Ella uses for applicants to this role.${updatedByEmail ? ` Last updated by ${updatedByEmail}.` : ""}` : updatedByEmail ? `Last updated by ${updatedByEmail}` : "The standard template remains available for this role."}</small></div>
         <div className="vapi-save-actions">
           {editable && <>
+            {setupHasChanges && <button type="button" className="btn btn-secondary" disabled={saving} onClick={resetChanges}>Reset changes</button>}
             <button type="button" className="btn btn-secondary" aria-busy={savingAction === "save_draft"} disabled={saving} onClick={() => void save("save_draft")}>{actionLabel("save_draft", "Save Draft")}</button>
             <button type="button" className="btn btn-secondary" aria-busy={savingAction === "mark_recruitment_ready"} disabled={saving || !recruitmentReadiness.valid} onClick={() => void save("mark_recruitment_ready")}>{actionLabel("mark_recruitment_ready", "Mark as Recruitment Ready")}</button>
             <button type="button" className="btn btn-secondary" aria-busy={savingAction === "mark_ready_for_publishing"} disabled={saving || !publishingReadiness.valid} onClick={() => void save("mark_ready_for_publishing")}>{actionLabel("mark_ready_for_publishing", "Mark as Ready for Publishing")}</button>

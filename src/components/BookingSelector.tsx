@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 import ActionFeedback from "@/components/ActionFeedback";
 import { countryOptions, CountryFlag } from "@/components/CountryOptions";
+import ValidationSummary from "@/components/ValidationSummary";
 
 type Slot = { slotId: string; date: string; startTime: string; endTime: string; timezone: string; status?: string };
 type Context = {
@@ -111,11 +112,11 @@ export default function BookingSelector({ token, initialContext }: { token: stri
       <div className="field booking-mobile-field"><span>Preferred mobile number *</span><div className="contact-number-controls"><label><span>Country code</span><div className="country-code-control"><CountryFlag country={countryOptions.find((country) => country.code === countryCode) || countryOptions[0]} /><select aria-label="Country code" value={countryCode} disabled={saving} onChange={(event) => setCountryCode(event.target.value)}>{countryOptions.map((country) => <option key={country.code} value={country.code}>{country.code} {country.label}</option>)}</select></div></label><label><span>Local mobile number</span><input required aria-label="Local mobile number" inputMode="numeric" value={localMobile} disabled={saving} placeholder={(countryOptions.find((country) => country.code === countryCode) || countryOptions[0]).placeholder} onChange={(event) => setLocalMobile(cleanDigits(event.target.value))} /></label></div><small>Enter the local number only, without the country code.</small></div>
       <div className="booking-section-heading"><h2>Choose a date</h2><span>{context.slots.length} available times</span></div>
       {context.slots.length === 0 ? <div className="booking-empty">There are no available times right now. Please contact the recruitment team for a new booking link.</div> : <>
-        <div className="booking-date-cards" aria-label="Available interview dates">{dates.map((date) => <button type="button" key={date} className={`booking-date-card ${selectedDate === date ? "is-selected" : ""}`} onClick={() => { setSelectedDate(date); setSelected(""); }}><strong>{displayDate(date)}</strong><span>{slotsByDate.get(date)?.length || 0} available time{slotsByDate.get(date)?.length === 1 ? "" : "s"}</span></button>)}</div>
+      <div className="booking-date-cards" aria-label="Available interview dates">{dates.map((date) => <button type="button" key={date} className={`booking-date-card ${selectedDate === date ? "is-selected" : ""}`} onClick={() => { setSelectedDate(date); setSelected(""); setError(""); }}><strong>{displayDate(date)}</strong><span>{slotsByDate.get(date)?.length || 0} available time{slotsByDate.get(date)?.length === 1 ? "" : "s"}</span></button>)}</div>
         <div className="booking-section-heading booking-time-heading"><h2>Choose a time</h2><span>{selectedDate ? displayDate(selectedDate) : "Select a date first"}</span></div>
         <div className="booking-time-list">{selectedDateSlots.map((slot) => <button type="button" className={`booking-slot ${selected === slot.slotId ? "booking-slot-selected" : ""}`} key={slot.slotId} onClick={() => setSelected(slot.slotId)}><strong>{slot.startTime} - {slot.endTime}</strong><small>{slot.timezone}</small></button>)}</div>
       </>}
-      {error && <ActionFeedback kind="error" className="booking-error">{error}</ActionFeedback>}
+      {error && <ValidationSummary error={error} title="Booking failed" />}
       <button type="button" className="booking-submit" disabled={saving || !selected || !localMobile.trim() || context.slots.length === 0} onClick={() => void reserve()}>{saving ? "Confirming..." : rescheduling || noShow ? "Confirm new interview time" : "Confirm interview time"}</button>
       {rescheduling && <button type="button" className="booking-cancel" disabled={saving} onClick={() => { setRescheduling(false); setError(""); }}>Keep current booking</button>}
     </>}

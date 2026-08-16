@@ -17,10 +17,12 @@ export async function GET() {
     return NextResponse.json({ success: false, error: "You do not have permission to view dashboard metrics." }, { status: 403 });
   }
   try {
-    const roles = filterVisibleRoles(await getRoleRequests(), user);
-    const applicantMetrics = user.canReviewRole === true || user.canApproveRole === true
-      ? await getApplicantMetrics()
-      : undefined;
+    const rolesPromise = getRoleRequests();
+    const applicantMetricsPromise = user.canReviewRole === true || user.canApproveRole === true
+      ? getApplicantMetrics()
+      : Promise.resolve(undefined);
+    const [roleRequests, applicantMetrics] = await Promise.all([rolesPromise, applicantMetricsPromise]);
+    const roles = filterVisibleRoles(roleRequests, user);
     return NextResponse.json({ success: true, metrics: { ...calculateDashboardMetrics(roles), applicantMetrics } }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("[API Dashboard Metrics] GET failed:", error);

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 import ActionFeedback from "@/components/ActionFeedback";
 import { countryOptions, CountryFlag } from "@/components/CountryOptions";
+import ValidationSummary from "@/components/ValidationSummary";
 
 type RoleOption = {
   roleId: string;
@@ -54,6 +55,22 @@ function normalizedContactNumber(countryCode: string, localNumber: string) {
 function readFieldError(errors: Partial<Record<keyof FormState | "resumeFile", string>>, key: keyof FormState | "resumeFile") {
   return errors[key] || "";
 }
+
+const fieldLabels: Record<string, string> = {
+  candidateName: "Full Name",
+  localContactNumber: "Contact Number",
+  email: "Email Address",
+  resumeRoleId: "Role Applied For",
+  resumeFile: "Resume Upload",
+};
+
+const fieldAnchors: Record<string, string> = {
+  candidateName: "#candidate-name",
+  localContactNumber: "#candidate-contact-number",
+  email: "#candidate-email",
+  resumeRoleId: "#candidate-role",
+  resumeFile: "#candidate-resume",
+};
 
 export default function CandidateApplicationForm({
   roleId = "",
@@ -176,7 +193,7 @@ export default function CandidateApplicationForm({
   }
 
   return (
-    <form className="form-layout candidate-form-layout resume-screening-form" onSubmit={submit}>
+    <form className="form-layout candidate-form-layout resume-screening-form" noValidate onSubmit={submit}>
       <div className="form-card candidate-form-card">
         <div className="card-header">
           <div>
@@ -187,13 +204,13 @@ export default function CandidateApplicationForm({
           </div>
         </div>
 
-        {error && <ActionFeedback kind="error">{error}</ActionFeedback>}
+        {error && <ValidationSummary error={error} title="Submission failed" issues={Object.entries(fieldErrors).filter(([, message]) => Boolean(message)).map(([field, message]) => ({ field, label: fieldLabels[field] || field, message, href: fieldAnchors[field] }))} />}
         {message && <ActionFeedback kind="success">{message}</ActionFeedback>}
 
         <div className="candidate-form-fields">
           <label className="field">
             <span>Full Name *</span>
-            <input required value={form.candidateName} disabled={saving} onChange={(event) => update("candidateName", event.target.value)} />
+            <input id="candidate-name" required value={form.candidateName} disabled={saving} onChange={(event) => update("candidateName", event.target.value)} />
             {readFieldError(fieldErrors, "candidateName") && <small>{readFieldError(fieldErrors, "candidateName")}</small>}
           </label>
 
@@ -211,7 +228,7 @@ export default function CandidateApplicationForm({
               </label>
               <label>
                 <span className="sr-only">Local contact number</span>
-                <input required aria-label="Local contact number" inputMode="numeric" placeholder={selectedCountry.placeholder} value={form.localContactNumber} disabled={saving} onChange={(event) => update("localContactNumber", cleanDigits(event.target.value))} />
+                <input id="candidate-contact-number" required aria-label="Local contact number" inputMode="numeric" placeholder={selectedCountry.placeholder} value={form.localContactNumber} disabled={saving} onChange={(event) => update("localContactNumber", cleanDigits(event.target.value))} />
               </label>
             </div>
             <small>Enter the local number only, without the country code.</small>
@@ -220,14 +237,14 @@ export default function CandidateApplicationForm({
 
           <label className="field">
             <span>Email Address *</span>
-            <input required type="email" value={form.email} disabled={saving} onChange={(event) => update("email", event.target.value)} />
+            <input id="candidate-email" required type="email" value={form.email} disabled={saving} onChange={(event) => update("email", event.target.value)} />
             {readFieldError(fieldErrors, "email") && <small>{readFieldError(fieldErrors, "email")}</small>}
           </label>
 
           {showRoleSelect ? (
             <label className="field">
               <span>Role Applied For *</span>
-              <select required value={form.resumeRoleId} disabled={saving} onChange={(event) => update("resumeRoleId", event.target.value)}>
+              <select id="candidate-role" required value={form.resumeRoleId} disabled={saving} onChange={(event) => update("resumeRoleId", event.target.value)}>
                 <option value="">Select a role</option>
                 {roleOptions.map((option) => <option key={option.roleId} value={option.roleId}>{option.label}</option>)}
               </select>
@@ -238,7 +255,8 @@ export default function CandidateApplicationForm({
           <div className="field full resume-upload-field">
             <span>Resume Upload *</span>
             <label className="resume-file-picker">
-              <input
+                <input
+                id="candidate-resume"
                 key={fileInputKey}
                 ref={fileInput}
                 type="file"

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 import ActionFeedback from "@/components/ActionFeedback";
+import ValidationSummary from "@/components/ValidationSummary";
 
 type Stage = "resume" | "voice" | "final";
 type Props = {
@@ -89,7 +90,7 @@ function DecisionRow({ stage, title, description, current, link, enabled = true,
       <p>{description}</p>
       {link && <a className="applicant-booking-link" href={link} target="_blank" rel="noreferrer">Open Booking Link</a>}
       <label className="field applicant-decision-comments" htmlFor={`${stage}-decision-comments`}><span>Comments *</span><textarea id={`${stage}-decision-comments`} value={comments} disabled={busy || !canReview || !enabled || decided} minLength={1} maxLength={5000} required placeholder={stage === "voice" ? "Explain the HOD interview decision or return note." : "Explain the decision or provide the review note."} onChange={(event) => { setComments(event.target.value); setError(""); }} /></label>
-      {error && <ActionFeedback kind="error" className="applicant-decision-error">{error}</ActionFeedback>}
+      {error && <ValidationSummary error={error} title="Decision save failed" />}
       {canReview && enabled && !decided && <div className="applicant-decision-actions"><button type="button" className="btn btn-primary" disabled={busy} onClick={() => void decide("Approve")}>{busy ? "Saving..." : "Approve"}</button><button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void decide("Reject")}>Reject</button><button type="button" title="Request Manual Review" className="btn btn-secondary" disabled={busy} onClick={() => void decide("Manual Review")}>Return for review</button></div>}
     </div>
   </div>;

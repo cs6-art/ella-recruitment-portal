@@ -6,7 +6,7 @@ import { canEditRecruitmentSetup, canUseRecruitmentSetup, canViewRole } from "@/
 import { getRoleRequestById, updateRoleRequestFields } from "@/lib/google-sheets";
 import { invalidateSheetsCache } from "@/lib/sheets-cache";
 import { consumeRateLimit, rateLimitHeaders, requestClientKey } from "@/lib/rate-limit";
-import { BASELINE_EVALUATION_FIELDS, EVALUATION_FIELD_CATALOG, recruitmentSetupSchema } from "@/lib/recruitment-setup-schema";
+import { evaluationFieldsForSetup, recruitmentSetupSchema } from "@/lib/recruitment-setup-schema";
 import { getSetupReadiness, setupStatusForAction } from "@/lib/recruitment-setup-readiness";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
 import { createConfiguredVoiceInterviewSlots, synchronizeFinalInterviewSlots } from "@/lib/applicant-workflow";
@@ -61,7 +61,7 @@ export async function POST(request: Request, context: Context) {
     }
     if (!canUseRecruitmentSetup(role.status)) return NextResponse.json({ success: false, error: `Recruitment setup is unavailable while this role is \"${role.status || "Unknown"}\". Refresh the role and try again.` }, { status: 409 });
     const readinessLevel = setupAction === "mark_recruitment_ready" ? "recruitment-ready" : setupAction === "mark_ready_for_publishing" || setupAction === "publish_role" ? "ready-for-publishing" : "draft";
-    const readiness = getSetupReadiness(setup, readinessLevel);
+    const readiness = getSetupReadiness({ ...setup, hodAvailabilitySlots: role.hodAvailabilitySlots }, readinessLevel);
     if (!readiness.valid) return NextResponse.json({ success: false, code: "RECRUITMENT_SETUP_INCOMPLETE", message: setupAction === "save_draft" ? "Complete the three required draft fields before saving." : "The recruitment setup is not ready for this stage.", missingFields: readiness.missingFields.map((field) => field.key), missingFieldLabels: readiness.missingFields.map((field) => field.label) }, { status: 422 });
     // The staged buttons stay available for HR who want an explicit audit
     // trail, but a setup that already satisfies every ready-for-publishing
@@ -128,11 +128,7 @@ export async function POST(request: Request, context: Context) {
       Required_Interview_Question_5: setup.requiredInterviewQuestion5,
       AI_System_Prompt: setup.aiSystemPrompt,
       VAPI_Resolved_System_Prompt: setup.resolvedAiSystemPrompt || "",
-      Evaluation_Fields: JSON.stringify([
-        ...BASELINE_EVALUATION_FIELDS,
-        ...setup.evaluationFieldToggles.map((key) => EVALUATION_FIELD_CATALOG.find((field) => field.key === key)).filter(Boolean),
-        ...setup.customEvaluationFields,
-      ]),
+      Evaluation_Fields: JSON.stringify(evaluationFieldsForSetup(setup.evaluationFieldToggles, setup.customEvaluationFields)),
       Initial_Interview_Booking_Link: role.initialInterviewBookingLink || setup.initialInterviewBookingLink,
       HOD_Interview_Booking_Link: role.hodInterviewBookingLink || setup.hodInterviewBookingLink,
       Posting_Channels: setup.postingChannels.join(", "),
@@ -214,11 +210,7 @@ export async function POST(request: Request, context: Context) {
       Required_Interview_Question_4: setup.requiredInterviewQuestion4,
       Required_Interview_Question_5: setup.requiredInterviewQuestion5,
       AI_System_Prompt: setup.aiSystemPrompt,
-      Evaluation_Fields: JSON.stringify([
-        ...BASELINE_EVALUATION_FIELDS,
-        ...setup.evaluationFieldToggles.map((key) => EVALUATION_FIELD_CATALOG.find((field) => field.key === key)).filter(Boolean),
-        ...setup.customEvaluationFields,
-      ]),
+      Evaluation_Fields: JSON.stringify(evaluationFieldsForSetup(setup.evaluationFieldToggles, setup.customEvaluationFields)),
       Posting_Channels: setup.postingChannels.join(", "),
       License_or_Certificate_Required: setup.licenseOrCertificateRequired,
       Keywords_to_Look_For: setup.keywordsToLookFor,

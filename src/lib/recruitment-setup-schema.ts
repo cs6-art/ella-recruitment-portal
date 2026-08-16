@@ -25,6 +25,28 @@ export const EVALUATION_FIELD_CATALOG = [
   { key: "reliability", label: "Reliability / consistency", description: "Track record of dependable, consistent work history." },
 ] as const;
 
+export type EvaluationField = { key: string; label: string; description: string };
+
+export function evaluationFieldsForSetup(
+  toggles: string[] | string | undefined,
+  customFields: EvaluationField[] | undefined = [],
+): EvaluationField[] {
+  const selectedKeys = new Set(
+    (Array.isArray(toggles) ? toggles : String(toggles || "").split(/[\n,]/))
+      .map((key) => String(key).trim().toLowerCase())
+      .filter(Boolean),
+  );
+  const fields = [
+    ...BASELINE_EVALUATION_FIELDS,
+    ...EVALUATION_FIELD_CATALOG.filter((field) => selectedKeys.has(field.key)),
+    ...(customFields || []),
+  ];
+  return fields.filter((field, index, all) => (
+    field.key.trim() !== "" && field.label.trim() !== "" &&
+    all.findIndex((candidate) => candidate.key === field.key) === index
+  ));
+}
+
 const catalogKeys = EVALUATION_FIELD_CATALOG.map((field) => field.key);
 type CatalogKey = (typeof catalogKeys)[number];
 

@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import UiIcon from "./UiIcon";
+import { ConfirmationProvider } from "./ConfirmationModal";
 import styles from "./AppShell.module.css";
 
 type AppShellUser = {
@@ -21,6 +22,7 @@ type AppShellUser = {
 };
 
 type AppShellProps = { user: AppShellUser; children: React.ReactNode };
+const SIDEBAR_COLLAPSED_STORAGE_KEY = "mclink.sidebar.collapsed";
 
 function getInitials(name?: string, email?: string) {
   const source = name?.trim() || email?.trim() || "User";
@@ -34,6 +36,7 @@ export default function AppShell({ user, children }: AppShellProps) {
   const [signingOut, setSigningOut] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarPreferenceLoaded, setSidebarPreferenceLoaded] = useState(false);
   const userName = user.name?.trim() || "McLink User";
   const userEmail = user.email?.trim() || "";
   const initials = getInitials(userName, userEmail);
@@ -45,15 +48,31 @@ export default function AppShell({ user, children }: AppShellProps) {
   // Role-specific applicant pages live under /roles/.../applicants. Keep them
   // under Role Requests so the sidebar never highlights two sections at once.
   const isApplicants = pathname === "/applicants" || pathname.startsWith("/applicants/");
+  const isApplicantDetail = pathname.startsWith("/applicants/");
   const isResumeScreening = pathname === "/resume-screening";
-  const isApplicantDetails = pathname.startsWith("/applicants/");
   const isBookings = pathname === "/bookings" || pathname.startsWith("/bookings/");
   const isProfile = pathname === "/profile";
   const isSettings = pathname === "/settings";
   const isUserAccounts = pathname === "/user-accounts";
+  const isRoleRequestArea = pathname === "/roles" || (pathname.startsWith("/roles/") && pathname !== "/roles/new");
   const closeSidebar = () => setSidebarOpen(false);
 
+  useEffect(() => {
+    const savedPreference = window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY);
+    if (savedPreference === "true") setSidebarCollapsed(true);
+    if (savedPreference === "true") document.documentElement.dataset.sidebarCollapsed = "true";
+    setSidebarPreferenceLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (!sidebarPreferenceLoaded) return;
+    window.localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, String(sidebarCollapsed));
+    if (sidebarCollapsed) document.documentElement.dataset.sidebarCollapsed = "true";
+    else delete document.documentElement.dataset.sidebarCollapsed;
+  }, [sidebarCollapsed, sidebarPreferenceLoaded]);
+
   return (
+    <ConfirmationProvider>
     <div className={styles.shell}>
       <div className={`${styles.backdrop} ${sidebarOpen ? styles.backdropVisible : ""}`} onClick={closeSidebar} aria-hidden="true" />
       <aside id="portal-navigation" className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : ""} ${sidebarCollapsed ? styles.sidebarCollapsed : ""}`} aria-label="Portal navigation">
@@ -62,7 +81,6 @@ export default function AppShell({ user, children }: AppShellProps) {
             <span className={styles.brandIcon}>M</span><span><strong>McLink</strong><small>Recruitment Portal</small></span>
           </Link>
           <button type="button" className={styles.closeButton} onClick={closeSidebar} aria-label="Close navigation"><UiIcon name="close" /></button>
-          <button type="button" className={styles.collapseButton} onClick={() => setSidebarCollapsed((current) => !current)} aria-label={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"} aria-expanded={!sidebarCollapsed}><UiIcon name={sidebarCollapsed ? "chevron-right" : "chevron-left"} /></button>
         </div>
 
         <div className={styles.workspaceLabel}>WORKSPACE</div>
@@ -70,8 +88,11 @@ export default function AppShell({ user, children }: AppShellProps) {
           <Link href="/dashboard" onClick={closeSidebar} className={`${styles.navLink} ${isDashboard ? styles.navLinkActive : ""}`}><span className={styles.navIcon}><UiIcon name="dashboard" /></span><span>Dashboard</span></Link>
           {showRoleRequests && <Link href="/roles" onClick={closeSidebar} className={`${styles.navLink} ${isRoleList || isRoleDetails || isRoleCreate ? styles.navLinkActive : ""}`}><span className={styles.navIcon}><UiIcon name="roles" /></span><span>Role Requests</span></Link>}
           {showRoleRequests && <Link href="/resume-screening" onClick={closeSidebar} className={`${styles.navLink} ${isResumeScreening ? styles.navLinkActive : ""}`}><span className={styles.navIcon}><UiIcon name="document" /></span><span>Resume Screening</span></Link>}
-          {showRoleRequests && <Link href="/applicants" onClick={closeSidebar} className={`${styles.navLink} ${isApplicants ? styles.navLinkActive : ""}`}><span className={styles.navIcon}><UiIcon name="applicants" /></span><span>Applicants</span></Link>}
-          {showRoleRequests && <Link href="/bookings" onClick={closeSidebar} className={`${styles.navLink} ${isBookings ? styles.navLinkActive : ""}`}><span className={styles.navIcon}><UiIcon name="calendar" /></span><span>Bookings</span></Link>}
+          {showRoleRequests && <div className={styles.applicantBookingGroup}>
+            <Link href="/applicants" onClick={closeSidebar} className={`${styles.navLink} ${isApplicants ? styles.navLinkActive : ""}`}><span className={styles.navIcon}><UiIcon name="applicants" /></span><span>Applicants</span></Link>
+            <button type="button" className={styles.collapseButton} onClick={() => setSidebarCollapsed((current) => !current)} aria-label={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"} aria-expanded={!sidebarCollapsed}><UiIcon name={sidebarCollapsed ? "chevron-right" : "chevron-left"} /></button>
+            <Link href="/bookings" onClick={closeSidebar} className={`${styles.navLink} ${isBookings ? styles.navLinkActive : ""}`}><span className={styles.navIcon}><UiIcon name="calendar" /></span><span>Bookings</span></Link>
+          </div>}
           {user.canEditSettings === true && <Link href="/settings" onClick={closeSidebar} className={`${styles.navLink} ${isSettings ? styles.navLinkActive : ""}`}><span className={styles.navIcon}><UiIcon name="settings" /></span><span>Settings</span></Link>}
           {(user.canManageUsers === true || user.canEditSettings === true) && <Link href="/user-accounts" onClick={closeSidebar} className={`${styles.navLink} ${isUserAccounts ? styles.navLinkActive : ""}`}><span className={styles.navIcon}><UiIcon name="users" /></span><span>User Accounts</span></Link>}
         </nav>
@@ -86,9 +107,10 @@ export default function AppShell({ user, children }: AppShellProps) {
 
       <div className={`${styles.main} ${sidebarCollapsed ? styles.mainCollapsed : ""}`}>
         <header className={styles.mobileHeader}><Link href="/dashboard" className={styles.mobileBrand} onClick={closeSidebar}><span className={styles.brandIcon}>M</span><strong>McLink Recruitment Portal</strong></Link><button type="button" className={styles.menuButton} onClick={() => setSidebarOpen(true)} aria-expanded={sidebarOpen} aria-controls="portal-navigation"><UiIcon name="menu" /><span>Menu</span></button></header>
-        {!isDashboard && !isRoleList && !isRoleDetails && !isRoleCreate && !isApplicantDetails && <div className={styles.pageToolbar}><Link href="/dashboard" className={styles.backButton} aria-label="Back to Dashboard"><UiIcon name="arrow-left" />Back to Dashboard</Link></div>}
+        {!isDashboard && !isRoleRequestArea && !isApplicantDetail && <div className={styles.pageToolbar}><Link href="/dashboard" className="portal-back-button" aria-label="Back to Dashboard"><UiIcon name="arrow-left" />Back to Dashboard</Link></div>}
         <div className={styles.content}>{children}</div>
       </div>
     </div>
+    </ConfirmationProvider>
   );
 }

@@ -77,6 +77,15 @@ export function parseAvailabilityRules(value: unknown): InterviewAvailabilityRul
 
 export function serializeAvailabilityRules(value: unknown) { return JSON.stringify(parseAvailabilityRules(value)); }
 
+/**
+ * Availability is only useful before the role's target hiring date. Keep this
+ * rule in the shared slot generator so the admin calendar and candidate link
+ * always expose the same dates.
+ */
+export function isBeforeTargetHiringDate(date: string, targetHiringDate?: string) {
+  return !DATE.test(text(targetHiringDate)) || date < text(targetHiringDate);
+}
+
 export function ruleToSlots(rule: InterviewAvailabilityRule, maxDays = 180): VoiceInterviewSlot[] {
   if (rule.status !== "Active") return [];
   if (rule.mode === "specific") return rule.specificSlots;
@@ -93,7 +102,7 @@ export function ruleToSlots(rule: InterviewAvailabilityRule, maxDays = 180): Voi
   return result;
 }
 
-export function roleAvailabilityRules(role: { roleId: string; hodAvailabilitySlots?: string; voiceInterviewAvailabilityMode?: string; voiceInterviewSlots?: string; voiceInterviewAutoStartDate?: string; voiceInterviewAutoEndDate?: string; voiceInterviewTimezone?: string; interviewAvailabilityRules?: string }): InterviewAvailabilityRule[] {
+export function roleAvailabilityRules(role: { roleId: string; targetHiringDate?: string; hodAvailabilitySlots?: string; voiceInterviewAvailabilityMode?: string; voiceInterviewSlots?: string; voiceInterviewAutoStartDate?: string; voiceInterviewAutoEndDate?: string; voiceInterviewTimezone?: string; interviewAvailabilityRules?: string }): InterviewAvailabilityRule[] {
   const stored = parseAvailabilityRules(role.interviewAvailabilityRules);
   if (stored.length > 0) return stored;
   const fallback: InterviewAvailabilityRule[] = [];
@@ -114,7 +123,7 @@ export function roleAvailabilityRules(role: { roleId: string; hodAvailabilitySlo
 }
 
 export function virtualSlotsForRole(role: Parameters<typeof roleAvailabilityRules>[0], interviewType: "AI Voice Interview" | "Final Interview") {
-  return roleAvailabilityRules(role).filter((rule) => rule.interviewType === interviewType).flatMap((rule) => ruleToSlots(rule).map((slot) => ({
+  return roleAvailabilityRules(role).filter((rule) => rule.interviewType === interviewType).flatMap((rule) => ruleToSlots(rule).filter((slot) => isBeforeTargetHiringDate(slot.date, role.targetHiringDate)).map((slot) => ({
     slotId: `VIRTUAL-${hash(`${rule.ruleId}|${slot.date}|${slot.startTime}|${slot.endTime}|${slot.timezone}`).toUpperCase()}`,
     interviewType,
     roleId: role.roleId,

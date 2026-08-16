@@ -39,6 +39,7 @@ export default async function EditRolePage({ params }: EditRolePageProps) {
     requestType: role.requestType || "Staff Addition",
     department: role.department,
     jobTitle: role.jobTitle,
+    employmentType: role.employmentType || "Full-Time",
     numberOfVacancies: role.numberOfVacancies || 1,
     reasonForRequest: role.reasonForRequest,
     jobDescription: role.jobDescription,
@@ -56,7 +57,7 @@ export default async function EditRolePage({ params }: EditRolePageProps) {
       <main className="container page">
         <div className="hero-row">
           <div>
-            <a className="btn btn-secondary roles-back-button" href={`/roles/${encodeURIComponent(role.roleId)}`}>
+            <a className="btn btn-secondary portal-back-link roles-back-button" href={`/roles/${encodeURIComponent(role.roleId)}`}>
               Back to Role Details
             </a>
             <h1>Edit Role Request</h1>

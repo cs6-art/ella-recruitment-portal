@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import ActionFeedback from "@/components/ActionFeedback";
+import ValidationSummary from "@/components/ValidationSummary";
 import {
   parseHodAvailabilitySlots,
   type HodAvailabilitySlot,
@@ -89,10 +90,10 @@ export default function HodAvailabilityEditor({ roleId, status, availability, ed
     }
   }
 
-  return <section className="card role-section hod-availability-editor">
+  return <section id="hod-interview-availability" className="card role-section hod-availability-editor">
     <div className="card-header"><div><h2>HOD Interview Availability</h2><p className="role-section-subtitle">Update the windows HR can use for final-interview slots. Google Calendar is checked before a slot is added.</p></div><span className="status-badge status-active">{status === "Job Posted" ? "Published role" : "Editable"}</span></div>
     {message && <ActionFeedback kind="success">{message}</ActionFeedback>}
-    {error && <ActionFeedback kind="error">{error}</ActionFeedback>}
+    {error && <ValidationSummary error={error} title="Save failed" />}
     <div className="availability-entry-list">
       {slots.map((slot, index) => <div className="availability-entry" key={`${index}-${slot.date}-${slot.startTime}`}>
         <label>Date<input type="date" min={todayInputValue()} value={slot.date} disabled={!editable || saving} onChange={(event) => updateSlot(index, "date", event.target.value)} /></label>

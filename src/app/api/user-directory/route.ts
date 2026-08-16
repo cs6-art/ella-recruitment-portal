@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { getDirectoryUsers, upsertDirectoryUser, type DirectoryUser } from "@/lib/google-sheets";
+import { getDirectoryUsers, updateDirectoryUser, upsertDirectoryUser, type DirectoryUser } from "@/lib/google-sheets";
 import { consumeRateLimit, rateLimitHeaders, requestClientKey } from "@/lib/rate-limit";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
 
@@ -99,15 +99,8 @@ async function saveAccount(request: Request, originalEmail?: string) {
       return responseError("The account being edited no longer exists.", 404);
     }
 
-    if (normalizedOriginalEmail && normalizedOriginalEmail !== normalizedEmail) {
-      const oldIndex = users.findIndex((existing) => existing.email === normalizedOriginalEmail);
-      const oldUser = users[oldIndex];
-      await upsertDirectoryUser(normalizedUser);
-      // Leave the old row inactive rather than deleting it, preserving an audit trail.
-      await upsertDirectoryUser({ ...oldUser, active: false });
-    } else {
-      await upsertDirectoryUser(normalizedUser);
-    }
+    if (normalizedOriginalEmail) await updateDirectoryUser(normalizedOriginalEmail, normalizedUser);
+    else await upsertDirectoryUser(normalizedUser);
 
     return NextResponse.json({ success: true, message: "User account saved successfully." });
   } catch (error) {

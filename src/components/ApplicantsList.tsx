@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import ActionFeedback from "@/components/ActionFeedback";
+import { useConfirmation } from "@/components/ConfirmationModal";
 import type { ApplicantSummary } from "@/lib/candidate-applications";
 import Pagination from "@/components/Pagination";
 import { formatMatchScore } from "@/lib/score-format";
@@ -36,6 +37,7 @@ function scoreValue(value: string) {
 
 export default function ApplicantsList({ applicants, title = "Applicants", description = "Review candidates across every published role.", topContent, publishedRoles, canManageApplicants = false }: Props) {
   const router = useRouter();
+  const { confirm } = useConfirmation();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [search, setSearch] = useState("");
@@ -94,7 +96,7 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
   async function deleteApplicants(applicantsToDelete: ApplicantSummary[]) {
     if (applicantsToDelete.length === 0) return;
     const countLabel = applicantsToDelete.length === 1 ? applicantsToDelete[0].candidateName || "this applicant" : `${applicantsToDelete.length} applicants`;
-    if (!window.confirm(`Delete ${countLabel}? This removes the applicant, screening evidence, history, and linked interview slots.`)) return;
+    if (!(await confirm({ title: "Delete applicant record?", message: `Delete ${countLabel}? This removes the applicant, screening evidence, history, and linked interview slots.`, confirmLabel: "Delete", tone: "danger" }))) return;
 
     const ids = applicantsToDelete.map((applicant) => applicant.applicationId);
     setDeletingId(ids.length === 1 ? ids[0] : "bulk");

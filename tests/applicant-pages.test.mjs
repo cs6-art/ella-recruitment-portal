@@ -42,6 +42,9 @@ test("applicant routes are protected and render populated sheet data", () => {
   assert.match(screening, /\/api\/applicants/);
   assert.match(screening, /role\.status === "Job Posted" && role\.recruitmentSetupStatus === "Published"/);
   assert.match(screening, /Resume Screening/);
+  assert.doesNotMatch(screening, /BulkResumeScreeningPanel/);
+  assert.match(screening, /Upload from Google Drive/);
+  assert.match(screening, /GOOGLE_BULK_RESUME_DRIVE_URL/);
   assert.match(detail, /verifySessionToken/);
   assert.match(detail, /getApplicantById/);
   assert.match(detail, /getCandidateStatusHistory/);
@@ -59,6 +62,21 @@ test("applicants are reachable from the reviewer shell and role detail", () => {
   assert.match(roleDetails, /\/applicants/);
   assert.match(roleDetails, /updatedStatus/);
   assert.match(hrReview, /data\.status/);
+  assert.match(shell, /Applicants[\s\S]*collapseButton[\s\S]*Bookings/);
+  const sidebarTop = shell.match(/className=\{styles\.sidebarTop\}>[\s\S]*?<\/div>/);
+  assert.ok(sidebarTop);
+  assert.doesNotMatch(sidebarTop[0], /collapseButton/);
+  assert.match(shell, /!isDashboard && !isRoleRequestArea && <div className=\{styles\.pageToolbar\}>[\s\S]*portal-back-button/);
+  assert.match(shell, /isRoleRequestArea/);
+});
+
+test("user account edits update the original directory row", () => {
+  const api = read("src/app/api/user-directory/route.ts");
+  const sheets = read("src/lib/google-sheets.ts");
+  assert.match(api, /updateDirectoryUser\(normalizedOriginalEmail, normalizedUser\)/);
+  assert.doesNotMatch(api, /upsertDirectoryUser\(normalizedUser\);\s*\/\/ Leave the old row inactive/);
+  assert.match(sheets, /export async function updateDirectoryUser\(originalEmail: string, user: DirectoryUser\)/);
+  assert.match(sheets, /range: `User_Directory!A\$\{rowIndex \+ 2\}:J\$\{rowIndex \+ 2\}`/);
 });
 
 test("candidate intake forms and decisions expose the required fields", () => {
@@ -92,10 +110,11 @@ test("candidate intake forms and decisions expose the required fields", () => {
   assert.doesNotMatch(form, /Skills assessment/);
   assert.doesNotMatch(form, /Role expectations/);
   assert.match(scoreFormat, /percentage > 100/);
-  assert.match(editor, /Save as template/);
-  assert.match(editor, /SAVED TEMPLATES/);
+  assert.doesNotMatch(editor, /CALL SCRIPT TEMPLATES/);
+  assert.doesNotMatch(editor, /SAVED TEMPLATES/);
+  assert.match(editor, /Reset changes/);
   assert.match(editor, /AI SUGGESTIONS/);
-  assert.match(editor, /Use suggestion/);
+  assert.doesNotMatch(editor, /Use suggestion/);
   assert.match(roleDetails, /aiGeneratedScreeningQuestions/);
   assert.match(applicantData, /Resume_HR_Comments/);
   assert.match(applicantData, /Voice_HR_Comments/);
@@ -112,6 +131,7 @@ test("candidate intake forms and decisions expose the required fields", () => {
   assert.match(route, /role\.status !== "Job Posted"/);
   assert.match(route, /role\.recruitmentSetupStatus !== "Published"/);
   assert.match(publicRoute, /buildCandidateApplicationPayload/);
+  assert.match(workflow, /evaluationFields/);
   assert.match(workflow, /preferredMobile/);
   assert.match(workflow, /jobTitle/);
   assert.match(route, /jobTitle: role\.jobTitle/);
@@ -178,6 +198,24 @@ test("booking links render a branded unavailable page when the token is not vali
   assert.match(bookingPage, /if \(!context\) notFound\(\)/);
   assert.match(unavailablePage, /booking link is no longer available/i);
   assert.match(unavailablePage, /already been used, expired, or been replaced/i);
+});
+
+test("past booked interviews reconcile to No Show without overwriting completed results", () => {
+  const workflow = read("src/lib/applicant-workflow.ts");
+  const bookings = read("src/components/BookingsList.tsx");
+  assert.match(workflow, /syncPastBookedInterviewsNoShow/);
+  assert.match(workflow, /Automatically marked No Show/);
+  assert.match(workflow, /hasCompletedInterviewResult/);
+  assert.match(workflow, /Final_Interview_Tracking/);
+  assert.match(workflow, /canRescheduleNoShow/);
+  assert.match(bookings, /summary-no-show/);
+  assert.match(bookings, /statusClass\(booking\.status\)/);
+  assert.match(bookings, /No Show/);
+  assert.match(workflow, /syncPastAvailableInterviewSlots/);
+  assert.match(workflow, /header: "Status", value: "Expired"/);
+  assert.match(bookings, /calendarDisplayBookings/);
+  assert.doesNotMatch(bookings, /summary-total/);
+  assert.doesNotMatch(bookings, /Candidate slots/);
 });
 
 test("high-cost and state-changing APIs apply request throttling", () => {

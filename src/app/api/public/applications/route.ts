@@ -11,6 +11,7 @@ import {
 } from "@/lib/applicant-workflow";
 import { candidateBodyForValidation, readCandidateIntakeRequest } from "@/lib/candidate-intake";
 import { getRoleRequestById } from "@/lib/google-sheets";
+import { evaluationFieldsForSetup } from "@/lib/recruitment-setup-schema";
 import { consumeRateLimit, rateLimitHeaders, requestClientKey } from "@/lib/rate-limit";
 import { deleteResumeFile, MAX_RESUME_REQUEST_BYTES, storeResumeFile } from "@/lib/resume-files";
 
@@ -71,6 +72,7 @@ export async function POST(request: Request) {
       roleId,
       jobTitle: role.jobTitle,
       department: role.department,
+      evaluationFields: evaluationFieldsForSetup(role.evaluationFieldToggles, role.customEvaluationFields),
       source: "Public Application Page",
       submittedAt,
       candidate: {

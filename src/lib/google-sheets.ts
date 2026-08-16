@@ -819,6 +819,39 @@ export async function upsertDirectoryUser(user: DirectoryUser): Promise<void> {
   invalidateSheetsCache("User_Directory");
 }
 
+export async function updateDirectoryUser(originalEmail: string, user: DirectoryUser): Promise<void> {
+  const rows = await cachedSheetsRead(`User_Directory:J:${spreadsheetId}`, async () => {
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: "User_Directory!A2:J",
+    });
+    return response.data.values ?? [];
+  });
+  const normalizedOriginalEmail = originalEmail.trim().toLowerCase();
+  const rowIndex = rows.findIndex((row) => toText(row[0]).toLowerCase() === normalizedOriginalEmail);
+  if (rowIndex < 0) throw new Error("The account being edited no longer exists.");
+
+  const rowValues = [[
+    user.email.trim().toLowerCase(),
+    user.fullName.trim(),
+    user.accessRole.trim(),
+    user.department.trim(),
+    user.canCreateRole,
+    user.canReviewRole,
+    user.canApproveRole,
+    user.canEditSettings,
+    user.canManageUsers,
+    user.active,
+  ]];
+  await sheets.spreadsheets.values.update({
+    spreadsheetId,
+    range: `User_Directory!A${rowIndex + 2}:J${rowIndex + 2}`,
+    valueInputOption: "RAW",
+    requestBody: { values: rowValues },
+  });
+  invalidateSheetsCache("User_Directory");
+}
+
 export async function getRoleRequests(): Promise<
   RoleRequestSummary[]
 > {

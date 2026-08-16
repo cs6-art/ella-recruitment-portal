@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import ActionFeedback from "@/components/ActionFeedback";
+import { useConfirmation } from "@/components/ConfirmationModal";
 import Pagination from "@/components/Pagination";
 import UiIcon from "@/components/UiIcon";
 import { canEditRoleRequest } from "@/lib/access-control";
@@ -59,6 +60,7 @@ export default function RolesList({
   canApproveRole,
 }: RolesListProps) {
   const router = useRouter();
+  const { confirm } = useConfirmation();
   const [roles, setRoles] = useState<RoleRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -208,7 +210,7 @@ export default function RolesList({
     const activeCount = rolesToDelete.filter((role) => ["Approved", "Recruitment Setup", "Job Posted"].includes(role.status.trim())).length;
     const activeWarning = activeCount > 0 ? " This may also remove approved or published roles from the role list." : "";
     const countLabel = rolesToDelete.length === 1 ? rolesToDelete[0].jobTitle || rolesToDelete[0].roleId : `${rolesToDelete.length} role requests`;
-    if (!window.confirm(`Delete ${countLabel}? These role requests cannot be recovered.${activeWarning}`)) return;
+    if (!(await confirm({ title: "Delete role requests?", message: `Delete ${countLabel}? These role requests cannot be recovered.${activeWarning}`, confirmLabel: "Delete", tone: "danger" }))) return;
 
     const ids = rolesToDelete.map((role) => role.roleId);
     setDeletingRoleId(ids.length === 1 ? ids[0] : "bulk");
@@ -268,15 +270,6 @@ export default function RolesList({
     <main className="container page">
       <div className="hero-row roles-page-header">
         <div className="roles-page-heading">
-          <Link
-            className="btn btn-secondary roles-back-button"
-            href="/dashboard"
-            aria-label="Back to Dashboard"
-          >
-            <span aria-hidden="true">←</span>
-            Back to Dashboard
-          </Link>
-
           <h1>{creatorOnly ? "My Role Requests" : "All Role Requests"}</h1>
 
           <p>

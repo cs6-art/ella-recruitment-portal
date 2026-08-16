@@ -1,5 +1,4 @@
 import { cookies } from "next/headers";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import AppShell from "@/components/AppShell";
@@ -31,15 +30,6 @@ export default async function NewRolePage() {
       <main className="container page">
         <div className="hero-row">
           <div>
-            <Link
-              className="btn btn-secondary roles-back-button"
-              href="/dashboard"
-              aria-label="Back to Dashboard"
-            >
-              <span aria-hidden="true">←</span>
-              Back to Dashboard
-            </Link>
-
             <h1>Create Role Request</h1>
 
             <p>

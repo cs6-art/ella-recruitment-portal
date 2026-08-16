@@ -275,7 +275,7 @@ export async function POST(request: Request) {
         // they become necessary for a specific role.
         reportingManager: input.reportingManager || "",
         workLocation: input.workLocation || "",
-        employmentType: input.employmentType || "",
+        employmentType: input.employmentType || "Full-Time",
         jobResponsibilities: input.jobResponsibilities || "",
         requiredSkills: input.requiredSkills || "",
         experienceRequired: input.experienceRequired || "",

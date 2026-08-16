@@ -145,6 +145,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       Request_Type: input.requestType,
       Department: input.department,
       Job_Title: input.jobTitle,
+      Employment_Type: input.employmentType,
       Number_Of_Vacancies: String(input.numberOfVacancies),
       Reason_For_Request: input.reasonForRequest,
       Job_Description: input.jobDescription,

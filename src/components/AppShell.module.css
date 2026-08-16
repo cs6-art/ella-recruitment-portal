@@ -27,6 +27,8 @@
 .collapseButton:hover { border-color: #0e4471; background: #edf4f9; }
 .workspaceLabel { margin: 34px 10px 9px; color: #91a0af; font-size: 10px; font-weight: 800; letter-spacing: .12em; }
 .navigation { display: grid; gap: 5px; }
+.applicantBookingGroup { position: relative; display: grid; gap: 5px; }
+.applicantBookingGroup .collapseButton { position: absolute; z-index: 2; top: 50%; right: -16px; transform: translateY(-50%); border-radius: 50%; background: #ffffff; box-shadow: 0 2px 8px rgba(14, 68, 113, .12); }
 .navLink { display: flex; min-width: 0; align-items: center; gap: 11px; padding: 11px 12px; border-radius: 9px; color: #5e6b78; font-size: 14px; font-weight: 700; text-decoration: none; transition: background .2s ease, color .2s ease, transform .2s ease; }
 .navLink:hover { color: #0e4471; background: #edf4f9; transform: translateX(2px); }
 .navLinkActive { color: #0e4471; background: #e7f0f7; box-shadow: inset 3px 0 0 #0071f7; }
@@ -52,9 +54,7 @@
 .mainCollapsed { margin-left: 76px; }
 .mobileHeader { display: none; }
 .pageToolbar { width: 100%; max-width: var(--portal-content-max-width, 1680px); box-sizing: border-box; margin: 0 auto; padding: 18px var(--portal-content-padding, clamp(16px, 2.5vw, 36px)) 0; }
-.backButton { display: inline-flex; align-items: center; gap: 7px; border: 1px solid #dfe5ec; border-radius: 10px; padding: 10px 14px; color: #0e4471; background: #ffffff; font-size: 14px; font-weight: 700; text-decoration: none; }
-.backButton:hover { border-color: #0e4471; background: #edf4f9; }
-.backButton:focus-visible, .navLink:focus-visible, .profileButton:focus-visible, .signOutButton:focus-visible, .menuButton:focus-visible { outline: 3px solid rgba(0, 113, 247, .28); outline-offset: 2px; }
+.navLink:focus-visible, .profileButton:focus-visible, .signOutButton:focus-visible, .menuButton:focus-visible { outline: 3px solid rgba(0, 113, 247, .28); outline-offset: 2px; }
 .content {
   width: 100%;
   padding-inline: var(--portal-content-padding, 24px);
@@ -68,17 +68,19 @@
 }
 .backdrop { display: none; }
 
-.sidebarCollapsed { width: 76px; padding-inline: 10px; }
+.sidebarCollapsed { width: 76px; padding: 14px 8px 12px; }
 .sidebarCollapsed .sidebarTop { justify-content: center; padding-inline: 0; }
+.sidebarCollapsed .sidebarTop { margin-bottom: 10px; }
+.sidebarCollapsed .brandIcon { width: 44px; height: 44px; flex-basis: 44px; }
 .sidebarCollapsed .brand > span:last-child,
 .sidebarCollapsed .workspaceLabel,
 .sidebarCollapsed .navLink > span:last-child,
 .sidebarCollapsed .profileDetails,
 .sidebarCollapsed .profileArrow,
 .sidebarCollapsed .signOutText { display: none; }
-.sidebarCollapsed .collapseButton { position: absolute; right: -13px; top: 29px; border-radius: 50%; background: #ffffff; box-shadow: 0 2px 8px rgba(14, 68, 113, .12); }
-.sidebarCollapsed .navigation { margin-top: 34px; }
-.sidebarCollapsed .navLink { justify-content: center; padding-inline: 8px; }
+.sidebarCollapsed .navigation { gap: 10px; margin-top: 0; }
+.sidebarCollapsed .applicantBookingGroup { gap: 10px; }
+.sidebarCollapsed .navLink { justify-content: center; min-height: 48px; padding: 8px 6px; border-radius: 12px; }
 .sidebarCollapsed .navIcon { width: 32px; height: 32px; flex-basis: 32px; }
 .sidebarCollapsed .accountSection .workspaceLabel { display: none; }
 .sidebarCollapsed .profileButton { justify-content: center; padding-inline: 4px; }
@@ -120,14 +122,13 @@
 
 /* Shared portal shell refinements */
 .brandIcon { background: linear-gradient(135deg, #0e4471, #0879c7); box-shadow: 0 7px 18px rgba(14, 68, 113, .18); }
-.navIcon svg, .collapseButton svg, .closeButton svg, .profileArrow svg, .signOutButton svg, .menuButton svg, .backButton svg { display: block; }
+.navIcon svg, .collapseButton svg, .closeButton svg, .profileArrow svg, .signOutButton svg, .menuButton svg { display: block; }
 .navIcon { width: 30px; height: 30px; flex-basis: 30px; }
 .navLink { min-height: 46px; border: 1px solid transparent; }
 .navLinkActive { border-color: #cbddec; box-shadow: inset 3px 0 0 #0071f7, 0 4px 12px rgba(14, 68, 113, .05); }
 .profileArrow { display: inline-flex; align-items: center; }
 .signOutButton { min-height: 42px; }
 .pageToolbar { padding-top: 20px; }
-.backButton { min-height: 42px; box-shadow: 0 4px 12px rgba(14, 68, 113, .04); }
 
 /* --- Navigation refinement -----------------------------------------------
    The rail carried three competing signals for "you are here": a background
@@ -176,7 +177,29 @@
 
 .profileDetails strong { font-size: 13px; }
 .profileDetails span { font-size: 11px; }
-
 @media (prefers-reduced-motion: reduce) {
   .navLink { transition: none; }
+}
+
+/* Apply the saved desktop preference before AppShell hydrates. The inline
+   preference script sets this attribute before first paint, preventing the
+   one-frame expanded-sidebar flash during route changes. */
+@media (min-width: 761px) {
+  :global(html[data-sidebar-collapsed="true"]) .sidebar { width: 76px; padding: 14px 8px 12px; }
+  :global(html[data-sidebar-collapsed="true"]) .sidebar .sidebarTop { justify-content: center; padding-inline: 0; margin-bottom: 10px; }
+  :global(html[data-sidebar-collapsed="true"]) .sidebar .brandIcon { width: 44px; height: 44px; flex-basis: 44px; }
+  :global(html[data-sidebar-collapsed="true"]) .sidebar .brand > span:last-child,
+  :global(html[data-sidebar-collapsed="true"]) .sidebar .workspaceLabel,
+  :global(html[data-sidebar-collapsed="true"]) .sidebar .navLink > span:last-child,
+  :global(html[data-sidebar-collapsed="true"]) .sidebar .profileDetails,
+  :global(html[data-sidebar-collapsed="true"]) .sidebar .profileArrow,
+  :global(html[data-sidebar-collapsed="true"]) .sidebar .signOutText { display: none; }
+  :global(html[data-sidebar-collapsed="true"]) .sidebar .navigation { gap: 10px; margin-top: 0; }
+  :global(html[data-sidebar-collapsed="true"]) .sidebar .applicantBookingGroup { gap: 10px; }
+  :global(html[data-sidebar-collapsed="true"]) .sidebar .navLink { justify-content: center; min-height: 48px; padding: 8px 6px; border-radius: 12px; }
+  :global(html[data-sidebar-collapsed="true"]) .sidebar .navIcon { width: 32px; height: 32px; flex-basis: 32px; }
+  :global(html[data-sidebar-collapsed="true"]) .sidebar .accountSection .workspaceLabel { display: none; }
+  :global(html[data-sidebar-collapsed="true"]) .sidebar .profileButton { justify-content: center; padding-inline: 4px; }
+  :global(html[data-sidebar-collapsed="true"]) .sidebar .signOutButton { padding-inline: 8px; }
+  :global(html[data-sidebar-collapsed="true"]) .main { margin-left: 76px; }
 }
