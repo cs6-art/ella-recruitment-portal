@@ -3855,8 +3855,23 @@ textarea:focus {
   overflow-y: hidden;
   border: 1px solid #dce6ef;
   border-radius: var(--radius-lg);
-  background: #ffffff;
   overscroll-behavior-x: contain;
+  /* The horizontal scrollbar this produces only appears at the bottom of
+     the (often long, tall) table, so from the top of the page there is no
+     visible sign that columns are cut off and scrollable — it just looks
+     like the Action buttons vanished. Fade shadows on whichever edge still
+     has hidden content, using the standard background-attachment
+     local/scroll trick, so the cue is visible immediately without
+     scrolling down to find the scrollbar first. */
+  background:
+    linear-gradient(to right, #fff 40%, rgba(255, 255, 255, 0)) 0 0,
+    linear-gradient(to left, #fff 40%, rgba(255, 255, 255, 0)) 100% 0,
+    linear-gradient(to right, rgba(20, 44, 70, .16), rgba(20, 44, 70, 0) 12px) 0 0,
+    linear-gradient(to left, rgba(20, 44, 70, .16), rgba(20, 44, 70, 0) 12px) 100% 0;
+  background-repeat: no-repeat;
+  background-color: #ffffff;
+  background-size: 32px 100%, 32px 100%, 12px 100%, 12px 100%;
+  background-attachment: local, local, scroll, scroll;
 }
 
 /* The percentage column widths crush below this, so scroll rather than clip. */
