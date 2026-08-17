@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { google } from "googleapis";
+import { getGoogleServiceAccountPrivateKey } from "@/lib/google-service-account";
 import { z } from "zod";
 
 import { createFinalInterviewEvent, deleteFinalInterviewEvent, checkCalendarAvailability, getCalendarBusyWindows, type CalendarAvailabilityResult } from "@/lib/google-calendar";
@@ -168,7 +169,7 @@ export type BookingContext = {
 
 const spreadsheetId = process.env.GOOGLE_CANDIDATE_SPREADSHEET_ID || process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
 const serviceAccountEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-const privateKey = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY?.replace(/\\n/g, "\n");
+const privateKey = getGoogleServiceAccountPrivateKey();
 
 if (!spreadsheetId || !serviceAccountEmail || !privateKey) throw new Error("Candidate spreadsheet access is not configured.");
 

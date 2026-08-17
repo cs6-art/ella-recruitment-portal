@@ -1,4 +1,5 @@
 import { google } from "googleapis";
+import { getGoogleServiceAccountPrivateKey } from "@/lib/google-service-account";
 import { cachedSheetsRead } from "@/lib/sheets-cache";
 import { getRoleRequestById, type RoleRequestDetails } from "@/lib/google-sheets";
 import { evaluationFieldsForSetup, type EvaluationField } from "@/lib/recruitment-setup-schema";
@@ -12,7 +13,7 @@ export {
 
 const spreadsheetId = process.env.GOOGLE_CANDIDATE_SPREADSHEET_ID || process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
 const serviceAccountEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-const privateKey = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY?.replace(/\\n/g, "\n");
+const privateKey = getGoogleServiceAccountPrivateKey();
 
 if (!spreadsheetId || !serviceAccountEmail || !privateKey) {
   throw new Error("Candidate spreadsheet access is not configured.");

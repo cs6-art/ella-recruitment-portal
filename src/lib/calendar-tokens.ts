@@ -1,10 +1,11 @@
 import crypto from "node:crypto";
 import { google } from "googleapis";
+import { getGoogleServiceAccountPrivateKey } from "@/lib/google-service-account";
 import { cachedSheetsRead, invalidateSheetsCache } from "@/lib/sheets-cache";
 
 const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
 const serviceAccountEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-const privateKey = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY?.replace(/\\n/g, "\n");
+const privateKey = getGoogleServiceAccountPrivateKey();
 
 if (!spreadsheetId) throw new Error("GOOGLE_SHEETS_SPREADSHEET_ID is not configured.");
 if (!serviceAccountEmail) throw new Error("GOOGLE_SERVICE_ACCOUNT_EMAIL is not configured.");

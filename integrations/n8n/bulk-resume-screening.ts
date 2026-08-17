@@ -78,7 +78,7 @@ const eventTime = (row) => Date.parse(String(row.Last_Updated || row.lastUpdated
 for (const row of rows) {
   const id = String(row.Drive_File_ID || row.driveFileId || '').trim();
   const roleId = String(row.Role_ID || row.roleId || '').trim().toLowerCase();
-  const key = `${roleId}|${id}`;
+  const key = roleId + '|' + id;
   const previous = latest.get(key);
   if (id && (!previous || eventTime(row) >= previous.time)) latest.set(key, { status: String(row.Status || row.status || '').trim().toLowerCase(), time: eventTime(row) });
 }
@@ -87,7 +87,7 @@ return $input.all().map((item) => item.json).filter((file) => {
   const mime = String(file.mimeType || '').toLowerCase();
   const role = name.match(/^([A-Za-z]{2,12}\\d{1,8})\\s*[-_ ]/);
   const roleId = role ? role[1].toLowerCase() : '';
-  const prior = latest.get(`${roleId}|${String(file.id || '').trim()}`);
+  const prior = latest.get(roleId + '|' + String(file.id || '').trim());
   return file.id && /\\.(pdf|docx)$/i.test(name) && (mime.includes('pdf') || mime.includes('word') || mime === 'application/octet-stream') && role && !['screened','processing','queued','failed','skipped'].includes(prior?.status || '');
 }).map((file) => {
   const role = String(file.name).match(/^([A-Za-z]{2,12}\\d{1,8})\\s*[-_ ]/);
@@ -122,7 +122,7 @@ const extract = node({
     name: 'Extract Resume Text',
     parameters: {
       method: 'POST',
-      url: expr('{{ ($env.N8N_BULK_RESUME_PORTAL_BASE_URL || "https://ellai.mclinkgroup.com") + "/api/resume-screening/bulk/extract" }}'),
+      url: expr('{{ ($env.N8N_BULK_RESUME_PORTAL_BASE_URL || "https://ella-recruitment.mclinkgroup.com") + "/api/resume-screening/bulk/extract" }}'),
       sendQuery: true,
       specifyQuery: 'keypair',
       queryParameters: { parameters: [

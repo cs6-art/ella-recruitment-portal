@@ -2,6 +2,7 @@ import { google } from "googleapis";
 
 import { cachedSheetsRead, invalidateSheetsCache } from "@/lib/sheets-cache";
 import { BASELINE_EVALUATION_FIELDS, EVALUATION_FIELD_CATALOG } from "@/lib/recruitment-setup-schema";
+import { getGoogleServiceAccountPrivateKey } from "@/lib/google-service-account";
 
 const spreadsheetId =
   process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
@@ -9,11 +10,7 @@ const spreadsheetId =
 const serviceAccountEmail =
   process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
 
-const privateKey =
-  process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY?.replace(
-    /\\n/g,
-    "\n",
-  );
+const privateKey = getGoogleServiceAccountPrivateKey();
 
 if (!spreadsheetId) {
   throw new Error(
