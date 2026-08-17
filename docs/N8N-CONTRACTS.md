@@ -34,6 +34,7 @@ The portal sends this payload to `N8N_RECRUITMENT_SETUP_WEBHOOK_URL`, or to
   "Initial_Interview_Questions": "...",
   "AI_System_Prompt": "...",
   "VAPI_Resolved_System_Prompt": "...",
+  "ella_system_prompt": "...",
   "Initial_Interview_Booking_Link": "https://...",
   "HOD_Interview_Booking_Link": "https://...",
   "Posting_Channels": "LinkedIn, careers page",
@@ -67,18 +68,41 @@ After a voice call, the Vapi result workflow is responsible for evaluating the
 completed transcript against `evaluationFields` and writing one result row to
 `Voice_Interview_Results`. It must persist at least `Voice_Score`,
 `Voice_Recommendation`, `Voice_Strengths`, `Voice_Concerns`, and one value for
-each configured optional/custom field, using the field key or label as the
-column name. The portal reads that row after the call and displays the result
-for HR review; it does not treat a call as graded merely because a prompt was
-saved.
+each configured optional/custom field using the exact field `key` as the
+column name (the field label is accepted as a backwards-compatible fallback).
+For example, a custom field with key `domain_fluency` must be written to a
+`domain_fluency` or `Domain_Fluency` column. The portal reads that row after the
+call and displays the result for HR review; it does not treat a call as graded
+merely because a prompt was saved.
 
 n8n must verify `X-Webhook-Secret`, verify the role is still in
 `expectedCurrentStatus`, persist the editable `AI_System_Prompt` template and
-the structured criteria values, and use `VAPI_Resolved_System_Prompt` (or
-render the template itself) when configuring Vapi. The `{{system_prompt}}`
-placeholder must be replaced with the structured HR criteria at call setup;
-the editable template must remain available for later HR changes. Return HTTP
-200 JSON with `{ "success": true }`.
+the structured criteria values, and use `VAPI_Resolved_System_Prompt` (also
+provided as `ella_system_prompt`) when configuring Vapi. VAPI may keep this
+literal system prompt in its dashboard:
+
+```text
+{{ella_system_prompt}}
+```
+
+When starting a call, n8n must pass the rendered prompt through VAPI's
+`assistantOverrides.variableValues`:
+
+```json
+{
+  "assistantOverrides": {
+    "variableValues": {
+      "ella_system_prompt": "<the rendered role and candidate prompt>"
+    }
+  }
+}
+```
+
+The rendered value must have the role and candidate placeholders resolved for
+that call; do not pass the literal `{{ella_system_prompt}}` as its value. The
+`{{system_prompt}}` placeholder must be replaced with the structured HR
+criteria at call setup; the editable template must remain available for later
+HR changes. Return HTTP 200 JSON with `{ "success": true }`.
 
 For candidate final-interview invitations, the portal creates or normalizes
 `Final_Interview_Booking_Link` when HR approves the voice interview. n8n

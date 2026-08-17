@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 
 import AppShell from "@/components/AppShell";
+import RecruitmentSetupEditor from "@/components/RecruitmentSetupEditor";
 import RoleRequestForm, { type RoleRequestFormValues } from "@/components/RoleRequestForm";
 import { canEditRoleRequest, canViewRole } from "@/lib/access-control";
 import { parseHodAvailabilitySlots } from "@/lib/hod-availability";
@@ -23,6 +24,10 @@ function screeningQuestions(value: string) {
     // Legacy rows store the questions as one question per line.
   }
   return value.split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
+}
+
+function setupChannels(value: string) {
+  return value.split(/[\n,]/).map((item) => item.trim()).filter(Boolean);
 }
 
 export default async function EditRolePage({ params }: EditRolePageProps) {
@@ -50,6 +55,71 @@ export default async function EditRolePage({ params }: EditRolePageProps) {
     customScreeningQuestion1: role.customScreeningQuestion1,
     customScreeningQuestion2: role.customScreeningQuestion2,
     aiGeneratedScreeningQuestions: screeningQuestions(role.aiGeneratedScreeningQuestions),
+    recruitmentSetupDraft: {
+      jobDescription: role.jobDescription,
+      screeningCriteria: role.screeningCriteria,
+      requiredInterviewQuestion1: role.requiredInterviewQuestion1 || "",
+      requiredInterviewQuestion2: role.requiredInterviewQuestion2 || "",
+      requiredInterviewQuestion3: role.requiredInterviewQuestion3 || "",
+      requiredInterviewQuestion4: role.requiredInterviewQuestion4 || "",
+      requiredInterviewQuestion5: role.requiredInterviewQuestion5 || "",
+      keywordsToLookFor: role.keywordsToLookFor || "",
+      minimumYearsOfExperience: role.minimumYearsOfExperience || "",
+      transferableSkillsAccepted: role.transferableSkillsAccepted || "",
+      licenseOrCertificateRequired: role.licenseOrCertificateRequired || "",
+      salaryOrBudgetRange: role.salaryOrBudgetRange || "",
+      earliestAvailabilityRule: role.earliestAvailabilityRule || "",
+      evaluationFieldToggles: role.evaluationFieldToggles ? setupChannels(role.evaluationFieldToggles) : [],
+      customEvaluationFields: role.customEvaluationFields || [],
+      postingChannels: setupChannels(role.postingChannels),
+    },
+  };
+  const recruitmentSetup = {
+    roleTitle: role.jobTitle,
+    aiInterviewerName: "Ella",
+    aiInterviewerBehavior: role.interviewBehavior || "",
+    requiredInterviewQuestion1: role.requiredInterviewQuestion1 || "",
+    requiredInterviewQuestion2: role.requiredInterviewQuestion2 || "",
+    requiredInterviewQuestion3: role.requiredInterviewQuestion3 || "",
+    requiredInterviewQuestion4: role.requiredInterviewQuestion4 || "",
+    requiredInterviewQuestion5: role.requiredInterviewQuestion5 || "",
+    hodScreeningQuestion1: role.customScreeningQuestion1 || "",
+    hodScreeningQuestion2: role.customScreeningQuestion2 || "",
+    aiGeneratedScreeningQuestions: role.aiGeneratedScreeningQuestions || "",
+    finalAiEvaluationTemplate: "",
+    jobDescription: role.jobDescription,
+    screeningCriteria: role.screeningCriteria,
+    initialInterviewQuestions: [role.requiredInterviewQuestion1, role.requiredInterviewQuestion2, role.requiredInterviewQuestion3, role.requiredInterviewQuestion4, role.requiredInterviewQuestion5].filter(Boolean).join("\n"),
+    aiSystemPrompt: role.aiSystemPrompt,
+    initialInterviewBookingLink: role.initialInterviewBookingLink,
+    hodInterviewBookingLink: role.hodInterviewBookingLink,
+    postingChannels: setupChannels(role.postingChannels),
+    evaluationFieldToggles: role.evaluationFieldToggles || "",
+    customEvaluationFields: role.customEvaluationFields || [],
+    licenseOrCertificateRequired: role.licenseOrCertificateRequired || "",
+    keywordsToLookFor: role.keywordsToLookFor || "",
+    minimumYearsOfExperience: role.minimumYearsOfExperience || "",
+    transferableSkillsAccepted: role.transferableSkillsAccepted || "",
+    salaryOrBudgetRange: role.salaryOrBudgetRange || "",
+    earliestAvailabilityRule: role.earliestAvailabilityRule || "",
+    interviewBehavior: role.interviewBehavior || "",
+    experienceRequired: role.experienceRequired,
+    salaryMin: role.salaryMin,
+    salaryMax: role.salaryMax,
+    noticePeriodRequirement: role.noticePeriodRequirement,
+    salaryDisclosureStatus: role.salaryDisclosureStatus || "",
+    experienceRequirementStatus: role.experienceRequirementStatus || "",
+    licenseRequirementStatus: role.licenseRequirementStatus || "",
+    hodInterviewRequired: role.hodInterviewRequired || "",
+    hodAvailabilitySlots: role.hodAvailabilitySlots || "",
+    voiceInterviewAvailabilityMode: role.voiceInterviewAvailabilityMode || "none",
+    voiceInterviewSlots: role.voiceInterviewSlots || "",
+    voiceInterviewAutoStartDate: role.voiceInterviewAutoStartDate || "",
+    voiceInterviewAutoEndDate: role.voiceInterviewAutoEndDate || "",
+    voiceInterviewTimezone: role.voiceInterviewTimezone || "Asia/Singapore",
+    voiceInterviewSlotsGeneratedAt: role.voiceInterviewSlotsGeneratedAt || "",
+    recruitmentSetupStatus: role.recruitmentSetupStatus || "",
+    applicationLink: role.applicationLink || "",
   };
 
   return (
@@ -68,6 +138,15 @@ export default async function EditRolePage({ params }: EditRolePageProps) {
           user={{ name: String(user.name ?? ""), email: String(user.email ?? "") }}
           roleId={role.roleId}
           initialValues={initialValues}
+        />
+        <RecruitmentSetupEditor
+          roleId={role.roleId}
+          status={role.status}
+          editable={user.canReviewRole === true}
+          updatedAt={role.recruitmentSetupUpdatedAt}
+          updatedBy={role.recruitmentSetupUpdatedByName}
+          updatedByEmail={role.recruitmentSetupUpdatedByEmail}
+          setup={recruitmentSetup}
         />
       </main>
     </AppShell>

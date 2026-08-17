@@ -61,6 +61,7 @@ export type ApplicantDetails = ApplicantSummary & {
   resumeDecisionDate: string;
   resumeReviewer: string;
   resumeComments: string;
+  resumeEvaluationFields: { key: string; label: string; value: string }[];
   voiceDecision: string;
   voiceComments: string;
   voiceScore: string;
@@ -173,7 +174,7 @@ function field(record: SheetRow, ...names: string[]) {
   return "";
 }
 
-function configuredVoiceEvaluationValues(
+function configuredEvaluationValues(
   fields: EvaluationField[],
   result: SheetRow | undefined,
   fallback: SheetRow | undefined,
@@ -183,9 +184,8 @@ function configuredVoiceEvaluationValues(
     .map((configured) => {
       const value = field(result || {}, configured.key, configured.label)
         || field(fallback || {}, configured.key, configured.label);
-      return { key: configured.key, label: configured.label, value };
-    })
-    .filter((configured) => configured.value);
+      return { key: configured.key, label: configured.label, value: value || "Not provided." };
+    });
 }
 
 async function readTab(tabName: string, endColumn: string): Promise<{ headers: string[]; rows: SheetRow[] }> {
@@ -545,6 +545,7 @@ export async function getApplicantById(id: string): Promise<ApplicantDetails | n
     resumeDecisionDate: field(record, "Resume_HR_Decision_Date"),
     resumeReviewer: field(record, "Resume_HR_Reviewer"),
     resumeComments: field(record, "Resume_HR_Comments"),
+    resumeEvaluationFields: configuredEvaluationValues(configuredEvaluationFields, record, undefined),
     voiceDecision: field(record, "Voice_HR_Decision"),
     voiceComments: field(record, "Voice_HR_Comments"),
     // Voice_Interview_Results is canonical. The call log is a safe fallback
@@ -558,7 +559,7 @@ export async function getApplicantById(id: string): Promise<ApplicantDetails | n
     voiceCommunicationQuality: field(voiceResult ?? {}, "Communication_Quality", "Communication Quality") || field(callLog ?? {}, "Communication_Quality", "Communication Quality"),
     voiceAnswerCompleteness: field(voiceResult ?? {}, "Answer_Completeness", "Answer Completeness") || field(callLog ?? {}, "Answer_Completeness", "Answer Completeness"),
     voiceFollowUpQuestions: field(voiceResult ?? {}, "Recommended_Follow_Up_Questions", "Recommended Follow Up Questions") || field(callLog ?? {}, "Recommended_Follow_Up_Questions", "Recommended Follow Up Questions"),
-    voiceEvaluationFields: configuredVoiceEvaluationValues(configuredEvaluationFields, voiceResult, callLog),
+    voiceEvaluationFields: configuredEvaluationValues(configuredEvaluationFields, voiceResult, callLog),
     voiceTranscript: field(voiceResult ?? {}, "Transcript", "Voice_Transcript", "Call_Transcript") || field(callLog ?? {}, "Transcript", "Voice_Transcript", "Call_Transcript"),
     voiceScheduledDate: field(record, "Voice_Interview_Scheduled_Date"),
     voiceScheduledTime: field(record, "Voice_Interview_Scheduled_Time"),

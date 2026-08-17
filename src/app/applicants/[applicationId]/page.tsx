@@ -124,6 +124,7 @@ function CombinedScreeningEvidence({ applicant }: { applicant: ApplicantDetails 
         </div>
         <div className="applicant-copy-block"><span>AI Analysis Summary</span><p>{applicant.aiAnalysisSummary || "No AI summary is available."}</p></div>
         <div className="applicant-copy-columns"><div><span>Strengths</span><p>{applicant.strengths || "Not Provided."}</p></div><div><span>Gaps</span><p>{applicant.gaps || "Not Provided."}</p></div></div>
+        {applicant.resumeEvaluationFields.length > 0 && <div className="applicant-copy-columns">{applicant.resumeEvaluationFields.map((evaluation) => <div key={`resume-${evaluation.key}`}><span>{evaluation.label}</span><p>{evaluation.value}</p></div>)}</div>}
       </div>
       <div className="applicant-evidence-subsection">
         <div className="applicant-evidence-subsection-heading"><UiIcon name="microphone" size={16} /><h3>Voice Interview Review</h3></div>

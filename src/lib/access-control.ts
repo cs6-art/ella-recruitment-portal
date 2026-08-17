@@ -58,7 +58,7 @@ export function canDeleteApplicant(user: Pick<SessionUser, "canReviewRole" | "ca
 }
 
 export function canUseRecruitmentSetup(status: string): boolean {
-  return status === "Approved" || status === "Recruitment Setup";
+  return ["Approved", "Recruitment Setup", "Job Posted"].includes(status.trim());
 }
 
 export function canManageInterviewAvailability(status: string): boolean {

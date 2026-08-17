@@ -9,6 +9,7 @@ import {
   parseHodAvailabilitySlots,
   type HodAvailabilitySlot,
 } from "@/lib/hod-availability";
+import { isBeforeTargetHiringDate } from "@/lib/interview-availability-rules";
 
 type DraftSlot = HodAvailabilitySlot;
 
@@ -16,6 +17,7 @@ type Props = {
   roleId: string;
   status: string;
   availability: string;
+  targetHiringDate?: string;
   editable: boolean;
   onSaved: () => void;
 };
@@ -25,12 +27,18 @@ function todayInputValue() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 }
+function dayBefore(value?: string) {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined;
+  const date = new Date(`${value}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() - 1);
+  return date.toISOString().slice(0, 10);
+}
 
 function slotsMatch(left: DraftSlot[], right: DraftSlot[]) {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
-export default function HodAvailabilityEditor({ roleId, status, availability, editable, onSaved }: Props) {
+export default function HodAvailabilityEditor({ roleId, status, availability, targetHiringDate, editable, onSaved }: Props) {
   const router = useRouter();
   const initialSlots = useMemo(() => parseHodAvailabilitySlots(availability), [availability]);
   const [slots, setSlots] = useState<DraftSlot[]>(initialSlots);
@@ -45,6 +53,8 @@ export default function HodAvailabilityEditor({ roleId, status, availability, ed
   }, [initialSlots]);
 
   const isDirty = !slotsMatch(slots, savedSlots);
+  const hasSlotsAfterTargetDate = Boolean(targetHiringDate) && slots.some((slot) => slot.date && !isBeforeTargetHiringDate(slot.date, targetHiringDate));
+  const latestAllowedDate = dayBefore(targetHiringDate);
 
   function updateSlot(index: number, key: keyof DraftSlot, value: string) {
     setSlots((current) => current.map((slot, slotIndex) => slotIndex === index ? { ...slot, [key]: value } : slot));
@@ -91,12 +101,13 @@ export default function HodAvailabilityEditor({ roleId, status, availability, ed
   }
 
   return <section id="hod-interview-availability" className="card role-section hod-availability-editor">
-    <div className="card-header"><div><h2>HOD Interview Availability</h2><p className="role-section-subtitle">Update the windows HR can use for final-interview slots. Google Calendar is checked before a slot is added.</p></div><span className="status-badge status-active">{status === "Job Posted" ? "Published role" : "Editable"}</span></div>
+    <div className="card-header"><div><h2>HOD Interview Availability</h2><p className="role-section-subtitle">Update the windows HR can use for final-interview slots. Google Calendar is checked before a slot is added.</p></div><span className="status-badge status-active">{!editable ? "Read-only" : status === "Job Posted" ? "Published role" : "Editable"}</span></div>
     {message && <ActionFeedback kind="success">{message}</ActionFeedback>}
+    {hasSlotsAfterTargetDate && <ActionFeedback kind="error">This availability is after the target hiring date{targetHiringDate ? ` (${targetHiringDate})` : ""}, so it will not appear as a bookable final-interview slot. Move it to an earlier date or update the target hiring date.</ActionFeedback>}
     {error && <ValidationSummary error={error} title="Save failed" />}
     <div className="availability-entry-list">
       {slots.map((slot, index) => <div className="availability-entry" key={`${index}-${slot.date}-${slot.startTime}`}>
-        <label>Date<input type="date" min={todayInputValue()} value={slot.date} disabled={!editable || saving} onChange={(event) => updateSlot(index, "date", event.target.value)} /></label>
+        <label>Date<input type="date" min={todayInputValue()} max={latestAllowedDate} value={slot.date} disabled={!editable || saving} onChange={(event) => updateSlot(index, "date", event.target.value)} /></label>
         <label>Start time<input type="time" step="900" value={slot.startTime} disabled={!editable || saving} onChange={(event) => updateSlot(index, "startTime", event.target.value)} /></label>
         <label>End time<input type="time" step="900" value={slot.endTime} disabled={!editable || saving} onChange={(event) => updateSlot(index, "endTime", event.target.value)} /></label>
         <label>Timezone<select value={slot.timezone} disabled={!editable || saving} onChange={(event) => updateSlot(index, "timezone", event.target.value)}><option>Asia/Singapore</option><option>Asia/Manila</option><option>Asia/Hong_Kong</option><option>UTC</option><option>America/Los_Angeles</option></select></label>

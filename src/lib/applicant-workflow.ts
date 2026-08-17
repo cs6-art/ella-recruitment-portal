@@ -514,7 +514,11 @@ export async function getBookingContext(kind: BookingKind, token: string): Promi
   // exception: the candidate may use the original link to choose a
   // replacement slot, after which the token becomes used again.
   const canRescheduleNoShow = currentSlot?.slot.status?.toLowerCase() === "no show";
-  if (["used", "booked", "expired", "revoked"].includes(tokenStatus.toLowerCase()) && !canRescheduleNoShow) return null;
+  // A used token can still display the confirmation for the candidate who
+  // successfully booked it. It remains non-bookable because `slots` will be
+  // ignored by the read-only confirmation state in the public UI. A used
+  // token without its own booked slot is still invalid for late contenders.
+  if (["used", "booked", "expired", "revoked"].includes(tokenStatus.toLowerCase()) && !currentSlot && !canRescheduleNoShow) return null;
   const status = tokenStatus || (kind === "voice" ? field(row, "Booking_Token_Status") : field(row, "Status 3 (Final Interview)"));
   const legacySlots = slotsData.rows
     .filter((slot) => field(slot, "Role_ID", "Role ID").toLowerCase() === roleId.toLowerCase())
@@ -750,7 +754,33 @@ export async function deleteApplicant(applicationId: string) {
   return { applicationId };
 }
 
+const reservationLocks = new Map<string, Promise<void>>();
+
+async function withReservationLock<T>(key: string, operation: () => Promise<T>) {
+  const previous = reservationLocks.get(key) || Promise.resolve();
+  let release!: () => void;
+  const current = new Promise<void>((resolve) => { release = resolve; });
+  const queued = previous.then(() => current);
+  reservationLocks.set(key, queued);
+  await previous;
+  try {
+    return await operation();
+  } finally {
+    release();
+    if (reservationLocks.get(key) === queued) reservationLocks.delete(key);
+  }
+}
+
+// This serializes same-process contenders for one slot so the second request
+// re-reads the slot after the first booking lands and receives an unavailable
+// response instead of overwriting the first candidate. Multi-instance
+// deployments should move this reservation primitive to the shared database.
 export async function reserveBooking(kind: BookingKind, token: string, slotId: string, preferredMobile: string) {
+  const lockKey = `${kind}:${text(slotId)}`;
+  return withReservationLock(lockKey, () => reserveBookingInternal(kind, token, slotId, preferredMobile));
+}
+
+async function reserveBookingInternal(kind: BookingKind, token: string, slotId: string, preferredMobile: string) {
   const cleanSlotId = text(slotId);
   if (!cleanSlotId) throw new Error("Choose an interview slot.");
   const confirmedMobile = normalizePreferredMobile(preferredMobile);
@@ -993,7 +1023,12 @@ export async function reserveBooking(kind: BookingKind, token: string, slotId: s
   // predate the E.164 fix, or simply be stale). confirmedMobile is the value
   // actually validated and just persisted — echo that instead so the
   // response matches the sheet.
-  return { ...context, preferredMobile: confirmedMobile, bookingStatus: kind === "voice" ? "Scheduled" : "Interview Scheduled", scheduledDate: field(matchingSlot, "Date"), scheduledTime: field(matchingSlot, "Start_Time", "Start Time"), timezone: field(matchingSlot, "Timezone", "Time Zone"), slots: [] };
+  const bookedSlot = {
+    ...slotFrom(matchingSlot),
+    status: "Booked",
+    applicationId: context.applicationId,
+  };
+  return { ...context, preferredMobile: confirmedMobile, bookingStatus: kind === "voice" ? "Scheduled" : "Interview Scheduled", scheduledDate: field(matchingSlot, "Date"), scheduledTime: field(matchingSlot, "Start_Time", "Start Time"), timezone: field(matchingSlot, "Timezone", "Time Zone"), currentSlot: bookedSlot, slots: [] };
 }
 
 async function syncFinalTrackingBooking(input: {

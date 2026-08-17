@@ -139,6 +139,45 @@ export async function PATCH(request: Request, context: RouteContext) {
       hodEmail: body.hodEmail || access.role.hodEmail || access.user.email,
       replacementEmployee: body.requestType === "Staff Replacement" ? body.replacementEmployee : "",
     });
+    const setupDraft = body.recruitmentSetupDraft && typeof body.recruitmentSetupDraft === "object"
+      ? body.recruitmentSetupDraft as Record<string, unknown>
+      : {};
+    const setupText = (key: string, fallback: string) => {
+      const value = setupDraft[key];
+      return typeof value === "string" && value.trim() ? value.trim() : fallback;
+    };
+    const setupList = (key: string, fallback: string) => {
+      const value = setupDraft[key];
+      const list = Array.isArray(value)
+        ? value.map(String).map((item) => item.trim()).filter(Boolean)
+        : typeof value === "string"
+          ? value.split(/[\n,]/).map((item) => item.trim()).filter(Boolean)
+          : [];
+      return (list.length > 0 ? list : fallback.split(/[\n,]/).map((item) => item.trim()).filter(Boolean)).join(", ");
+    };
+    const preservedSetupFields = {
+      Screening_Criteria: setupText("screeningCriteria", access.role.screeningCriteria),
+      Initial_Interview_Questions: [
+        setupText("requiredInterviewQuestion1", access.role.requiredInterviewQuestion1 || ""),
+        setupText("requiredInterviewQuestion2", access.role.requiredInterviewQuestion2 || ""),
+        setupText("requiredInterviewQuestion3", access.role.requiredInterviewQuestion3 || ""),
+        setupText("requiredInterviewQuestion4", access.role.requiredInterviewQuestion4 || ""),
+        setupText("requiredInterviewQuestion5", access.role.requiredInterviewQuestion5 || ""),
+      ].filter(Boolean).join("\n"),
+      Required_Interview_Question_1: setupText("requiredInterviewQuestion1", access.role.requiredInterviewQuestion1 || ""),
+      Required_Interview_Question_2: setupText("requiredInterviewQuestion2", access.role.requiredInterviewQuestion2 || ""),
+      Required_Interview_Question_3: setupText("requiredInterviewQuestion3", access.role.requiredInterviewQuestion3 || ""),
+      Required_Interview_Question_4: setupText("requiredInterviewQuestion4", access.role.requiredInterviewQuestion4 || ""),
+      Required_Interview_Question_5: setupText("requiredInterviewQuestion5", access.role.requiredInterviewQuestion5 || ""),
+      AI_System_Prompt: access.role.aiSystemPrompt,
+      Posting_Channels: setupList("postingChannels", access.role.postingChannels),
+      License_or_Certificate_Required: setupText("licenseOrCertificateRequired", access.role.licenseOrCertificateRequired || ""),
+      Keywords_to_Look_For: setupText("keywordsToLookFor", access.role.keywordsToLookFor || ""),
+      Minimum_Years_of_Experience: setupText("minimumYearsOfExperience", access.role.minimumYearsOfExperience || ""),
+      Transferable_Skills_Accepted: setupText("transferableSkillsAccepted", access.role.transferableSkillsAccepted || ""),
+      Salary_or_Budget_Range: setupText("salaryOrBudgetRange", access.role.salaryOrBudgetRange || ""),
+      Earliest_Availability_Rule: setupText("earliestAvailabilityRule", access.role.earliestAvailabilityRule || ""),
+    };
     const updatedAt = new Date().toISOString();
 
     await updateRoleRequestFields(access.role.roleId, {
@@ -161,6 +200,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       Last_Updated_At: updatedAt,
       Last_Updated_By_Name: access.user.name,
       Last_Updated_By_Email: access.user.email,
+      ...preservedSetupFields,
     });
 
     return NextResponse.json({ success: true, roleId: access.role.roleId, status: access.role.status, message: "Role request updated successfully." });

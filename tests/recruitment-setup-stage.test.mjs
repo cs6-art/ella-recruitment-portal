@@ -77,7 +77,7 @@ test("setup payload keeps the five canonical questions compatible with n8n", () 
 });
 
 test("editor exposes separate stage actions and readiness", () => {
-  assert.match(editor, /Save Draft/);
+  assert.match(editor, />Save<|"Save"/);
   assert.match(editor, /Mark as Recruitment Ready/);
   assert.match(editor, /Mark as Ready for Publishing/);
   assert.match(editor, /Publish Role/);

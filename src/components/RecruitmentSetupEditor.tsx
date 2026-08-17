@@ -74,7 +74,7 @@ type Props = {
   updatedAt?: string;
   updatedBy?: string;
   updatedByEmail?: string;
-  onSaved: (expectedStatus?: string) => void;
+  onSaved?: (expectedStatus?: string) => void;
 };
 
 type SetupField = keyof Setup;
@@ -271,10 +271,10 @@ function Field({
 
 export default function RecruitmentSetupEditor({ roleId, status, setup, editable: canReview, updatedAt, updatedBy, updatedByEmail, onSaved }: Props) {
   // Saving is server-side restricted to Approved / Recruitment Setup roles, so
-  // a published role is viewable but not editable here. The section used to be
-  // hidden outright once the role reached "Job Posted", which left HR unable to
-  // see what Ella had actually been configured to ask.
-  const editable = canReview && (status === "Approved" || status === "Recruitment Setup");
+  // HR can continue correcting Ella's script and publishing metadata after a
+  // role is posted. Publishing itself remains a one-way workflow action below.
+  const editable = canReview && (status === "Approved" || status === "Recruitment Setup" || status === "Job Posted");
+  const canAdvanceWorkflow = status !== "Job Posted";
   const setupKey = JSON.stringify(setup);
   const initialValues = useMemo(() => buildInitialValues(JSON.parse(setupKey) as Setup), [setupKey]);
   const [values, setValues] = useState<Setup>(() => buildInitialValues(setup));
@@ -416,7 +416,7 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
       if (!response.ok || result.success !== true) throw new Error(result.message || result.error || "Unable to save recruitment setup.");
       const notification = notificationPresentation(result.notificationStatus || "not_configured", result.notificationError);
       const confirmationMessages: Record<string, string> = {
-        save_draft: "Draft saved successfully.",
+        save_draft: "Changes saved successfully.",
         mark_recruitment_ready: "Recruitment setup marked as ready.",
         mark_ready_for_publishing: "Recruitment setup is ready for publishing.",
         publish_role: "Role published successfully.",
@@ -424,7 +424,7 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
       setMessage(confirmationMessages[action] || result.message || "Recruitment setup saved successfully.");
       setWarning([notification.warning, typeof result.voiceSlotWarning === "string" ? result.voiceSlotWarning : ""].filter(Boolean).join(" "));
       actionRequestId.current = globalThis.crypto.randomUUID();
-      onSaved(typeof result.status === "string" ? result.status : undefined);
+      onSaved?.(typeof result.status === "string" ? result.status : undefined);
     } catch (caught) {
       setValidationIssues([]);
       setError(`${caught instanceof Error ? caught.message : "Unable to save recruitment setup."} Your entries were reloaded from the saved record below, so you can see exactly what was kept before retrying.`);
@@ -432,7 +432,7 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
       // a failure here does not necessarily mean nothing was saved. Reloading
       // shows the actually persisted state instead of leaving HR guessing
       // whether to redo the work.
-      onSaved();
+      onSaved?.();
     } finally {
       setSaving(false);
       setSavingAction("");
@@ -600,10 +600,12 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
         <div className="vapi-save-actions">
           {editable && <>
             {setupHasChanges && <button type="button" className="btn btn-secondary" disabled={saving} onClick={resetChanges}>Reset changes</button>}
-            <button type="button" className="btn btn-secondary" aria-busy={savingAction === "save_draft"} disabled={saving} onClick={() => void save("save_draft")}>{actionLabel("save_draft", "Save Draft")}</button>
-            <button type="button" className="btn btn-secondary" aria-busy={savingAction === "mark_recruitment_ready"} disabled={saving || !recruitmentReadiness.valid} onClick={() => void save("mark_recruitment_ready")}>{actionLabel("mark_recruitment_ready", "Mark as Recruitment Ready")}</button>
-            <button type="button" className="btn btn-secondary" aria-busy={savingAction === "mark_ready_for_publishing"} disabled={saving || !publishingReadiness.valid} onClick={() => void save("mark_ready_for_publishing")}>{actionLabel("mark_ready_for_publishing", "Mark as Ready for Publishing")}</button>
-            <button type="button" className="btn btn-primary" aria-busy={savingAction === "publish_role"} disabled={saving || !publishingReadiness.valid} onClick={() => void save("publish_role")}>{actionLabel("publish_role", "Publish Role")}</button>
+            <button type="button" className="btn btn-secondary" aria-busy={savingAction === "save_draft"} disabled={saving} onClick={() => void save("save_draft")}>{actionLabel("save_draft", "Save")}</button>
+            {canAdvanceWorkflow && <>
+              <button type="button" className="btn btn-secondary" aria-busy={savingAction === "mark_recruitment_ready"} disabled={saving || !recruitmentReadiness.valid} onClick={() => void save("mark_recruitment_ready")}>{actionLabel("mark_recruitment_ready", "Mark as Recruitment Ready")}</button>
+              <button type="button" className="btn btn-secondary" aria-busy={savingAction === "mark_ready_for_publishing"} disabled={saving || !publishingReadiness.valid} onClick={() => void save("mark_ready_for_publishing")}>{actionLabel("mark_ready_for_publishing", "Mark as Ready for Publishing")}</button>
+              <button type="button" className="btn btn-primary" aria-busy={savingAction === "publish_role"} disabled={saving || !publishingReadiness.valid} onClick={() => void save("publish_role")}>{actionLabel("publish_role", "Publish Role")}</button>
+            </>}
           </>}
         </div>
       </div>

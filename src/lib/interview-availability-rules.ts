@@ -104,22 +104,23 @@ export function ruleToSlots(rule: InterviewAvailabilityRule, maxDays = 180): Voi
 
 export function roleAvailabilityRules(role: { roleId: string; targetHiringDate?: string; hodAvailabilitySlots?: string; voiceInterviewAvailabilityMode?: string; voiceInterviewSlots?: string; voiceInterviewAutoStartDate?: string; voiceInterviewAutoEndDate?: string; voiceInterviewTimezone?: string; interviewAvailabilityRules?: string }): InterviewAvailabilityRule[] {
   const stored = parseAvailabilityRules(role.interviewAvailabilityRules);
-  if (stored.length > 0) return stored;
-  const fallback: InterviewAvailabilityRule[] = [];
+  const rules = [...stored];
   const voiceMode = text(role.voiceInterviewAvailabilityMode).toLowerCase();
   const voiceSlots = parseVoiceInterviewSlots(role.voiceInterviewSlots || "");
-  if (voiceMode === "manual" && voiceSlots.length > 0) {
-    fallback.push({ ruleId: `LEGACY-VOICE-${role.roleId}`, roleId: role.roleId, interviewType: "AI Voice Interview", mode: "specific", startDate: "", endDate: "", weekdays: [], startTime: "", endTime: "", slotDurationMinutes: 30, timezone: voiceSlots[0].timezone, specificSlots: voiceSlots, status: "Active" });
-  } else if (voiceMode === "automatic" && DATE.test(role.voiceInterviewAutoStartDate || "") && DATE.test(role.voiceInterviewAutoEndDate || "")) {
+  const hasVoiceRule = rules.some((rule) => rule.interviewType === "AI Voice Interview");
+  if (!hasVoiceRule && voiceMode === "manual" && voiceSlots.length > 0) {
+    rules.push({ ruleId: `LEGACY-VOICE-${role.roleId}`, roleId: role.roleId, interviewType: "AI Voice Interview", mode: "specific", startDate: "", endDate: "", weekdays: [], startTime: "", endTime: "", slotDurationMinutes: 30, timezone: voiceSlots[0].timezone, specificSlots: voiceSlots, status: "Active" });
+  } else if (!hasVoiceRule && voiceMode === "automatic" && DATE.test(role.voiceInterviewAutoStartDate || "") && DATE.test(role.voiceInterviewAutoEndDate || "")) {
     const startDate = role.voiceInterviewAutoStartDate || "";
     const endDate = role.voiceInterviewAutoEndDate || "";
-    fallback.push({ ruleId: `LEGACY-VOICE-${role.roleId}`, roleId: role.roleId, interviewType: "AI Voice Interview", mode: "recurring", startDate, endDate, weekdays: [1, 2, 3, 4, 5], startTime: "09:00", endTime: "17:00", slotDurationMinutes: 30, timezone: role.voiceInterviewTimezone || "Asia/Singapore", specificSlots: [], status: "Active" });
+    rules.push({ ruleId: `LEGACY-VOICE-${role.roleId}`, roleId: role.roleId, interviewType: "AI Voice Interview", mode: "recurring", startDate, endDate, weekdays: [1, 2, 3, 4, 5], startTime: "09:00", endTime: "17:00", slotDurationMinutes: 30, timezone: role.voiceInterviewTimezone || "Asia/Singapore", specificSlots: [], status: "Active" });
   }
   const hodSlots = parseHodAvailabilitySlots(role.hodAvailabilitySlots || "");
-  if (hodSlots.length > 0) {
-    fallback.push({ ruleId: `LEGACY-FINAL-${role.roleId}`, roleId: role.roleId, interviewType: "Final Interview", mode: "specific", startDate: "", endDate: "", weekdays: [], startTime: "", endTime: "", slotDurationMinutes: 30, timezone: hodSlots[0].timezone, specificSlots: hodSlots, status: "Active" });
+  const hasFinalRule = rules.some((rule) => rule.interviewType === "Final Interview");
+  if (!hasFinalRule && hodSlots.length > 0) {
+    rules.push({ ruleId: `LEGACY-FINAL-${role.roleId}`, roleId: role.roleId, interviewType: "Final Interview", mode: "specific", startDate: "", endDate: "", weekdays: [], startTime: "", endTime: "", slotDurationMinutes: 30, timezone: hodSlots[0].timezone, specificSlots: hodSlots, status: "Active" });
   }
-  return fallback;
+  return rules;
 }
 
 export function virtualSlotsForRole(role: Parameters<typeof roleAvailabilityRules>[0], interviewType: "AI Voice Interview" | "Final Interview") {

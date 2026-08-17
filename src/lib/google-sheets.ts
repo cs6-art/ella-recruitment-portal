@@ -145,6 +145,7 @@ export type RoleRequestDetails = {
   initialInterviewBookingLink: string;
   hodInterviewBookingLink: string;
   postingChannels: string;
+  licenseOrCertificateRequired?: string;
   evaluationFieldToggles?: string;
   customEvaluationFields?: { key: string; label: string; description: string }[];
   recruitmentSetupStatus?: string;
@@ -533,7 +534,46 @@ function mapRoleRequest(
       "Posting_Channels",
       "Posting Channels",
     ]),
+    licenseOrCertificateRequired: getField(record, ["License_or_Certificate_Required", "License or Certificate Required"]),
+    keywordsToLookFor: getField(record, [
+      "Keywords_to_Look_For",
+      "Keywords to Look For",
+    ]),
+    minimumYearsOfExperience: getField(record, [
+      "Minimum_Years_of_Experience",
+      "Minimum Years of Experience",
+    ]),
+    transferableSkillsAccepted: getField(record, [
+      "Transferable_Skills_Accepted",
+      "Transferable Skills Accepted",
+    ]),
+    salaryOrBudgetRange: getField(record, [
+      "Salary_or_Budget_Range",
+      "Salary or Budget Range",
+    ]),
+    earliestAvailabilityRule: getField(record, [
+      "Earliest_Availability_Rule",
+      "Earliest Availability Rule",
+    ]),
     ...storedEvaluationFields,
+
+    recruitmentSetupStatus: getField(record, ["Recruitment_Setup_Status"]),
+    salaryDisclosureStatus: getField(record, [
+      "Salary_Disclosure_Status",
+      "Salary Disclosure Status",
+    ]),
+    experienceRequirementStatus: getField(record, [
+      "Experience_Requirement_Status",
+      "Experience Requirement Status",
+    ]),
+    licenseRequirementStatus: getField(record, [
+      "License_Requirement_Status",
+      "License Requirement Status",
+    ]),
+    hodInterviewRequired: getField(record, [
+      "HOD_Interview_Required",
+      "HOD Interview Required",
+    ]),
 
     status:
       getField(record, [
@@ -546,8 +586,6 @@ function mapRoleRequest(
       "Source",
     ]),
     applicationLink: getField(record, ["Application_Link"]),
-    recruitmentSetupStatus: getField(record, ["Recruitment_Setup_Status"]),
-
     lastUpdatedAt: getField(record, [
       "Last_Updated_At",
       "Last Updated At",

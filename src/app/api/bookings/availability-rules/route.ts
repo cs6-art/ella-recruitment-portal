@@ -5,7 +5,7 @@ import { NextResponse } from "next/server";
 
 import { canEditHodAvailability, canEditRecruitmentSetup, canViewRole } from "@/lib/access-control";
 import { getRoleRequestById, updateRoleRequestFields } from "@/lib/google-sheets";
-import { parseAvailabilityRules, roleAvailabilityRules, serializeAvailabilityRules, type InterviewAvailabilityRule } from "@/lib/interview-availability-rules";
+import { hasValidFutureTime, parseAvailabilityRules, roleAvailabilityRules, serializeAvailabilityRules, virtualSlotsForRole, type InterviewAvailabilityRule } from "@/lib/interview-availability-rules";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
 
 export const runtime = "nodejs";
@@ -49,6 +49,11 @@ export async function POST(request: Request) {
     const rule = cleanRule(role.roleId, body.rule);
     const parsed = parseAvailabilityRules([rule]);
     if (parsed.length !== 1) return NextResponse.json({ success: false, error: "Add a valid recurring schedule or specific interview slots." }, { status: 400 });
+    const futureSlots = virtualSlotsForRole({ ...role, interviewAvailabilityRules: JSON.stringify([parsed[0]]) }, parsed[0].interviewType)
+      .filter(hasValidFutureTime);
+    if (futureSlots.length === 0) {
+      return NextResponse.json({ success: false, error: "This schedule creates no future interview times before the target hiring date. Choose an earlier date or a later target hiring date." }, { status: 422 });
+    }
     const existing = roleAvailabilityRules(role).filter((item) => !item.ruleId.startsWith("LEGACY-"));
     const merged = [...existing.filter((item) => item.ruleId !== rule.ruleId), parsed[0]];
     if (merged.length > 50) return NextResponse.json({ success: false, error: "A role can have up to 50 active availability rules." }, { status: 400 });

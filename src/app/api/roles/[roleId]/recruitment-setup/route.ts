@@ -31,7 +31,43 @@ export async function POST(request: Request, context: Context) {
   if (!role || !canViewRole(user, role)) return NextResponse.json({ success: false, error: "Role request not found." }, { status: 404 });
 
   try {
-    const setup = recruitmentSetupSchema.parse(await request.json());
+    const requestBody = await request.json() as Record<string, unknown>;
+    const parsedSetup = recruitmentSetupSchema.parse(requestBody);
+    const hasCustomEvaluationFields = Object.prototype.hasOwnProperty.call(requestBody, "customEvaluationFields");
+    // The editor normally sends the complete current setup. Keep the value
+    // already stored on the role whenever an older client or an incomplete
+    // record sends an empty field, so saving one section cannot erase another.
+    const setup = {
+      ...parsedSetup,
+      screeningCriteria: parsedSetup.screeningCriteria || role.screeningCriteria || "",
+      requiredInterviewQuestion1: parsedSetup.requiredInterviewQuestion1 || role.requiredInterviewQuestion1 || "",
+      requiredInterviewQuestion2: parsedSetup.requiredInterviewQuestion2 || role.requiredInterviewQuestion2 || "",
+      requiredInterviewQuestion3: parsedSetup.requiredInterviewQuestion3 || role.requiredInterviewQuestion3 || "",
+      requiredInterviewQuestion4: parsedSetup.requiredInterviewQuestion4 || role.requiredInterviewQuestion4 || "",
+      requiredInterviewQuestion5: parsedSetup.requiredInterviewQuestion5 || role.requiredInterviewQuestion5 || "",
+      aiSystemPrompt: parsedSetup.aiSystemPrompt || role.aiSystemPrompt || "",
+      postingChannels: parsedSetup.postingChannels.length
+        ? parsedSetup.postingChannels
+        : (role.postingChannels || "").split(",").map((channel) => channel.trim()).filter(Boolean),
+      licenseOrCertificateRequired: parsedSetup.licenseOrCertificateRequired || role.licenseOrCertificateRequired || "",
+      keywordsToLookFor: parsedSetup.keywordsToLookFor || role.keywordsToLookFor || "",
+      minimumYearsOfExperience: parsedSetup.minimumYearsOfExperience || role.minimumYearsOfExperience || "",
+      transferableSkillsAccepted: parsedSetup.transferableSkillsAccepted || role.transferableSkillsAccepted || "",
+      salaryOrBudgetRange: parsedSetup.salaryOrBudgetRange || role.salaryOrBudgetRange || "",
+      earliestAvailabilityRule: parsedSetup.earliestAvailabilityRule || role.earliestAvailabilityRule || "",
+      evaluationFieldToggles: parsedSetup.evaluationFieldToggles.length
+        ? parsedSetup.evaluationFieldToggles
+        : (role.evaluationFieldToggles || "").split(",").map((field) => field.trim()).filter(Boolean),
+      // An explicit empty array means HR removed the custom fields. Only use
+      // the stored fallback for older clients that did not send this property.
+      customEvaluationFields: hasCustomEvaluationFields
+        ? parsedSetup.customEvaluationFields
+        : role.customEvaluationFields || [],
+      salaryDisclosureStatus: parsedSetup.salaryDisclosureStatus || role.salaryDisclosureStatus || "",
+      experienceRequirementStatus: parsedSetup.experienceRequirementStatus || role.experienceRequirementStatus || "",
+      licenseRequirementStatus: parsedSetup.licenseRequirementStatus || role.licenseRequirementStatus || "",
+      hodInterviewRequired: parsedSetup.hodInterviewRequired || role.hodInterviewRequired || "",
+    };
     const setupAction = setup.setupAction || "save_draft";
 
     // A publish that already landed — a double click, a retried request, or a
@@ -75,7 +111,7 @@ export async function POST(request: Request, context: Context) {
     const webhookUrl = process.env.N8N_RECRUITMENT_SETUP_WEBHOOK_URL || process.env.N8N_ROLE_REQUEST_WEBHOOK_URL || process.env.N8N_ROLE_WEBHOOK_URL;
     const webhookSecret = process.env.N8N_WEBHOOK_SECRET;
     const workflowConfigured = Boolean(webhookUrl && webhookSecret);
-    if (!workflowConfigured && setupAction !== "save_draft") return NextResponse.json({ success: false, error: "The recruitment setup workflow is not configured. Save Draft can still be used, but publishing requires the workflow." }, { status: 503 });
+    if (!workflowConfigured && setupAction !== "save_draft") return NextResponse.json({ success: false, error: "The recruitment setup workflow is not configured. Save can still be used, but publishing requires the workflow." }, { status: 503 });
 
     const updatedAt = new Date().toISOString();
     const actionRequestId = setup.actionRequestId || crypto.randomUUID();
@@ -128,6 +164,9 @@ export async function POST(request: Request, context: Context) {
       Required_Interview_Question_5: setup.requiredInterviewQuestion5,
       AI_System_Prompt: setup.aiSystemPrompt,
       VAPI_Resolved_System_Prompt: setup.resolvedAiSystemPrompt || "",
+      // n8n can pass this value to VAPI as the `ella_system_prompt` dynamic
+      // variable while keeping VAPI's dashboard system prompt generic.
+      ella_system_prompt: setup.resolvedAiSystemPrompt || "",
       Evaluation_Fields: JSON.stringify(evaluationFieldsForSetup(setup.evaluationFieldToggles, setup.customEvaluationFields)),
       Initial_Interview_Booking_Link: role.initialInterviewBookingLink || setup.initialInterviewBookingLink,
       HOD_Interview_Booking_Link: role.hodInterviewBookingLink || setup.hodInterviewBookingLink,
@@ -253,17 +292,17 @@ export async function POST(request: Request, context: Context) {
               ? result.error
               : "The recruitment setup workflow did not confirm the update.";
           if (setupAction !== "save_draft") return NextResponse.json({ success: false, error: workflowMessage }, { status: response.status === 409 ? 409 : 502 });
-          workflowWarning = `Draft saved, but the workflow did not confirm its audit update: ${workflowMessage}`;
+          workflowWarning = `Changes saved, but the workflow did not confirm its audit update: ${workflowMessage}`;
         }
       } catch (workflowError) {
         if (setupAction !== "save_draft") throw workflowError;
-        workflowWarning = "Draft saved. The workflow confirmation timed out, so its audit notification may still be processing.";
+        workflowWarning = "Changes saved. The workflow confirmation timed out, so its audit notification may still be processing.";
         console.warn("[API Recruitment Setup] Draft workflow confirmation failed after direct save:", workflowError);
       } finally {
         clearTimeout(timeout);
       }
     } else {
-      workflowWarning = "Draft saved. The recruitment setup workflow is not configured, so no workflow notification was sent.";
+      workflowWarning = "Changes saved. The recruitment setup workflow is not configured, so no workflow notification was sent.";
     }
     // n8n has just written the new Status/Recruitment_Setup_Status outside
     // this process. The editor refetches the role immediately after this

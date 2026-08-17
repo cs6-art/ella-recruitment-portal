@@ -11,6 +11,7 @@ import {
 } from "@/lib/hod-availability";
 import { getRoleRequestById, updateRoleRequestFields } from "@/lib/google-sheets";
 import { synchronizeFinalInterviewSlots } from "@/lib/applicant-workflow";
+import { isBeforeTargetHiringDate } from "@/lib/interview-availability-rules";
 import { scheduledInstant } from "@/lib/interview-time";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
 
@@ -55,6 +56,9 @@ export async function POST(request: Request, context: Context) {
     }
     if (slots.some((slot) => scheduledInstant(slot.date, slot.startTime, slot.timezone).getTime() <= Date.now())) {
       return NextResponse.json({ success: false, error: "HOD availability must start in the future. Remove past windows before saving." }, { status: 400 });
+    }
+    if (slots.some((slot) => !isBeforeTargetHiringDate(slot.date, role.targetHiringDate))) {
+      return NextResponse.json({ success: false, error: `HOD availability must be scheduled before the target hiring date${role.targetHiringDate ? ` (${role.targetHiringDate})` : ""}.` }, { status: 400 });
     }
 
     const updatedAt = new Date().toISOString();

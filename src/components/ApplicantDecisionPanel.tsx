@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 
 import ActionFeedback from "@/components/ActionFeedback";
 import ValidationSummary from "@/components/ValidationSummary";
@@ -44,7 +43,10 @@ function isRejectedDecision(value: string) {
 
 function reviewStage(props: Props): Stage {
   if (/completed/i.test(props.finalInterviewStatus) || /final interview (passed|rejected)/i.test(props.finalStatus)) return "final";
-  if (/interviewed|completed/i.test(props.voiceStatus)) return "voice";
+  // An incomplete voice interview still needs HR review. Treating it as an
+  // unrecognized status falls back to the already-decided CV stage and hides
+  // the voice approval actions.
+  if (/interviewed|completed|incomplete/i.test(`${props.voiceStatus} ${props.finalStatus}`)) return "voice";
   return "resume";
 }
 
@@ -66,7 +68,6 @@ function DecisionRow({ stage, title, description, current, link, enabled = true,
   const [busy, setBusy] = useState(false);
   const [comments, setComments] = useState("");
   const [error, setError] = useState("");
-  const router = useRouter();
   const decided = isDecided(current);
 
   async function decide(decision: "Approve" | "Reject" | "Manual Review") {
@@ -78,8 +79,11 @@ function DecisionRow({ stage, title, description, current, link, enabled = true,
       const data = await response.json();
       if (!response.ok || !data.success) throw new Error(data.error || "Unable to save decision.");
       onSaved(decision === "Approve" ? `${title} approved.` : decision === "Reject" ? `${title} marked rejected.` : `${title} returned for review.`);
-      router.refresh();
-      setComments("");
+      // Every decision changes server-backed workflow state. Reload the detail
+      // page so summary cards, next action, timeline, and decision controls
+      // all read the newly persisted applicant record together.
+      window.location.reload();
+      return;
     } catch (decisionError) { setError(decisionError instanceof Error ? decisionError.message : "Unable to save decision."); }
     finally { setBusy(false); }
   }

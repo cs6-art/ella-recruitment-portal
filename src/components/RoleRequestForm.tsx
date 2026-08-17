@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { useRouter } from "next/navigation";
 
 import ActionFeedback from "@/components/ActionFeedback";
 import UiIcon from "@/components/UiIcon";
@@ -104,6 +105,7 @@ const fieldLabels: Record<string, string> = {
 
 export default function RoleRequestForm({ user, roleId, initialValues }: RoleRequestFormProps) {
   const isEditing = Boolean(roleId);
+  const router = useRouter();
   const [form, setForm] = useState<FormState>(() => ({
     ...initial,
     ...initialValues,
@@ -286,10 +288,15 @@ export default function RoleRequestForm({ user, roleId, initialValues }: RoleReq
         roleId: savedRoleId || "Not provided",
         status: result.status || "Pending HR Discussion",
       });
-      // The new role is written by n8n outside the Next.js process. A full
-      // navigation avoids reusing a prefetched/stale client tree and prevents
-      // the first redirect from briefly showing "Role request not found".
-      window.location.assign(`/roles/${encodeURIComponent(savedRoleId)}`);
+      if (isEditing) {
+        router.push(`/roles/${encodeURIComponent(savedRoleId)}?updated=1`);
+        router.refresh();
+      } else {
+        // The new role is written by n8n outside the Next.js process. A full
+        // navigation avoids reusing a prefetched/stale client tree and prevents
+        // the first redirect from briefly showing "Role request not found".
+        window.location.assign(`/roles/${encodeURIComponent(savedRoleId)}`);
+      }
       if (!isEditing) setForm(initial);
     } catch (submissionError) {
       console.error("[Role Request Form] Submission failed:", submissionError);

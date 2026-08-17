@@ -270,8 +270,8 @@ function evaluationFieldsBlock(setup: RecruitmentPromptInput): string {
   const fields = [...BASELINE_EVALUATION_FIELDS, ...(setup.evaluationFields || [])]
     .filter((field) => field.key && field.label)
     .filter((field, index, all) => all.findIndex((candidate) => candidate.key === field.key) === index);
-  return "EVALUATION OUTPUT FIELDS (assess and record silently):\n"
-    + fields.map((field) => `- ${field.label}: ${field.description}`).join("\n");
+  return "[Configured Evaluation Output Fields]\nEVALUATION OUTPUT FIELDS (assess and record silently):\nAfter all approved interview questions are complete, silently assess and record one value for every field below. Do not omit a selected optional or custom field. The result key at the end of each line is the exact field name that the post-call evaluator must write.\n"
+    + fields.map((field) => `- ${field.label}: ${field.description} (result key: ${field.key})`).join("\n");
 }
 
 function screeningCriteria(setup: RecruitmentPromptInput) {
@@ -289,18 +289,23 @@ function screeningCriteria(setup: RecruitmentPromptInput) {
     "SALARY OR BUDGET RANGE:\n" + (approvedSalary || "Not specified."),
     "CANDIDATE START AVAILABILITY (SCREENING ONLY):\n" + valueOr(setup.earliestAvailabilityRule || setup.noticePeriodRequirement, "Do not ask unless the approved role setup explicitly requires start-availability information."),
     "ADDITIONAL SCREENING CRITERIA:\n" + valueOr(setup.screeningCriteria, "None specified."),
-    evaluationFieldsBlock(setup),
   ].filter(Boolean).join("\n\n");
 }
 
 export function renderRecruitmentSystemPrompt(template: string, setup: RecruitmentPromptInput): string {
   const questions = valueOr(setup.interviewQuestions, "No approved interview questions have been provided.");
   const selectedRole = valueOr(setup.roleTitle, "{{selected_role}}");
-  return (template.trim() || STANDARD_VAPI_SYSTEM_PROMPT_TEMPLATE)
+  const rendered = (template.trim() || STANDARD_VAPI_SYSTEM_PROMPT_TEMPLATE)
     .replaceAll("{{selected_role}}", selectedRole)
+    // Support the older prompt wording used by existing Vapi assistants.
+    .replaceAll("{{role}}", selectedRole)
     .replace("{{job_description}}", valueOr(setup.jobDescription, "the approved role requirements"))
     .replaceAll("{{system_prompt}}", screeningCriteria(setup))
     .replace("{{interview_questions}}", questions);
+  const evaluationBlock = evaluationFieldsBlock(setup);
+  return rendered.includes("[Critical Behavior Rules]")
+    ? rendered.replace("[Critical Behavior Rules]", `${evaluationBlock}\n\n[Critical Behavior Rules]`)
+    : `${rendered}\n\n${evaluationBlock}`;
 }
 
 export function generateRecruitmentSystemPrompt(setup: RecruitmentPromptInput): string {

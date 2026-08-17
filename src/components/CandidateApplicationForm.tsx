@@ -4,7 +4,7 @@ import { useMemo, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 
 import ActionFeedback from "@/components/ActionFeedback";
-import { countryOptions, CountryFlag } from "@/components/CountryOptions";
+import { countryOptions, CountrySelect } from "@/components/CountryOptions";
 import ValidationSummary from "@/components/ValidationSummary";
 
 type RoleOption = {
@@ -218,13 +218,7 @@ export default function CandidateApplicationForm({
             <span>Contact Number *</span>
             <div className="contact-number-controls">
               <label>
-                <span>Country code</span>
-                <div className="country-code-control">
-                  <CountryFlag country={selectedCountry} />
-                  <select aria-label="Country code" value={form.countryCode} disabled={saving} onChange={(event) => update("countryCode", event.target.value)}>
-                    {countryOptions.map((country) => <option key={country.code} value={country.code}>{country.code} {country.label}</option>)}
-                  </select>
-                </div>
+                <CountrySelect ariaLabel="Country code" value={form.countryCode} disabled={saving} onChange={(value) => update("countryCode", value)} />
               </label>
               <label>
                 <span className="sr-only">Local contact number</span>
