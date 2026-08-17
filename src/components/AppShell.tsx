@@ -101,7 +101,15 @@ export default function AppShell({ user, children }: AppShellProps) {
         <div className={styles.accountSection}>
           <div className={styles.workspaceLabel}>ACCOUNT</div>
           <Link href="/profile" onClick={closeSidebar} className={`${styles.profileButton} ${isProfile ? styles.profileButtonActive : ""}`}><div className={styles.avatar}>{initials}</div><div className={styles.profileDetails}><strong>{userName}</strong>{userEmail && <span>{userEmail}</span>}{user.accessRole && <small>{user.accessRole}</small>}</div><span className={styles.profileArrow}><UiIcon name="chevron-right" /></span></Link>
-          <form action="/api/auth/logout" method="get"><button type="submit" className={styles.signOutButton} onClick={() => setSigningOut(true)} disabled={signingOut}><UiIcon name="logout" /><span className={styles.signOutText}>{signingOut ? "Signing out..." : "Sign Out"}</span></button></form>
+          {/* Disabling this button synchronously inside its own click handler
+              (the previous `disabled={signingOut}` set from the same onClick)
+              raced the browser's native "submit this GET form" default action:
+              React re-rendered the button as disabled before that default
+              action ran, so the very click meant to sign out silently did
+              nothing. Deferring the state update to the next tick lets the
+              native navigation kick off first; the disabled/"Signing out..."
+              state is then purely a cosmetic cue while the page unloads. */}
+          <form action="/api/auth/logout" method="get"><button type="submit" className={styles.signOutButton} onClick={() => { window.setTimeout(() => setSigningOut(true), 0); }} disabled={signingOut}><UiIcon name="logout" /><span className={styles.signOutText}>{signingOut ? "Signing out..." : "Sign Out"}</span></button></form>
         </div>
       </aside>
 
