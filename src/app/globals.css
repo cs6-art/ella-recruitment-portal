@@ -2595,7 +2595,11 @@ html { scroll-behavior: smooth; }
   color: #1b2d43;
   font-size: 13px;
   font-weight: 800;
-  white-space: nowrap;
+  /* Header text wraps instead of spilling into the next column — several
+     headers ("Request Type", "Department") are wider than their assigned
+     column at the current breakpoint. */
+  white-space: normal;
+  line-height: 1.25;
 }
 
 .roles-table tbody td {
@@ -2605,16 +2609,6 @@ html { scroll-behavior: smooth; }
 .roles-table tbody tr:last-child td {
   border-bottom: 0;
 }
-
-.roles-table th:nth-child(1) { width: 16%; }
-.roles-table th:nth-child(2) { width: 10%; }
-.roles-table th:nth-child(3) { width: 10%; }
-.roles-table th:nth-child(4) { width: 8%; }
-.roles-table th:nth-child(5) { width: 13%; }
-.roles-table th:nth-child(6) { width: 12%; }
-.roles-table th:nth-child(7) { width: 11%; }
-.roles-table th:nth-child(8) { width: 12%; }
-.roles-table th:nth-child(9) { width: 8%; }
 
 .roles-table tbody tr {
   cursor: pointer;
@@ -4416,12 +4410,6 @@ textarea:focus-visible {
 
 /* --- Tables --------------------------------------------------------------- */
 
-/* 8% of the table width could not hold a 90px "View Details" button. Give the
-   action column a real width and let the percentages share what is left. */
-.roles-table th:nth-child(9) {
-  width: 128px;
-}
-
 .roles-table td:last-child {
   text-align: right;
 }
@@ -4641,7 +4629,6 @@ textarea:focus-visible {
 /* Final action-spacing overrides: keep table actions readable after the
    legacy table rules above, which intentionally style the action column. */
 .applicants-table th:last-child { width: 238px; }
-.roles-table th:nth-child(9) { width: 225px; }
 .applicant-table-actions, .role-table-actions { align-items: center; gap: 10px; min-width: 0; padding: 3px 0; }
 .applicant-table-actions a, .role-table-actions a, .applicant-table-actions .table-danger-action, .role-table-actions .table-danger-action { display: inline-flex; align-items: center; justify-content: center; min-height: 34px; padding: 7px 11px; border: 1px solid #cfd9e6; border-radius: 8px; color: var(--navy); background: #fff; font-size: 12px; font-weight: 800; line-height: 1; text-decoration: none; white-space: nowrap; }
 .applicant-table-actions a:hover, .applicant-table-actions a:focus-visible, .role-table-actions a:hover, .role-table-actions a:focus-visible { border-color: #8db9d8; background: #f3f9fe; text-decoration: none; }
