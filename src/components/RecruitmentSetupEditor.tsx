@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import ActionFeedback from "@/components/ActionFeedback";
 import ValidationSummary, { type ValidationIssue } from "@/components/ValidationSummary";
@@ -275,6 +276,7 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
   // role is posted. Publishing itself remains a one-way workflow action below.
   const editable = canReview && (status === "Approved" || status === "Recruitment Setup" || status === "Job Posted");
   const canAdvanceWorkflow = status !== "Job Posted";
+  const router = useRouter();
   const setupKey = JSON.stringify(setup);
   const initialValues = useMemo(() => buildInitialValues(JSON.parse(setupKey) as Setup), [setupKey]);
   const [values, setValues] = useState<Setup>(() => buildInitialValues(setup));
@@ -425,6 +427,9 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
       setWarning([notification.warning, typeof result.voiceSlotWarning === "string" ? result.voiceSlotWarning : ""].filter(Boolean).join(" "));
       actionRequestId.current = globalThis.crypto.randomUUID();
       onSaved?.(typeof result.status === "string" ? result.status : undefined);
+      if (action === "publish_role") {
+        router.push("/roles");
+      }
     } catch (caught) {
       setValidationIssues([]);
       setError(`${caught instanceof Error ? caught.message : "Unable to save recruitment setup."} Your entries were reloaded from the saved record below, so you can see exactly what was kept before retrying.`);

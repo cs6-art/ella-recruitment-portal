@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";
 
@@ -106,11 +106,12 @@ const fieldLabels: Record<string, string> = {
 export default function RoleRequestForm({ user, roleId, initialValues }: RoleRequestFormProps) {
   const isEditing = Boolean(roleId);
   const router = useRouter();
-  const [form, setForm] = useState<FormState>(() => ({
+  const initialForm = useMemo<FormState>(() => ({
     ...initial,
     ...initialValues,
     hodAvailabilitySlots: initialValues?.hodAvailabilitySlots ?? initial.hodAvailabilitySlots,
-  }));
+  }), [initialValues]);
+  const [form, setForm] = useState<FormState>(() => initialForm);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -119,6 +120,8 @@ export default function RoleRequestForm({ user, roleId, initialValues }: RoleReq
   const [parsing, setParsing] = useState(false);
   const [parseError, setParseError] = useState("");
   const errorSummaryRef = useRef<HTMLDivElement>(null);
+  const initialFormKey = useMemo(() => JSON.stringify(initialForm), [initialForm]);
+  const hasChanges = JSON.stringify(form) !== initialFormKey;
 
   function scrollToErrorSummary() {
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -467,12 +470,14 @@ export default function RoleRequestForm({ user, roleId, initialValues }: RoleReq
           </div>
         </section>
 
-        <div className="form-actions">
-          <a className="btn btn-secondary" href="/roles">Cancel</a>
-          <button type="submit" className="btn btn-primary" disabled={loading}>
-            {loading ? (isEditing ? "Saving…" : "Submitting…") : (isEditing ? "Save role request" : "Submit for HR discussion")}
-          </button>
-        </div>
+        {(!isEditing || hasChanges) && (
+          <div className="form-actions">
+            <a className="btn btn-secondary" href="/roles">Cancel</a>
+            <button type="submit" className="btn btn-primary" disabled={loading}>
+              {loading ? (isEditing ? "Saving…" : "Submitting…") : (isEditing ? "Save role request" : "Submit for HR discussion")}
+            </button>
+          </div>
+        )}
       </div>
 
       <aside className="sidebar-card">

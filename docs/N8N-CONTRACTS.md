@@ -276,3 +276,14 @@ truth for status updates. After Google Sheets writes, n8n should resolve
 recipients from `User_Directory` and `Requester_Email`, send the email, and
 return `notificationStatus` as `sent`, `pending`, `failed`, or
 `not_configured`. The email link must use the payload's `portalUrl`.
+
+## Public resume submission receipt
+
+The public resume page currently sends multipart form data to
+`POST /webhook/recruitment/apply` and ends at a submission receipt. The
+candidate sees that the resume was received and is asked to wait for an email
+from the recruitment team. The page does not poll application status or show
+voice-interview and final-interview stages.
+
+The previous polling contract is preserved in
+`docs/LEGACY-APPLICATION-STATUS.md` for a future release.
