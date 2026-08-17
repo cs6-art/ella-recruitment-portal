@@ -9,6 +9,7 @@ export type UiIconName =
   | "close"
   | "chevron-left"
   | "chevron-right"
+  | "chevron-down"
   | "arrow-left"
   | "arrow-right"
   | "logout"
@@ -49,6 +50,7 @@ export default function UiIcon({ name, size = 18, strokeWidth = 1.8, className }
       {name === "close" && <><path d="m6 6 12 12M18 6 6 18" /></>}
       {name === "chevron-left" && <path d="m14.5 5-7 7 7 7" />}
       {name === "chevron-right" && <path d="m9.5 5 7 7-7 7" />}
+      {name === "chevron-down" && <path d="m5 9.5 7 7 7-7" />}
       {name === "arrow-left" && <><path d="M19 12H5" /><path d="m11 18-6-6 6-6" /></>}
       {name === "arrow-right" && <><path d="M5 12h14" /><path d="m13 6 6 6-6 6" /></>}
       {name === "logout" && <><path d="M10 5H5v14h5M14 8l4 4-4 4M18 12H9" /></>}

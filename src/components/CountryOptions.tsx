@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import UiIcon from "@/components/UiIcon";
+
 export type CountryOption = {
   code: string;
   country: "PH" | "SG" | "MY";
@@ -53,7 +55,7 @@ export function CountrySelect({ value, onChange, disabled = false, ariaLabel = "
     <button type="button" className="country-select-trigger" aria-label={ariaLabel} aria-haspopup="listbox" aria-expanded={open} disabled={disabled} onClick={() => setOpen((current) => !current)} onKeyDown={(event) => { if (event.key === "Escape") setOpen(false); }}>
       <CountryFlag country={selected} />
       <span>{selected.code} {selected.label}</span>
-      <span className="country-select-chevron" aria-hidden="true">⌄</span>
+      <span className="country-select-chevron" aria-hidden="true"><UiIcon name="chevron-down" size={13} strokeWidth={2.3} /></span>
     </button>
     {open && <div className="country-select-menu" role="listbox" aria-label={ariaLabel}>
       {countryOptions.map((country) => <button type="button" role="option" aria-selected={country.code === selected.code} className={`country-select-option${country.code === selected.code ? " is-selected" : ""}`} key={country.code} onClick={() => selectCountry(country)}>
