@@ -162,10 +162,11 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
           <p>{description}</p>
         </div>
 
-        {actionMessage && <ActionFeedback kind="success" className="applicants-action-feedback">{actionMessage}</ActionFeedback>}
-        {actionError && <ActionFeedback kind="error" className="applicants-action-feedback">{actionError}</ActionFeedback>}
         <div className="applicants-header-meta"><strong>{activeApplicants.length}</strong><span>Total applications</span></div>
       </div>
+
+      {actionMessage && <ActionFeedback kind="success" className="applicants-action-feedback">{actionMessage}</ActionFeedback>}
+      {actionError && <ActionFeedback kind="error" className="applicants-action-feedback">{actionError}</ActionFeedback>}
 
       {topContent && <div className="applicants-intake-section">{topContent}</div>}
 

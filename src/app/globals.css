@@ -1479,7 +1479,11 @@ html { scroll-behavior: smooth; }
 .table-danger-action:disabled { opacity: .55; cursor: wait; }
 .btn-danger-outline { border: 1px solid #e3a39c; color: #a12b22; background: #fff8f7; }
 .btn-danger-outline:hover, .btn-danger-outline:focus-visible { border-color: #c95449; background: #fff0ee; }
-.applicants-action-feedback, .roles-action-feedback { margin: 0 20px 14px; }
+.roles-action-feedback { margin: 0 20px 14px; }
+/* Rendered directly in the page flow (not nested inside a card like
+   .roles-action-feedback), so it should align flush with .hero-row and
+   .applicant-stat-grid above/below it rather than carry their side inset. */
+.applicants-action-feedback { margin: 0 0 20px; }
 .applicant-edit-page { max-width: 920px; }
 .applicant-edit-card { margin-top: 18px; overflow: hidden; }
 .applicant-edit-card .card-header { display: block; }
