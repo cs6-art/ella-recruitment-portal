@@ -182,7 +182,7 @@ export default function RoleRequestForm({ user, roleId, initialValues }: RoleReq
 
   async function populateFromJobDescription() {
     if (!jobDescriptionFile) {
-      setParseError("Choose a PDF or DOCX job description first.");
+      setParseError("Choose a PDF, DOC, or DOCX job description first.");
       return;
     }
 
@@ -339,10 +339,11 @@ export default function RoleRequestForm({ user, roleId, initialValues }: RoleReq
               <div className="ai-draft-panel">
                 <div>
                   <strong>Populate from a job description</strong>
-                  <small className="field-help">Upload a PDF or DOCX and Ella will prepare the role details, screening criteria, and interview questions for your review.</small>
+                  <small className="field-help">Upload a PDF, DOC, or DOCX and Ella will prepare the role details, screening criteria, and interview questions for your review.</small>
                 </div>
                 <div className="ai-draft-controls">
-                  <input id="jobDescriptionFile" type="file" accept="application/pdf,.pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx" onChange={(event) => { setJobDescriptionFile(event.target.files?.[0] || null); setParseError(""); }} />
+                  {/* Keep the picker aligned with the server document extractor. */}
+                  <input id="jobDescriptionFile" type="file" accept="application/pdf,.pdf,application/msword,.doc,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx" onChange={(event) => { setJobDescriptionFile(event.target.files?.[0] || null); setParseError(""); }} />
                   <button type="button" className="btn btn-secondary" onClick={populateFromJobDescription} disabled={parsing}>
                     {parsing ? "Generating draft…" : "Generate draft"}
                   </button>

@@ -47,7 +47,9 @@ export async function POST(request: Request) {
     const roleId = String(formData.get("roleId") || "").trim();
     const files = formData.getAll("resumes").filter((value): value is File => value instanceof File);
     if (!roleId) return responseError("Select a published role before uploading resumes.", 422);
-    if (!files.length) return responseError("Choose at least one PDF or DOCX resume.", 422);
+    // Keep the API contract explicit: legacy binary DOC is accepted alongside
+    // the PDF/DOCX formats supported by the shared extractor.
+    if (!files.length) return responseError("Choose at least one PDF, DOC, or DOCX resume.", 422);
     if (files.length > MAX_FILES_PER_BATCH) return responseError(`Upload up to ${MAX_FILES_PER_BATCH} resumes per batch.`, 422);
 
     const role = await getRoleRequestById(roleId);

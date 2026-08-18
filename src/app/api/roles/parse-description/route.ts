@@ -25,7 +25,9 @@ export async function POST(request: Request) {
 
     const formData = await request.formData();
     const value = formData.get("jobDescriptionFile");
-    if (!(value instanceof File)) return failure("Attach one PDF or DOCX job description.", 422);
+    // The shared extractor normalizes PDF, legacy DOC, and DOCX into text
+    // before the role-draft webhook receives the request.
+    if (!(value instanceof File)) return failure("Attach one PDF, DOC, or DOCX job description.", 422);
 
     const document = await extractDocumentText(value);
     const controller = new AbortController();

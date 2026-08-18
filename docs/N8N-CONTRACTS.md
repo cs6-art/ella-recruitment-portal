@@ -1,5 +1,8 @@
 # n8n payload contracts
 
+<!-- Contract note: this document is the integration source of truth for
+     portal-to-n8n payloads and bulk-processing behavior. -->
+
 ## Recruitment setup update
 
 The portal sends this payload to `N8N_RECRUITMENT_SETUP_WEBHOOK_URL`, or to
@@ -203,7 +206,7 @@ The HR intake route uses the same schema, but the `source` value is
 values are `Direct Application`, `Referral`, `Walk-in`, `Agency`,
 `Existing Database`, and `HR Invitation`.
 
-The portal accepts either pasted resume text or one validated PDF/DOCX file.
+The portal accepts either pasted resume text or one validated PDF, legacy DOC, or DOCX file.
 For a file submission, the portal validates the extension, MIME type, file
 signature, 10 MB limit, and readable extracted text, stores the binary in the
 private resume storage directory, and sends only extracted text plus safe file
@@ -219,7 +222,7 @@ never sent to or stored in Google Sheets.
 ## Bulk Resume Screening
 
 The Resume Screening page can direct HR to a shared Google Drive folder for
-bulk intake. Upload PDF or DOCX files using a role-prefixed filename such as
+bulk intake. Upload PDF, legacy DOC, or DOCX files using a role-prefixed filename such as
 `AC01 - Candidate Name.pdf`. The n8n poller searches that folder every five
 minutes, claims one file at a time, extracts its text through the portal, and
 submits the same candidate-application contract used by the existing screening
@@ -239,22 +242,35 @@ timestamped status. `Screened` is terminal for the selected role: uploading the
 same resume again returns a `Skipped` result and does not call the AI screening
 workflow or create another queue item.
 The queue identity is role-scoped for portal uploads, so the same resume may be
-screened independently for a different published role. A failed file remains
-visible as `Failed` and is not automatically retried by the Drive poller;
-correct the source file or queue entry before retrying it.
+screened independently for a different published role. The Drive poller retries
+transient failures up to three total attempts. It waits five minutes before the
+second attempt and fifteen minutes before the third; a `Processing` lease older
+than thirty minutes is also eligible for recovery. After the third failed
+attempt, the latest `Failed` event remains visible for HR review.
 
 Configure the n8n environment with `GOOGLE_BULK_RESUME_DRIVE_FOLDER_ID` and
 `N8N_BULK_RESUME_PORTAL_BASE_URL`. The latter must be a URL reachable from n8n
 (a local `http://localhost:3000` URL will not work from a hosted n8n instance).
 
 For local HR testing, the primary flow is the portal's direct multi-file upload.
-The portal extracts each PDF/DOCX locally and sends one JSON request at a time
+The portal extracts each PDF/DOC/DOCX locally and sends one JSON request at a time
 to `N8N_BULK_RESUME_UPLOAD_WEBHOOK_URL` at `/webhook/bulk-resume-upload`.
 The `McLink - Bulk Resume Upload Intake` workflow extracts candidate contact
 details, writes the processing claim, calls the existing candidate screening
 workflow, and records the final queue status. It uses the SHA-256 file hash as
 the queue ID, so uploading the same file again does not create another
 screening request after it is marked `Screened`.
+
+The active workflow `JD Role Folder Bulk Resume Screening`
+(`MWt7W7LNFNZxcc0q`) reads active role-to-folder mappings from the
+`Bulk_Role_Folder_Map` tab. Each mapped role folder contains month/year folders
+such as `Dec 2025` or `January 2026`; only PDF, legacy DOC, and DOCX files inside
+those month folders are screened. Up to five resumes are claimed every ten
+minutes and processed sequentially with API pauses and bounded Sheet retries.
+Missing email or mobile values
+are stored as blank and do not prevent the applicant from appearing in the
+portal. See `docs/AUTOMATED-BULK-RESUME-SCREENING.md` for operations and access
+requirements.
 
 ## Recruitment Setup stage actions
 
@@ -273,8 +289,10 @@ missing and returns `RECRUITMENT_SETUP_INCOMPLETE` with `missingFields`.
 
 The existing `role_status_transition` payload continues to be the source of
 truth for status updates. After Google Sheets writes, n8n should resolve
-recipients from `User_Directory` and `Requester_Email`, send the email, and
-return `notificationStatus` as `sent`, `pending`, `failed`, or
+recipients and send the email. A temporary production override currently
+routes role request, recruitment status, and recruitment setup notifications
+only to `cs6@mclinkgroup.com`; this does not change User_Directory permissions.
+Return `notificationStatus` as `sent`, `pending`, `failed`, or
 `not_configured`. The email link must use the payload's `portalUrl`.
 
 ## Public resume submission receipt

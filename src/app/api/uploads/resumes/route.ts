@@ -23,7 +23,9 @@ export async function POST(request: Request) {
 
     const formData = await request.formData();
     const value = formData.get("resumeFile");
-    if (!(value instanceof File)) return failure("Attach one PDF or DOCX resume file.", 422);
+    // Resume storage owns signature validation and extraction; this route only
+    // enforces the authenticated upload boundary and request-size limit.
+    if (!(value instanceof File)) return failure("Attach one PDF, DOC, or DOCX resume file.", 422);
     if (value.size > MAX_RESUME_FILE_BYTES) return failure("Resume files must be 10 MB or smaller.", 413);
 
     const stored = await storeResumeFile(value);

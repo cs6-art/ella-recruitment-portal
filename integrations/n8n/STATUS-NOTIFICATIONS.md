@@ -1,9 +1,19 @@
 # Role status notification rules
 
+<!-- Routing note: n8n resolves notification recipients; the portal only sends
+     the transition payload and never sends email directly. -->
+
 The Next.js status API sends every transition to the n8n role webhook. The
 browser never sends email directly. n8n should use the transition `action`,
 the `Requester_Email` value from `Role_Requests`, and `User_Directory` to
 resolve recipients.
+
+Temporary routing exception (active): production role request, recruitment
+status, and recruitment setup notifications are sent only to
+`cs6@mclinkgroup.com`. This is an email-routing override only; it does not
+change User_Directory access or review/approval permissions. Remove the
+override from the three recipient resolver nodes when normal HR distribution
+should resume.
 
 The transition payload includes `portalUrl`, built from `NEXT_PUBLIC_APP_URL`
 or the forwarded request host, followed by `/roles/{Role_ID}`. Use that value

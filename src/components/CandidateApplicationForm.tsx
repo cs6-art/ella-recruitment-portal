@@ -33,8 +33,11 @@ type FormState = {
 };
 
 const maxResumeFileBytes = 10 * 1024 * 1024;
+// Keep client-side MIME checks aligned with server signature and extractor
+// checks, including legacy binary Word documents.
 const resumeMimeTypes = new Set([
   "application/pdf",
+  "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "application/octet-stream",
 ]);
@@ -118,7 +121,7 @@ export default function CandidateApplicationForm({
     if (!form.candidateName.trim()) nextErrors.candidateName = "Full name is required.";
     if (!/^\S+@\S+\.\S+$/.test(form.email.trim().toLowerCase())) nextErrors.email = "Enter a valid email address.";
     if (!/^\+[1-9]\d{7,14}$/.test(contactNumber)) nextErrors.localContactNumber = "Enter a valid local contact number.";
-    if (!resumeFile) nextErrors.resumeFile = "Choose a PDF or DOCX resume file.";
+    if (!resumeFile) nextErrors.resumeFile = "Choose a PDF, DOC, or DOCX resume file.";
     if (showRoleSelect && !form.resumeRoleId.trim()) nextErrors.resumeRoleId = "Choose a role.";
 
     setFieldErrors(nextErrors);
@@ -130,8 +133,8 @@ export default function CandidateApplicationForm({
     setFieldErrors((current) => ({ ...current, resumeFile: "" }));
     if (!file) return;
     const extension = file.name.toLowerCase().split(".").pop();
-    if (!extension || !["pdf", "docx"].includes(extension) || !resumeMimeTypes.has(file.type || "application/octet-stream")) {
-      setFieldErrors((current) => ({ ...current, resumeFile: "Choose a valid PDF or DOCX resume file." }));
+    if (!extension || !["pdf", "doc", "docx"].includes(extension) || !resumeMimeTypes.has(file.type || "application/octet-stream")) {
+      setFieldErrors((current) => ({ ...current, resumeFile: "Choose a valid PDF, DOC, or DOCX resume file." }));
       setError("The selected resume file is not supported.");
       return;
     }
@@ -254,14 +257,14 @@ export default function CandidateApplicationForm({
                 key={fileInputKey}
                 ref={fileInput}
                 type="file"
-                accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 disabled={saving}
                 onChange={(event) => selectResumeFile(event.target.files?.[0] || null)}
               />
               <span className="resume-file-button">Choose a resume file</span>
               <span className="resume-file-name">{resumeFile?.name || "No file selected"}</span>
             </label>
-            <small>PDF or DOCX · up to 10 MB</small>
+            <small>PDF, DOC, or DOCX · up to 10 MB</small>
             {readFieldError(fieldErrors, "resumeFile") && <small>{readFieldError(fieldErrors, "resumeFile")}</small>}
           </div>
         </div>

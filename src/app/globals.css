@@ -5096,3 +5096,174 @@ textarea:focus-visible {
     max-height: none;
   }
 }
+
+/* Applicants are laid out against the space left by the navigation rail. A
+   browser zoom changes that space without necessarily crossing the viewport
+   breakpoints above, so use the page's own inline size for the dense pipeline
+   controls and table. */
+.applicants-page {
+  min-width: 0;
+  container: applicants-page / inline-size;
+}
+
+.applicants-page .applicants-card,
+.applicants-page .applicants-toolbar,
+.applicants-page .applicants-filters,
+.applicants-page .table-wrap {
+  min-width: 0;
+}
+
+.applicants-page .applicants-filters input,
+.applicants-page .applicants-filters select {
+  min-width: 0;
+}
+
+@container applicants-page (max-width: 1100px) {
+  .applicants-page .applicant-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .applicants-page .applicants-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+  }
+
+  .applicants-page .bulk-selection-toolbar {
+    margin-left: 0;
+    justify-self: end;
+  }
+
+  .applicants-page .applicants-filters {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: minmax(180px, 1.6fr) repeat(2, minmax(140px, 1fr)) auto;
+    justify-content: stretch;
+  }
+
+  .applicants-page .applicants-filters input,
+  .applicants-page .applicants-filters select {
+    width: 100%;
+  }
+}
+
+@container applicants-page (max-width: 760px) {
+  .applicants-page .applicant-stat-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .applicants-page .applicants-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .applicants-page .bulk-selection-toolbar,
+  .applicants-page .applicants-filters {
+    grid-column: 1;
+    width: 100%;
+  }
+
+  .applicants-page .bulk-selection-toolbar {
+    justify-self: stretch;
+    justify-content: space-between;
+  }
+
+  .applicants-page .applicants-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .applicants-page .pagination-size-control,
+  .applicants-page .pagination-size-control select {
+    width: 100%;
+  }
+
+  /* Turn each applicant into a readable card instead of forcing a 1040px
+     table into a narrow content column. The desktop table remains unchanged. */
+  .applicants-page .table-wrap {
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .applicants-page .applicants-table {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .applicants-page .applicants-table thead {
+    display: none;
+  }
+
+  .applicants-page .applicants-table tbody {
+    display: grid;
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .applicants-page .applicants-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0 12px;
+    padding: 14px 16px;
+    border: 1px solid #dce6ef;
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 4px 12px rgba(14, 68, 113, .04);
+  }
+
+  .applicants-page .applicants-table td,
+  .applicants-page .applicants-table td:first-child {
+    display: grid;
+    grid-template-columns: minmax(92px, 34%) minmax(0, 1fr);
+    min-width: 0;
+    align-items: start;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid #edf2f7;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .applicants-page .applicants-table td:not(.selection-column) {
+    grid-column: 1 / -1;
+  }
+
+  .applicants-page .applicants-table td:not(.selection-column)::before {
+    color: var(--muted);
+    content: attr(data-label);
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .applicants-page .applicants-table td[data-label="Candidate"] {
+    padding-top: 0;
+  }
+
+  .applicants-page .applicants-table td[data-label="Candidate"]::before {
+    content: none;
+  }
+
+  .applicants-page .applicants-table td.selection-column {
+    display: flex;
+    grid-column: 2;
+    grid-row: 1;
+    justify-content: flex-end;
+    padding: 0 0 8px;
+    border-bottom: 0;
+  }
+
+  .applicants-page .applicants-table td:last-child {
+    padding-bottom: 0;
+    border-bottom: 0;
+  }
+
+  .applicants-page .applicant-name-link,
+  .applicants-page .applicants-table td:nth-child(2) {
+    min-width: 0;
+  }
+
+  .applicants-page .applicant-table-actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+}

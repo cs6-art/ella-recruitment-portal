@@ -102,7 +102,7 @@ export default function BulkResumeScreeningPanel({ roleOptions, driveUrl }: { ro
         <div>
           <span className="form-eyebrow">BULK RESUME SCREENING</span>
           <h2 id="bulk-screening-title">Bulk upload resumes</h2>
-          <p>Select a published role and upload multiple PDF or DOCX resumes directly from this page. Ella processes each file once and records its screening status here.</p>
+          <p>Select a published role and upload multiple PDF, DOC, or DOCX resumes directly from this page. Ella processes each file once and records its screening status here.</p>
         </div>
         <span className="bulk-screening-badge">One-time screening</span>
       </div>
@@ -124,8 +124,9 @@ export default function BulkResumeScreeningPanel({ roleOptions, driveUrl }: { ro
         <div className="bulk-screening-upload-box">
           <label className="field">
             <span>Resume files *</span>
-            <input type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple disabled={!roleId || uploading} onChange={(event) => setFiles(Array.from(event.target.files || []))} />
-            <small>Select up to 25 PDF or DOCX files. Each file may be up to 10 MB.</small>
+            {/* Match the browser picker with the server PDF/DOC/DOCX allowlist. */}
+            <input type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple disabled={!roleId || uploading} onChange={(event) => setFiles(Array.from(event.target.files || []))} />
+            <small>Select up to 25 PDF, DOC, or DOCX files. Each file may be up to 10 MB.</small>
           </label>
           <button type="button" className="btn btn-primary" disabled={!roleId || files.length === 0 || uploading} onClick={() => void uploadResumes()}>{uploading ? "Queueing resumes..." : `Start screening${files.length ? ` (${files.length})` : ""}`}</button>
         </div>
@@ -137,7 +138,7 @@ export default function BulkResumeScreeningPanel({ roleOptions, driveUrl }: { ro
           <strong>{selectedRole ? `Upload resumes for ${selectedRole.label}` : "How bulk screening works"}</strong>
           <ol>
             <li>Choose a published role.</li>
-            <li>Select multiple PDF or DOCX files and start screening.</li>
+            <li>Select multiple PDF, DOC, or DOCX files and start screening.</li>
             <li>Ella extracts the candidate details, submits each resume to the screening workflow, and updates the queue.</li>
             <li>Files marked Screened are identified by role and file hash and are never analyzed again for that role.</li>
           </ol>

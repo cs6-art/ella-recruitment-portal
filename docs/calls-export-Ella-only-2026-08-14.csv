@@ -1,0 +1,116 @@
+﻿Call ID,Assistant ID,Squad ID,Customer ID,Customer Name,Customer Number,Customer SIP URI,Customer Extension,Phone Number ID,Ended Reason,Type,Duration,Started At,Ended At,Transcript,Summary,Success Evaluation,Recording URL,Cost,Phone Call Provider,Phone Call Provider ID,Created At,Updated At,Assistant Version,appointment_created,status,answered_question_count,interview_completed,is_fully_booked,Appointment Time,match_score,Appointment Date,structuredData.answer_completeness,structuredData.answered_question_count,structuredData.communication_quality,structuredData.interview_completed,structuredData.status,structuredData.summary,paid_intent,urgency,motivation,Status,past_experience,budget,service_interest
+019ffa5e-7c45-700f-9e1e-9fb8d6ad2140,4698fa1c-eef6-454f-9b0b-830c76738d1c,,,,+60127717025,,,02d1c38c-3b85-4e2e-a7cb-26a55ce08116,customer-ended-call,outboundPhoneCall,295,2026-08-13 09:05:40 GMT+0,2026-08-13 09:10:36 GMT+0,"User: Hello?
+AI: Hi. This is Ella from MickLink Group. Am I speaking with Alex?
+User: Yeah. Yeah. I'm and let's
+AI: Great. I'm calling about your application for our AI engineer position. Is now still a good time to chat?
+User: Yeah. Yes.
+AI: Awesome. Let's get started. Could you briefly introduce your background in software engineering? And describe a recent AI or LLM project you built?
+User: So, actually, I have do for AI engineering for 2 years ago. From uh, Global Instant Company. And then I have created project using Calcutt. To connect with the open cloud to I mean, to let the the doing AI automation
+AI: Thank you for explaining that. It's helpful to hear about your AI automation project with Calcutt in Open Cloud. What experience do you have working with retrieval augmented
+User: Yeah. I have done 1 of the AI agent that using rack and then it can direct me I mean, like, read the file from the rack from the vector database. And then can correctly I have tested the accuracy It's over 90 percent. And, also, I have done some of the AI agent project using an AAN.
+AI: Got it. Your experience with rag pipelines and vector databases including accuracy testing, is noted. What primary programming languages and AI frameworks do you use daily, such as Python, PyTorch, or lang chain?
+User: Yeah. I use LinkedIn before and also in a n. And, also, I have used the Calcutta and also codecs and the gravity and also um, open cloud to do some integration project. And then, um, for I mean, for programming language, I have learned c, c plus plus, c sharp, Python, Java, JavaScript. This all programming language or I o. Or I, uh, experience.
+AI: Thank you for sharing that. It's great to know you have experience with lang chain, Python, and several other programming languages. Do you ensure model output accuracy and handle latency or cost constraints in production?
+User: I'm sorry?
+AI: Of course. How do you ensure model output accuracy and handle latency or cost constraints in production?
+User: Okay. So for this, I have done some of the AI calculation for reading the
+AI: Nope.
+User: latency and also, um, do the I've done 1 of the model, uh, Python for increasing the accuracy of the model. So I have done the the 5 ton for the mobile face net and also for the Yolo to detect the the item to detect the object. So the across seat from 70 percent increased to 90 percent.
+AI: That's helpful to hear about your work improving model accuracy and managing latency. What is your current notice period, and how soon would you be able to start if selected?
+User: What what do you mean?
+AI: No problem. I mean, how much time do you need to give your current employer before you can leave? And if you get the job here, how soon could you start working with us?
+User: So I think I have start from step 30 or maybe October. Because I have to wait for 1 month of the lease.
+AI: Thank you for sharing your availability. Thanks so much for your time today. Completes the interview. Our recruiting team will review your responses and reach out by email regarding the next step. Have a great day.
+User: Okay. Thank you.
+AI: You're welcome. Take care, and have a great day.
+User: Bye bye.
+AI: Goodbye.
+",,,https://api.vapi.ai/call/019ffa5e-7c45-700f-9e1e-9fb8d6ad2140/mono-recording,0.5084,twilio,CA0f927251f51941e97f7b3baf411971ce,2026-08-13 09:05:24 GMT+0,2026-08-13 09:11:18 GMT+0,v2,false,INTERVIEW_COMPLETED,3,true,false,0:00,74,,,,,,,,,,,,,,
+019ff9ad-811d-777b-983e-d43d85a842bb,e5934be9-826e-4de8-861b-94c425eda934,,,,+639663551040,,,56b23423-e91a-4fe0-b3a3-513797a9ce9c,customer-ended-call,outboundPhoneCall,81,2026-08-13 05:52:22 GMT+0,2026-08-13 05:53:44 GMT+0,"User: Hello?
+AI: Yes. I'm still here. Can you hear me clearly?
+User: Kent?
+AI: Just to confirm, are you the applicant who applied for the AI coordinator position?
+User: K.
+AI: Great. I'm calling about your application for our AI coordinator position. Is now still a good time to chat?
+User: Yeah.
+AI: Awesome. This will just be a quick chat so I can learn a bit more about your background. Let's dive right in. What is your name?
+User: My name is Julio.
+AI: Thanks, Julio. Now who are your relatives?
+User: I don't have.
+AI: Got it. Thanks for letting me know. Is your experience?
+User: I have experience in AI automation.
+AI: That's helpful to hear about your AI automation experience. So much for your time today. That completes the interview. Our recruiting team will review your responses and reach out by email regarding the next step. Have a great day.
+User: Thanks.
+",,,https://api.vapi.ai/call/019ff9ad-811d-777b-983e-d43d85a842bb/mono-recording,0.3432,twilio,CA40ed4d9f3a70533cec9d3d5a3eabe00d,2026-08-13 05:52:05 GMT+0,2026-08-13 05:53:58 GMT+0,v1,false,INTERVIEW_COMPLETED,3,true,false,0:00,42,,"Answers were minimal and lacked detail, providing only direct responses to questions without elaboration.",3,"The user's responses were very brief, often single words, which made it difficult to assess communication depth.",false,INCOMPLETE,"The candidate, Julio, confirmed their name and stated they have experience in AI automation. They also mentioned not having relatives when asked. The interview was cut short by the customer.",,,,,,,
+019ff457-f9ee-7aaa-a54f-de55779e4ddb,e5934be9-826e-4de8-861b-94c425eda934,,,,+639663551040,,,56b23423-e91a-4fe0-b3a3-513797a9ce9c,customer-ended-call,outboundPhoneCall,153,2026-08-12 05:00:50 GMT+0,2026-08-12 05:03:23 GMT+0,"User: Hello? Hello?
+AI: Hi.
+User: Hello?
+AI: Yes. I'm still here. Can you hear me clearly?
+User: Yeah. Yeah.
+AI: Great. Let me repeat the
+User: Ken.
+AI: Just to confirm, are you the applicant who applied for the customer service executive position?
+User: Yeah. That's me.
+AI: Great. I'm calling about your application for our customer service executive position. Is now still a good time to chat?
+User: Yeah.
+AI: Awesome. This will just be a quick 5 minute chat so I can learn a bit more about your background. Let's dive right in. Tell me about a time you turned around an unhappy customer.
+User: I just follow the private sector company. That's it.
+AI: Sorry. I didn't quite catch that. Could you say that again? Tell me about a time you turned around an unhappy customer.
+User: I just follow the company's policies and guidelines.
+AI: I see. You focus on following company policies to handle unhappy customers. That's helpful. How do you prioritize when several tickets are urgent at once?
+User: For the tickets, I'm sure time management ensure that the hardest tickets are paid noted and finish the ACS ones as soon as possible.
+AI: Got it. You managed time to prioritize the hardest tickets and finish ACS ones quickly. Which CRM or ticketing tools have you used, and how confident are you with them?
+User: Have you sales spot hub force and the like. I'm confident in using those. I have 3 years experience.
+AI: Thanks for sharing your experience with SalesSpot and Hubforce. Your confidence using them for 3 years. If selected, when would you be available to start?
+User: I'll be available 3 weeks from now.
+AI: I've got a couple of openings. How does Thursday, August 13 at 10 30 AM or Friday, August 14 at 10 30 AM sound?
+User: I'm not available.
+AI: No problem. I have
+",,,https://api.vapi.ai/call/019ff457-f9ee-7aaa-a54f-de55779e4ddb/mono-recording,0.4433,twilio,CAe979506c94b9f69accf19ef3a54dd39c,2026-08-12 05:00:34 GMT+0,2026-08-12 05:03:37 GMT+0,v1,false,FINAL_INTERVIEW_RESCHEDULE_REQUIRED,3,false,false,0:00,44,,,,,,,,,,,,,,
+019fc68c-38cc-7dd8-a6ae-fc62236ac719,e5934be9-826e-4de8-861b-94c425eda934,,,,+639663551040,,,56b23423-e91a-4fe0-b3a3-513797a9ce9c,customer-ended-call,outboundPhoneCall,11,2026-08-03 07:35:21 GMT+0,2026-08-03 07:35:32 GMT+0,"User: Hello?
+AI: Hi. This is Ella from Mickling Group. Am I speaking with Julio Jose Padilla?
+User: Yes.
+",,,https://api.vapi.ai/call/019fc68c-38cc-7dd8-a6ae-fc62236ac719/mono-recording,0.1521,twilio,CA2c98f7012ae98209951f31a90a7dceca,2026-08-03 07:35:06 GMT+0,2026-08-03 07:35:42 GMT+0,,false,INTERVIEW_INCOMPLETE,0,false,false,0:00,85,,,,,,,,,,,,,,
+019fc648-5860-744d-81c9-68e4aca5a811,e5934be9-826e-4de8-861b-94c425eda934,,,,+639663551040,,,56b23423-e91a-4fe0-b3a3-513797a9ce9c,customer-busy,outboundPhoneCall,,,,,,,,0,twilio,CA193f92841d0fca0d92448b8f02526742,2026-08-03 06:20:57 GMT+0,2026-08-03 06:21:08 GMT+0,,,,,,,,,,,,,,,,,,,,,,
+019fc63e-48c6-7992-838b-7aceeaf65ae7,e5934be9-826e-4de8-861b-94c425eda934,,,,+639663551040,,,56b23423-e91a-4fe0-b3a3-513797a9ce9c,customer-busy,outboundPhoneCall,,,,,,,,0,twilio,CAd89a30cc5f5a7657a717ddfd87403897,2026-08-03 06:09:58 GMT+0,2026-08-03 06:10:08 GMT+0,,,,,,,,,,,,,,,,,,,,,,
+019fc631-c742-788d-9e1e-cdb511c28ff0,e5934be9-826e-4de8-861b-94c425eda934,,,,+639663551040,,,56b23423-e91a-4fe0-b3a3-513797a9ce9c,customer-busy,outboundPhoneCall,,,,,,,,0,twilio,CAf75b04ee95353e65f484340bd9b3b505,2026-08-03 05:56:18 GMT+0,2026-08-03 05:56:29 GMT+0,,,,,,,,,,,,,,,,,,,,,,
+019fc5e0-f00a-7330-b8b8-ea2785f57cff,4698fa1c-eef6-454f-9b0b-830c76738d1c,,,,+6598880111,,,02d1c38c-3b85-4e2e-a7cb-26a55ce08116,customer-ended-call,outboundPhoneCall,138,2026-08-03 04:28:12 GMT+0,2026-08-03 04:30:30 GMT+0,"User: Hello.
+AI: Hi. This is Ella from Mick Link Group. I speaking with Lucas?
+User: Speaking.
+AI: Great. I'm calling about your application for our accounting supervisor position. Is now still a good time to chat?
+User: Gotcha.
+AI: Awesome. This will just be a quick 5 minute chat so I can learn a bit more about your background. Let's dive right in. You describe a specific instance where you improved operational efficiency?
+User: Uh, I helped to improve the accounting processes by making it a little bit more efficient through managing the expenses and as well as, uh, helping to basically, improve some of the inefficiencies in the systems.
+AI: I see you focused on managing expenses and system inefficiencies to improve accounting process That's helpful. How do you ensure compliance with food safety regulations in your operations?
+User: We make sure that our SFA license is up to date and we develop a tracking system to ensure that 3 months before our SFA license is, uh, expired, we we we we go we ensure that the renewal has been done.
+AI: Got it. You have a proactive tracking system for SFA license renewal. Strategies do you use to maintain high staff retention rates in a production environment?
+User: We provide incentives We make sure that we pay a per market rate. And, uh, we provide, uh, training and also make sure that it's, uh, progression for staff that are good
+AI: Thanks. You mentioned incentives, market rate pay, training, and progression for good staff. Selected, when would you be available to start?
+User: I can start the I have notice period of, uh, 1 month. So I can start maybe 1st
+AI: Thanks so much for your time today. That completes the interview. Our recruiting team will review your responses and reach out by email regarding the next step. Have a great day.
+",,,https://api.vapi.ai/call/019fc5e0-f00a-7330-b8b8-ea2785f57cff/mono-recording,0.3325,twilio,CA9eaa4c0cf896379ea7187dbdeb905def,2026-08-03 04:28:00 GMT+0,2026-08-03 04:30:43 GMT+0,,false,INTERVIEW_COMPLETED,3,true,false,0:00,89,,,,,,,,,,,,,,
+019fc571-5344-7776-8f13-7a2ae04f3b8c,e5934be9-826e-4de8-861b-94c425eda934,,,,+639663551040,,,56b23423-e91a-4fe0-b3a3-513797a9ce9c,customer-ended-call,outboundPhoneCall,141,2026-08-03 02:26:24 GMT+0,2026-08-03 02:28:46 GMT+0,"User: Hello?
+AI: Yes. I'm still here. Can you hear me clearly?
+User: Yes.
+AI: Great. Let me repeat the question. Can you describe a challenge you faced during an audit and how you resolved it?
+User: For a challenge during audit did what the company did. Doing. And I analyze the company's internal documents.
+AI: I see you analyze the company's internal documents to address the audit challenge. That's helpful. How do you ensure compliance with accounting standards in your daily operations?
+User: To ensure accounting standard, I just follow the company's policy and I also gave the the workflow that uses AI. To ensure that we are following strict protocols of the company.
+AI: Got it. You follow company policies and introduce an AI based work for strict protocol adherence. Strategies do you use to improve accounting processes?
+User: Can you repeat the question?
+AI: Of course, what strategies do you use to improve accounting processes?
+User: To improve accounting processes, we have also a dedicated workflow that utilizes AI so that will be we'll be able to create solutions for the company and and improve efficiency and boost the morale of the staff.
+AI: Thanks for sharing your AI driven workflow approach to boost efficiency and staff morale. If selected, when would you be available to start?
+User: I'll be available anytime soon.
+AI: I've got a couple of openings. How does Tuesday, August 4th at 10 30 AM or Wednesday, August 5th at 10 30 AM sound.
+User: I'm not free.
+AI: No problem.
+User: I'm not free.
+AI: No problem at all. I completely understand. I'll pass your notes along to our recruiting team, and they will follow with a scheduling link via email so you can pick a time later. So much for chatting with me today, and have a great day.
+User: Thank you.
+",,,https://api.vapi.ai/call/019fc571-5344-7776-8f13-7a2ae04f3b8c/mono-recording,0.3932,twilio,CA5a57ecfff925c3e3e85293d3edfb8a86,2026-08-03 02:26:06 GMT+0,2026-08-03 02:28:57 GMT+0,,false,FINAL_INTERVIEW_RESCHEDULE_REQUIRED,3,true,false,00:00,85,,,,,,,,,,,,,,
+019fbb60-13b2-744b-94c1-5635f95adcfd,e5934be9-826e-4de8-861b-94c425eda934,,,,+639663551040,,,56b23423-e91a-4fe0-b3a3-513797a9ce9c,customer-did-not-answer,outboundPhoneCall,,,,,,,,0,twilio,CA1e6f063e9aef84ad2e0b1f19a7c4e638,2026-08-01 03:31:03 GMT+0,2026-08-01 03:31:59 GMT+0,,,,,,,,,,,,,,,,,,,,,,
+019fb6f2-a9d0-7ee3-ae8b-fd46a4713d65,e5934be9-826e-4de8-861b-94c425eda934,,,,+639663551040,,,56b23423-e91a-4fe0-b3a3-513797a9ce9c,customer-ended-call,outboundPhoneCall,10,2026-07-31 06:53:38 GMT+0,2026-07-31 06:53:48 GMT+0,"User: Hello? Hello? Hello?
+AI: Yes. I'm still here. Can you hear me clearly?
+User: Yeah. Bye.
+",,,https://api.vapi.ai/call/019fb6f2-a9d0-7ee3-ae8b-fd46a4713d65/mono-recording,0.1596,twilio,CA79e46ca37fb501c61a328a967236d4a8,2026-07-31 06:53:04 GMT+0,2026-07-31 06:54:01 GMT+0,,false,INTERVIEW_INCOMPLETE,0,false,false,00:00,85,,,,,,,,,,,,,,

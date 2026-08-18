@@ -4,15 +4,19 @@ import path from "node:path";
 
 import mammoth from "mammoth";
 import pdfParse from "pdf-parse/lib/pdf-parse.js";
+import WordExtractor from "word-extractor";
 
+// This module is the single server-side boundary for resume validation,
+// extraction, private storage, download tokens, and retention cleanup.
 export const MAX_RESUME_FILE_BYTES = 10 * 1024 * 1024;
 export const MAX_RESUME_REQUEST_BYTES = MAX_RESUME_FILE_BYTES + 512 * 1024;
 export const RESUME_RETENTION_DAYS = 30;
 
 const PDF_MIME = "application/pdf";
 const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+const DOC_MIME = "application/msword";
 
-export type ResumeFileKind = "pdf" | "docx";
+export type ResumeFileKind = "pdf" | "docx" | "doc";
 
 export type ResumeFileRecord = {
   fileId: string;
@@ -58,6 +62,9 @@ function detectKind(fileName: string, mimeType: string): ResumeFileKind | null {
   const extension = path.extname(fileName).toLowerCase();
   if (extension === ".pdf" && (!mimeType || mimeType === PDF_MIME || mimeType === "application/octet-stream")) return "pdf";
   if (extension === ".docx" && (!mimeType || mimeType === DOCX_MIME || mimeType === "application/octet-stream")) return "docx";
+  // Legacy binary Word format (pre-2007). Distinct from "docx" (a zip/XML
+  // container) — needs its own OLE compound-file parser below.
+  if (extension === ".doc" && (!mimeType || mimeType === DOC_MIME || mimeType === "application/octet-stream")) return "doc";
   return null;
 }
 
@@ -68,8 +75,18 @@ function assertSignature(buffer: Buffer, kind: ResumeFileKind) {
     return;
   }
 
-  if (buffer.length < 4 || buffer[0] !== 0x50 || buffer[1] !== 0x4b || buffer[2] !== 0x03 || buffer[3] !== 0x04) {
-    throw new Error("The uploaded DOCX signature is invalid.");
+  if (kind === "docx") {
+    if (buffer.length < 4 || buffer[0] !== 0x50 || buffer[1] !== 0x4b || buffer[2] !== 0x03 || buffer[3] !== 0x04) {
+      throw new Error("The uploaded DOCX signature is invalid.");
+    }
+    return;
+  }
+
+  // Legacy .doc files are OLE2 compound documents, signed D0 CF 11 E0 A1 B1
+  // 1A E1 — a completely different container format from DOCX's zip header.
+  const oleSignature = [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1];
+  if (buffer.length < oleSignature.length || !oleSignature.every((byte, index) => buffer[index] === byte)) {
+    throw new Error("The uploaded DOC signature is invalid.");
   }
 }
 
@@ -80,7 +97,9 @@ function normalizeExtractedText(value: string) {
 async function extractText(buffer: Buffer, kind: ResumeFileKind) {
   const textValue = kind === "pdf"
     ? (await pdfParse(buffer)).text
-    : (await mammoth.extractRawText({ buffer })).value;
+    : kind === "docx"
+      ? (await mammoth.extractRawText({ buffer })).value
+      : (await new WordExtractor().extract(buffer)).getBody();
   const text = normalizeExtractedText(textValue || "");
   if (text.length < 20) throw new Error("The uploaded resume does not contain enough readable text.");
   return text;
@@ -97,7 +116,7 @@ function isResumeFileRecord(value: unknown): value is ResumeFileRecord {
   const record = value as Partial<ResumeFileRecord>;
   return typeof record.fileId === "string"
     && /^RES-[0-9a-f-]{36}$/i.test(record.fileId)
-    && (record.kind === "pdf" || record.kind === "docx")
+    && (record.kind === "pdf" || record.kind === "docx" || record.kind === "doc")
     && typeof record.expiresAt === "string"
     && Number.isFinite(Date.parse(record.expiresAt));
 }
@@ -135,8 +154,8 @@ export async function cleanupExpiredResumeFiles(now = Date.now()) {
 
   const orphanCutoff = now - RESUME_RETENTION_DAYS * 24 * 60 * 60 * 1000;
   for (const entry of entries) {
-    if (!entry.isFile() || !/\.(pdf|docx)$/i.test(entry.name)) continue;
-    const fileId = entry.name.replace(/\.(pdf|docx)$/i, "");
+    if (!entry.isFile() || !/\.(pdf|docx?)$/i.test(entry.name)) continue;
+    const fileId = entry.name.replace(/\.(pdf|docx?)$/i, "");
     if (!/^RES-[0-9a-f-]{36}$/i.test(fileId) || metadataIds.has(fileId.toLowerCase())) continue;
     try {
       const details = await stat(path.join(directory, entry.name));
@@ -171,7 +190,7 @@ export async function storeResumeFile(file: File): Promise<StoredResume> {
   await cleanupIfDue();
   const fileName = safeFileName(file.name || "resume");
   const kind = detectKind(fileName, file.type);
-  if (!kind) throw new Error("Only PDF and DOCX resume files are supported.");
+  if (!kind) throw new Error("Only PDF, DOC, and DOCX resume files are supported.");
   if (!file.size) throw new Error("The uploaded resume is empty.");
   if (file.size > MAX_RESUME_FILE_BYTES) throw new Error("Resume files must be 10 MB or smaller.");
 
@@ -183,7 +202,7 @@ export async function storeResumeFile(file: File): Promise<StoredResume> {
   const record: ResumeFileRecord = {
     fileId: `RES-${crypto.randomUUID()}`,
     fileName,
-    mimeType: kind === "pdf" ? PDF_MIME : DOCX_MIME,
+    mimeType: resumeMimeType(kind),
     size: buffer.length,
     sha256: crypto.createHash("sha256").update(buffer).digest("hex"),
     uploadedAt: uploadedAt.toISOString(),
@@ -245,10 +264,11 @@ export function verifyResumeDownloadToken(token: string, fileId: string) {
 }
 
 export function resumeMimeType(kind: ResumeFileKind) {
-  return kind === "pdf" ? PDF_MIME : DOCX_MIME;
+  return kind === "pdf" ? PDF_MIME : kind === "docx" ? DOCX_MIME : DOC_MIME;
 }
 
 export const resumeFileConstants = {
   pdfMimeType: PDF_MIME,
   docxMimeType: DOCX_MIME,
+  docMimeType: DOC_MIME,
 };

@@ -1,0 +1,171 @@
+Date,Application ID,Name,Phone,Email,Role,Match Score,Transcript,Recording_URL,Call Outcome,Appointment Details,Reschedule_Details,email_sent_time,parsed_datetime,status,callback_email_sent,callback_scheduled,call_attempts,is_fully_booked
+2026-05-28 3:19 AM,APP-1779784386068-W2HWK8,Jordan Reeves,9663551040,jordan.reeves@proai.dev,AI Operations Coordinator,88,"AI: Hello.
+User: Hello?
+AI: Hi, Jordan Reeves. Eli here from McLean Group. I'm calling about your application for our AI operations coordinator position. Is now still a good time to chat?
+User: Yes.
+AI: Awesome. This will be a quick five minute chat so I can learn a bit more about your background. Let's dive right in. Can you describe a complex workflow you built using n eight n and its impact on process efficiency?
+User: Okay. So I engineered a multi stage edit and workflow that automatically extract structured email leads, sanitize it, and reaches the data via third TIs and routes it dynamically to Salesforce or Slack based on lead for this automated pipeline, eliminated manual data entry, cutting lead response time from several hours to under three minutes while drastically reducing input errors.
+AI: I see automating dynamic routing to Salesforce and Slack must have been a real efficiency booster. How do you approach the task of prompt engineering to ensure high quality AI outputs?
+User: Okay. So my approach in centers on providing absolute clarity by structuralizing prompts with explicit roles, clear contextual constraints, and step by step reasoning instruction via chain of thought. I also rely heavily on few shot formatting examples and markdown delimiters to guide the model, followed by iterative testing to fine tune the predictability of the output.
+AI: Got it. Using chain of thought and few shot examples sounds like a thoughtful way to reduce ambiguity. What strategies do you follow to mitigate AI hallucinations during deployment?
+User: To prevent hallucinations in deployment, I implement rag or retrieval augmented generation to strictly anchor the AI responses within a verified close ended knowledge base. Additionally, I lower the model's temperature settings to minimize creative variability and apply of automated guardrails to validate outputs against deterministic facts before they reach the user.
+AI: That's helpful. Leveraging rag and automated guardrails definitely shows a strong focus on reliability. Now I'll review your answers and get back to you shortly.
+User: Sorry?
+AI: Based on your strong expertise, you're a great fit. I've got openings on Friday, May twenty ninth at twelve PM or one PM. Which works better for you?
+User: What time is available again?
+AI: I've got Friday, May twenty ninth at twelve PM or one PM. Both are good options. Which one would you prefer?
+User: One PM.
+User: Wait.
+AI: No problem. Just to confirm, you're choosing Friday, May twenty ninth at one PM. Correct?
+User: Is Monday available?
+AI: Monday is not available for scheduling right now. Would you like me to keep your slot for Friday, May twenty ninth at one PM?
+User: It's twelve PM available.
+AI: I apologize for the confusion. Yes. Friday, May twenty ninth at twelve PM is available. Would you like to go with that time?
+User: What time again?
+AI: The available slot is Friday, May twenty ninth at twelve PM. Does that work for you?
+User: Yes.
+AI: Perfect. You're down for Friday, May twenty ninth at twelve PM. Before I lock that in, can I just double check that your email is Jordan dot Reeves at ProI dot dev?
+User: Yes.
+AI: Perfect. You're all set for Friday, May twenty ninth at twelve PM. Look out for a confirmation email coming your way soon. Thanks, and have a great day.
+",https://storage.vapi.ai/019e6c25-4a6e-7cc4-9051-e5fdc33f0efe-1779931134425-2400619d-a1d9-4ae2-a08b-408e0743cf9f-mono.wav,customer-ended-call,2026-05-29 12:00,"2026-05-26 10:48
+i am available at 4:48 pm today",2026-05-26T10:48:06.587+02:00,2026-05-26 16:48:00,Interview_Scheduled,,,,FALSE
+2026-06-01 11:09 AM,APP-1780303986280-4MG04I,Elizabeth N.,9524705760,hrph@mclinkgroup.com,HR Generalist,88,"AI: Hello?
+User: Your name and reason for calling.
+AI: Hi, Elizabeth Anne. and I hear from McLint Group. I'm calling about your application for our HR generalist position is now still a good time to chat?
+User: Yeah. I'm available
+AI: Awesome. This will just be a quick five minute chat so I can learn a bit more about your background. Let's dive right in. Can you describe a challenging recruitment process you managed and the outcome?
+User: Yeah. So I handled difficult equipment projects for a niche... technical role with a limited talent pool by expanding sorting channel, refining screening criteria, and maintaining close communication with the hiring manager. I was successful in filling the position within the target timeline.
+AI: I see. Expanding sourcing channels for niche roles definitely requires creativity and persistence. How do you approach conducting employee counseling sessions?
+User: I approach counseling sessions objectively and professionally by listening to the employee's perspective, discussing the issue based on facts presented, clarifying expectations, and, um, collaborative identifying improvement plans while documenting the discussion.
+AI: Got it. Your methodical and fact based approach to counseling sounds very effective. What strategies do you implement to ensure compliance with HR policies?
+User: So I ensure compliance through regular policy communication, employee orientation, um, consistent implementation procedures, proper documentation, uh, manager consultation, and staying updated on the labor loss and, uh, regulatory requirements.
+AI: Thanks. Keeping updated on labor laws and thorough documentation are crucial for compliance. I'll now review your interview to determine next steps.
+AI: Thanks, Elizabeth. Your regular communication and thorough documentation to ensure policy compliance really stands out. I've got a couple of openings for your final interview. How does Tuesday, June second, at ten thirty AM or Wednesday, June third at two PM sound?
+User: Yeah. I'm good with any of that.
+AI: Great. Just to confirm, would you prefer Tuesday, June second at ten thirty AM?
+User: Yes. That could work as well.
+AI: Before I lock that in, can I just double check that your email is h r p h at meclink group dot com?
+User: Yes. That's correct.
+AI: Perfect. You're all set for Tuesday, June second at ten thirty AM. Look out for a confirmation email coming your way soon. Thanks, and have a great day.
+User: Thank you.
+AI: Yeah.
+",https://storage.vapi.ai/019e826e-dd51-7002-94b2-7ed426915ac8-1780304960335-15cf9006-8ad5-481b-bacb-ea1cfc15bfce-mono.wav,customer-ended-call,2026-06-02 10:30,"2026-06-01 11:03
+I am available today at 5:05 PM",2026-06-01T11:03:52.244+02:00,2026-06-01 17:05:00,Interview_Scheduled,FALSE,,,FALSE
+2026-06-08 7:49 AM,APP-1780882986048-6GVM6F,Jordan Reeves,9663551040,jordan.reeves@proai.dev,AI Operations Coordinator,,,,customer-busy, ,"2026-06-08 03:45
+i am available today afterno
+
+---
+2026-06-08 07:21
+i am available at 1:23 pm today
+
+---
+2026-06-08 07:47
+i am available at 1:47 pm",2026-06-08T07:47:08.487+02:00,2026-06-08 13:47,Call Back,TRUE,FALSE,2,
+,APP-1780898106020-IMHIXN,,,,,,,,,,"2026-06-08 07:57
+i am available today",2026-06-08T07:57:30.189+02:00,,,,,,
+,APP-1780906926055-JBUSR8,,,,,,,,,,"2026-06-08 10:31
+I am available tomorrow morning or this afterno",2026-06-08T10:31:56.861+02:00,,,,,,
+,APP-1780908606176-IFEPI2,,,,,,,,,,"2026-06-08 10:52
+I am available this afternoon.",2026-06-08T10:52:53.482+02:00,,,,,,
+,APP-1780908606176-IFEPI2,,,,,,,,,,"2026-06-08 10:58
+I am available this afterno",2026-06-08T10:58:53.232+02:00,,,,,,
+2026-06-08 11:33 AM,APP-1780910826071-A230G1,Jordan Reeves,9663551040,jordan.reeves@proai.dev,AI Operations Coordinator,,,,customer-busy, ,"2026-06-08 11:30
+today at 5:30 pm",2026-06-08T11:30:13.274+02:00,2026-06-08 17:30,Call Back,TRUE,FALSE,,
+2026-06-10 9:59 AM,APP-1781078046017-Q7J6K5,Jordan Reeves,9663551040,jordan.reeves@proai.dev,AI Operations Coordinator,,,,customer-busy, ,"2026-06-10 09:56
+today at 3:57 pm",2026-06-10T09:56:19.021+02:00,2026-06-10 15:57,Call Back,TRUE,FALSE,,
+2026-06-10 4:45 PM,APP-1781079246028-65MK5M,Elizabeth N.,9524705760,hrph@mclinkgroup.com,HR Generalist,78,"AI: Hello.
+User: Your name and reason for calling. I'll see if this person is available.
+AI: Hi, Elizabeth and Eli here from McLint Group. I'm calling about your application for our HR generalist position. Is now still a good time to chat?
+User: Thanks, Elizabeth. Please stay on the line.
+AI: Awesome. I'm here and ready to dive in.
+User: I'm sorry. This person is not available. If you would like to leave an additional message, please reply after the tone.
+AI: No problem at all. I'll pass what we've got over to the team, and we'll go from there. Have a great day.
+",https://storage.vapi.ai/019eb0b3-1ee9-7000-8d15-5624b98f2481-1781081094286-f6bd7c2d-adf1-4c0c-aea5-e01463725665-mono.wav,silence-timed-out,2000-01-01 0:00,"2026-06-10 16:16
+I am available today at 4:15PM",2026-06-10T16:16:56.151+08:00,2026-06-10 16:15,Rejected,,FALSE,,FALSE
+2026-06-10 4:33 PM,APP-1781079906037-88YHR0,Elizabeth N.,9524705760,hrph@mclinkgroup.com,HR Generalist,78,"AI: hello
+User: Forward your name
+AI: Hi, Elizabeth and Eli here from McLint Group. I'm calling about your application for our HR generalist position is now still a good time to chat.
+User: Yes.
+AI: Awesome. This will just be a quick five minute chat so I can learn a bit more about your background. Let's dive right in. Can you describe your approach to developing effective recruitment strategies.
+User: So first, it... the... it... what the road... for example, I I need... I'm gonna drop the textually on really understand that. I don't requirement and check which, uh, job platform was specifically hiring or waiting.
+AI: I see. Leveraging specific job platforms for targeted recruitment sounds like an important part of your approach. How do you handle employee counseling sessions? especially in difficult situations.
+User: So I make sure that even I deal with them professionally, social and activity. So it's also very important to not put any personal matters in there. It's very important to professional, and I also have the signal that my goal is to provide guidance, target the issue and the solution, of course, proper documentation of the counseling session.
+AI: Got it. Maintaining professionalism and thorough documentation during counseling is definitely key. What methods do you use to ensure science with labor regulations during the recruitment process.
+User: So with that, I ensure to my end my following fair hiring practices in in address equipment, documentation, menopause, game, or regarding equal opportunities, employment contract, the private or data privacy.
+AI: That's helpful. Ensuring fair hiring practices in compliance with data privacy regulations is crucial in HR. Thanks for sharing your insights today. Now I'll evaluate everything and get back to you shortly. Have a wonderful rest of your day.
+",https://storage.vapi.ai/019eb0a7-2c1d-7000-8508-3c02be0fa0a3-1781080378684-ee19e2b7-03e2-442d-94f5-5896e471f2f1-mono.wav,customer-ended-call,2000-01-01 0:00,"2026-06-10 16:27
+Available at 4:25PM today",2026-06-10T16:27:56.235+08:00,2026-06-10 16:25:00,Interview_Scheduled,,FALSE,,FALSE
+2026-06-10 5:21 PM,APP-1781081886037-TFUBGK,Elizabeth N.,9524705760,hrph@mclinkgroup.com,HR Generalist,0.81,,,customer-busy, ,"2026-06-10 17:01
+Today at 5PM
+
+---
+2026-06-10 17:09
+Hi. I am available today at 5:10PM
+
+---
+2026-06-10 17:16
+I am available today at 5:15PM",2026-06-10T17:16:42.440+08:00,2026-06-10 17:15:00,Call Back,TRUE,FALSE,1,
+2026-06-10 5:35 PM,APP-1781083746031-V5OB6V,Jordan Reeves,9663551040,jordan.reeves@proai.dev,AI Operations Coordinator,76,"AI: Hello.
+User: Hello.
+AI: Is this Jordan Reeves? Hi. My name is Eli, and I'm calling from McLint Group regarding your application for our AI operations coordinator position. Is now still a good time to chat?
+User: Yes.
+AI: Awesome. This will just be a quick five minute chat so I can learn a bit more about your background. Let's dive right in. Can you describe your experience with progressive discipline and how you implement it within a team?
+",https://storage.vapi.ai/019eb0e1-c287-7aa2-b83a-64eda47a7536-1781084086435-f34d58f7-eb96-4850-bb02-fd4d2c8d86da-mono.wav,customer-ended-call,1970-01-01 0:00,"2026-06-10 17:31
+june 10 at 5:32 pm",2026-06-10T17:31:56.114+08:00,2026-06-10 17:32:00,Interview_Scheduled,,FALSE,,FALSE
+2026-06-11 3:56 PM,APP-1781146806129-JTDWIL,Elizabeth N.,9524705760,hrph@mclinkgroup.com,HR Generalist,0.8,"AI: Hello.
+User: and reason for calling. I'll see if this person is available.
+AI: Sure. This is Eli calling from McLean Group regarding Elizabeth Ann's application for the HR generalist position.
+User: Hello.
+AI: Hi. This is Eli from McLint Group. Am I speaking with Elizabeth N?
+User: Yes. This is me.
+AI: Great, Elizabeth. I'm calling about your application for our HR generalist position. Is now still a good time to chat?
+User: No. Can I reschedule
+AI: No problem at all. I'll pass your notes along to our recruiting team, and they will follow-up with a scheduling link via email so you can pick a time later. Thanks so much for chatting with me today.
+User: Thank
+AI: You're welcome.
+User: Thank you.
+AI: Have a great day.
+",https://storage.vapi.ai/019eb5ac-a79d-7001-b8be-2576c9782b56-1781164512253-977d2019-5b4c-4ef5-b07d-659391418b82-mono.wav,customer-ended-call,1970-01-01 0:00,"2026-06-11 11:08
+I am available today at 11:25AM
+
+---
+2026-06-11 15:51
+Hi. I am available today at 3:50PM.",2026-06-11T15:51:42.293+08:00,2026-06-11 15:50:00,Rejected,,FALSE,1,FALSE
+2026-06-16 4:47 PM,APP-1781598966086-X7V7WA,Elizabeth N.,9524705760,hrph@mclinkgroup.com,HR Generalist,88,"AI: Hello.
+User: Your name and reason for calling. I'll see if this person
+AI: Sure. This is Ally calling from McLean Group regarding Elizabeth Ann's application for the HR generalist position.
+User: Okay.
+AI: Thanks for letting me know. I'll note that we weren't able to reach the right applicant today. Have a great day.
+User: Are you
+AI: Hi.
+User: Okay. I said okay.
+AI: Thanks for your
+User: Hello.
+AI: Hi. This is Ally from McLint Group. Am I speaking with Elizabeth N?
+User: Yes. Delishing.
+AI: Great. I'm calling about your application for our HR generalist position. Is now still a good time to chat?
+User: Yes.
+AI: Awesome. This will just be a quick five minute chat so I can learn a bit more about your background. Let's dive right in. Can you provide an example of how you handle the challenging employee counseling session?
+User: So I want to cancel an employee who had, uh, repeated attendance issues, and it was affecting the team operations. So I listened to their concerns, clarified a company expectation, and I also documented the discussion. I worked with them closely on ACIP or, uh, an improvement plan. That actually resulted in better attendance and performance.
+AI: I see you took a thoughtful approach by listening and working closely with an improvement plan. strategies do you employ to ensure compliance with HR policies and local labor laws?
+User: I make sure I stay updated on any changes regarding the labor law. I regularly review the company policies and ensure that all HR processes are aligned with the legal requirement and, of course, the, uh, company policies. And I also provide guidance to the managers and the supervisors to prepare and support the compliance and condition.
+AI: That's helpful to know that you prioritize staying updated and providing guidance to ensure compliance. How do you approach the orientation process to ensure new hires feel welcomed and informed?
+User: I I make a structured onboarding program to introduce new hires to the company... introduce company's policies, job expectations, and introduce the key stakeholders or the managers through, uh, an organizational chart. So I also encourage open communication during the discussion. And, of course, provide ongoing support for the next few weeks to help them , Integrate into the organization.
+AI: Got it.
+AI: Your structured onboarding and ongoing support really show you care about --
+AI: Thanks for sharing that. It sounds like you really prioritize making new hires feel comfortable. Now I'll just take a moment to check for available slots for your final interview. Please hold on.
+User: Okay.
+AI: I've got a couple of openings. How does Thursday, June eighteen at ten thirty AM or Friday, June nineteen at ten thirty AM sound?
+User: Can we do Saturday
+AI: No problem at all. I completely understand. I'll pass your notes along to our recruiting team, and they will follow-up with a scheduling link via email so you can pick a time later. Thanks so much for chatting with me today, and have a great day.
+User: Can you please repeat that option for the time?
+AI: Sure, I offered Thursday, June eighteenth at ten thirty AM or Friday, June nineteenth at ten thirty AM. Which one works for you?
+User: Can I just message my recruiter for this?
+AI: No problem at all. I completely understand. I'll pass your notes along to our recruiting team, and they will follow-up with a scheduling link via email so you can pick a time later. Thanks so much for chatting with me today, and have a great
+User: Okay.
+AI: Thanks so much for your time.
+User: Okay. Thank you.
+AI: Have a great day.
+User: Bye.
+",https://storage.vapi.ai/019ecf98-4f00-7bb3-a1ea-655e5757d937-1781599621256-fb40c3a9-215e-4a32-a2bc-427723c17abe-mono.wav,customer-ended-call,2000-01-01 0:00,"2026-06-16 16:39
+today at 4:30PM",2026-06-16T16:39:56.340+08:00,2026-06-16 16:30:00,Call Back,TRUE,FALSE,,FALSE
