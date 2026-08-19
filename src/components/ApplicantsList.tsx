@@ -172,7 +172,7 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
 
       <div className="applicant-stat-grid">
         <div className="applicant-stat"><span>Applications</span><strong>{activeApplicants.length}</strong><small>All records in High_Match_Profile</small></div>
-        <div className="applicant-stat"><span>Resume Screened</span><strong>{activeApplicants.filter((applicant) => applicant.resumeStatus === "Processed").length}</strong><small>Processed applications</small></div>
+        <div className="applicant-stat"><span>Resume Screened</span><strong>{activeApplicants.filter((applicant) => ["processed", "for hr review", "pending hr review"].includes(applicant.resumeStatus.trim().toLowerCase())).length}</strong><small>Processed applications</small></div>
         <div className="applicant-stat"><span>Voice Interview</span><strong>{voiceCount}</strong><small>With voice workflow activity</small></div>
         <div className="applicant-stat"><span>Final Interview</span><strong>{finalInterviewCount}</strong><small>Moved beyond voice screening</small></div>
       </div>

@@ -212,11 +212,16 @@ function applicationId(record: SheetRow) {
 }
 
 function stageFor(record: SheetRow) {
-  return field(record, "Final_Status") ||
-    field(record, "Status 3 (Final Interview)") ||
-    field(record, "Status 2 (Voice Interview)") ||
-    field(record, "Status (Resume Processing)") ||
-    "Submitted";
+  const stages = [
+    field(record, "Final_Status"),
+    field(record, "Status 3 (Final Interview)"),
+    field(record, "Status 2 (Voice Interview)"),
+    field(record, "Status (Resume Processing)"),
+  ];
+  // New rows carry Pending placeholders for later interview stages. Do not
+  // let those defaults hide the completed resume handoff from HR.
+  const stage = stages.find((value) => !["", "pending", "not started", "submitted"].includes(value.trim().toLowerCase())) || "Submitted";
+  return ["processed", "for hr review"].includes(stage.trim().toLowerCase()) ? "Pending HR Review" : stage;
 }
 
 function nextActionFor(record: SheetRow) {
