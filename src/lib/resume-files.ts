@@ -182,13 +182,18 @@ export async function cleanupExpiredResumeFiles(now = Date.now()) {
       fields: "nextPageToken, files(id, name, mimeType, size, createdTime, properties)",
       pageSize: 200,
       pageToken,
+      // Service accounts have no personal Drive storage quota. These flags
+      // keep retention cleanup compatible with the Shared Drive used for
+      // uploaded resumes.
+      includeItemsFromAllDrives: true,
+      supportsAllDrives: true,
     });
     const files = response.data.files || [];
     scanned += files.length;
     for (const file of files) {
       const expiresAt = file.properties?.expiresAt;
       if (expiresAt && Date.parse(expiresAt) <= now && file.id) {
-        await client.files.delete({ fileId: file.id }).catch(() => undefined);
+        await client.files.delete({ fileId: file.id, supportsAllDrives: true }).catch(() => undefined);
         deleted += 1;
       }
     }
@@ -231,6 +236,9 @@ export async function storeResumeFile(file: File): Promise<StoredResume> {
   const expiresAt = retentionExpiry(uploadedAt);
 
   const response = await drive().files.create({
+    // Upload into a Shared Drive folder rather than the service account's
+    // quota-less personal Drive space.
+    supportsAllDrives: true,
     requestBody: {
       name: fileName,
       parents: [resumeFolderId()],
@@ -248,7 +256,7 @@ export async function storeResumeFile(file: File): Promise<StoredResume> {
 export async function getResumeFileRecord(fileId: string) {
   if (!isPlausibleDriveFileId(fileId)) return null;
   try {
-    const response = await drive().files.get({ fileId, fields: "id, name, mimeType, size, createdTime, properties, trashed" });
+    const response = await drive().files.get({ fileId, fields: "id, name, mimeType, size, createdTime, properties, trashed", supportsAllDrives: true });
     if (response.data.trashed) return null;
     const record = recordFromDriveFile(response.data);
     if (!record) return null;
@@ -263,12 +271,12 @@ export async function getResumeFileRecord(fileId: string) {
 }
 
 export async function readResumeFile(record: ResumeFileRecord) {
-  const response = await drive().files.get({ fileId: record.fileId, alt: "media" }, { responseType: "arraybuffer" });
+  const response = await drive().files.get({ fileId: record.fileId, alt: "media", supportsAllDrives: true }, { responseType: "arraybuffer" });
   return Buffer.from(response.data as ArrayBuffer);
 }
 
 export async function deleteResumeFile(record: ResumeFileRecord) {
-  await drive().files.delete({ fileId: record.fileId }).catch((error) => {
+  await drive().files.delete({ fileId: record.fileId, supportsAllDrives: true }).catch((error) => {
     // Already gone (e.g. a concurrent cleanup) is not a failure worth surfacing.
     if ((error as { code?: number })?.code !== 404) throw error;
   });
