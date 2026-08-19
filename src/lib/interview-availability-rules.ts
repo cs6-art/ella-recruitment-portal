@@ -134,6 +134,17 @@ export function ruleToSlots(rule: InterviewAvailabilityRule, maxDays = 180): Voi
   return result;
 }
 
+function hasUsableCurrentFinalSlot(slots: VoiceInterviewSlot[], targetHiringDate?: string) {
+  return slots.some((slot) => {
+    if (!isBeforeTargetHiringDate(slot.date, targetHiringDate) || !isCurrentCalendarMonth(slot.date, slot.timezone)) return false;
+    try {
+      return scheduledInstant(slot.date, slot.startTime, slot.timezone).getTime() > Date.now();
+    } catch {
+      return false;
+    }
+  });
+}
+
 export function roleAvailabilityRules(role: { roleId: string; targetHiringDate?: string; hodAvailabilitySlots?: string; voiceInterviewAvailabilityMode?: string; voiceInterviewSlots?: string; voiceInterviewAutoStartDate?: string; voiceInterviewAutoEndDate?: string; voiceInterviewTimezone?: string; interviewAvailabilityRules?: string }): InterviewAvailabilityRule[] {
   const stored = parseAvailabilityRules(role.interviewAvailabilityRules);
   const rules = [...stored];
@@ -149,14 +160,19 @@ export function roleAvailabilityRules(role: { roleId: string; targetHiringDate?:
     rules.push({ ruleId: `DEFAULT-VOICE-${role.roleId}`, roleId: role.roleId, interviewType: "AI Voice Interview", mode: "recurring", startDate, endDate, weekdays: [1, 2, 3, 4, 5], startTime: "09:00", endTime: "17:00", slotDurationMinutes: 10, timezone, specificSlots: [], status: "Active" });
   }
   const hodSlots = parseHodAvailabilitySlots(role.hodAvailabilitySlots || "");
-  const hasFinalRule = rules.some((rule) => rule.interviewType === "Final Interview");
-  if (!hasFinalRule) {
-    const finalTimezone = validTimezone(text(role.voiceInterviewTimezone) || hodSlots[0]?.timezone || "Asia/Singapore");
+  const finalTimezone = validTimezone(text(role.voiceInterviewTimezone) || hodSlots[0]?.timezone || "Asia/Singapore");
+  const hasUsableStoredFinalRule = rules
+    .filter((rule) => rule.interviewType === "Final Interview")
+    .some((rule) => hasUsableCurrentFinalSlot(ruleToSlots(rule), role.targetHiringDate));
+  if (!hasUsableStoredFinalRule) {
+    const currentHodSlots = expandHodAvailabilitySlots(hodSlots, 60)
+      .filter((slot) => hasUsableCurrentFinalSlot([slot], role.targetHiringDate));
     const today = todayInTimezone(finalTimezone);
-    // Use submitted HOD windows when present; otherwise provide the temporary
-    // August weekday fallback requested for every published role.
-    rules.push(hodSlots.length > 0
-      ? { ruleId: `LEGACY-FINAL-${role.roleId}`, roleId: role.roleId, interviewType: "Final Interview", mode: "specific", startDate: "", endDate: "", weekdays: [], startTime: "", endTime: "", slotDurationMinutes: 60, timezone: finalTimezone, specificSlots: expandHodAvailabilitySlots(hodSlots, 60), status: "Active" }
+    // Published roles must still expose temporary August final-interview
+    // times when legacy HOD windows are empty, expired, or outside the current
+    // month. Valid HOD windows remain the preferred source of slots.
+    rules.push(currentHodSlots.length > 0
+      ? { ruleId: `LEGACY-FINAL-${role.roleId}`, roleId: role.roleId, interviewType: "Final Interview", mode: "specific", startDate: "", endDate: "", weekdays: [], startTime: "", endTime: "", slotDurationMinutes: 60, timezone: finalTimezone, specificSlots: currentHodSlots, status: "Active" }
       : { ruleId: `DEFAULT-FINAL-${role.roleId}`, roleId: role.roleId, interviewType: "Final Interview", mode: "recurring", startDate: monthStart(today), endDate: monthEnd(today), weekdays: [1, 2, 3, 4, 5], startTime: "13:00", endTime: "17:00", slotDurationMinutes: 60, timezone: finalTimezone, specificSlots: [], status: "Active" });
   }
   return rules;
