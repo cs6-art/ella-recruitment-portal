@@ -18,12 +18,16 @@ export default function GoogleCalendarConnect() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const calendarResult = params.get("calendar");
+    const calendarReason = params.get("calendar_reason");
     if (calendarResult) {
+      // The callback returns only a safe, human-readable reason; remove both
+      // query values after displaying it so they are not retained in history.
       if (calendarResult === "connected") { setNotice("Google Calendar connected."); setNoticeKind("success"); }
       else if (calendarResult === "denied") { setNotice("Google Calendar connection was cancelled."); setNoticeKind("warning"); }
-      else { setNotice("Could not connect Google Calendar. Please try again."); setNoticeKind("error"); }
+      else { setNotice(calendarReason || "Could not connect Google Calendar. Please try again."); setNoticeKind("error"); }
       const url = new URL(window.location.href);
       url.searchParams.delete("calendar");
+      url.searchParams.delete("calendar_reason");
       window.history.replaceState({}, "", url.toString());
     }
 

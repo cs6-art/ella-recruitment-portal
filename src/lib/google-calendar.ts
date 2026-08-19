@@ -14,19 +14,26 @@ const CALENDAR_SCOPES = [
 // That flow only ever requests an ID token, so it never needed a client
 // secret; the calendar flow uses the authorization-code grant instead
 // (offline access, so we can refresh without the HOD present), which does.
-// Add GOOGLE_OAUTH_CLIENT_SECRET and GOOGLE_OAUTH_REDIRECT_URI to enable it.
-function oauthConfig() {
+// Add GOOGLE_OAUTH_CLIENT_SECRET to enable it; the redirect URI is derived
+// from the current request origin, with GOOGLE_OAUTH_REDIRECT_URI retained as
+// a fallback for non-requested server-side callers.
+function oauthConfig(requestOrigin?: string) {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
-  const redirectUri = process.env.GOOGLE_OAUTH_REDIRECT_URI;
+  // Prefer the current deployed origin so a stale localhost or preview URL
+  // cannot be used during the authorization-code exchange.
+  const appOrigin = requestOrigin || process.env.NEXT_PUBLIC_APP_URL || "";
+  const redirectUri = appOrigin
+    ? new URL("/api/auth/google-calendar/callback", appOrigin).toString()
+    : process.env.GOOGLE_OAUTH_REDIRECT_URI;
   if (!clientId) throw new Error("GOOGLE_CLIENT_ID is not configured.");
   if (!clientSecret) throw new Error("GOOGLE_OAUTH_CLIENT_SECRET is not configured.");
   if (!redirectUri) throw new Error("GOOGLE_OAUTH_REDIRECT_URI is not configured.");
   return { clientId, clientSecret, redirectUri };
 }
 
-function newOAuthClient() {
-  const { clientId, clientSecret, redirectUri } = oauthConfig();
+function newOAuthClient(requestOrigin?: string) {
+  const { clientId, clientSecret, redirectUri } = oauthConfig(requestOrigin);
   return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
 }
 
@@ -59,23 +66,26 @@ export function verifyOAuthState(state: string): string | null {
   }
 }
 
-export function getGoogleConsentUrl(email: string): string {
-  const client = newOAuthClient();
+export function getGoogleConsentUrl(email: string, requestOrigin?: string): string {
+  const client = newOAuthClient(requestOrigin);
   return client.generateAuthUrl({
     access_type: "offline",
-    prompt: "consent", // forces a refresh_token on every connect, not just the first
+    prompt: "select_account consent", // lets HODs choose the intended Google account and renews the refresh token
     scope: CALENDAR_SCOPES,
     state: createOAuthState(email),
     login_hint: email,
   });
 }
 
-export async function exchangeCodeAndStore(code: string, email: string): Promise<void> {
-  const client = newOAuthClient();
+export async function exchangeCodeAndStore(code: string, email: string, requestOrigin?: string): Promise<void> {
+  const client = newOAuthClient(requestOrigin);
   const { tokens } = await client.getToken(code);
+  // A connection without an access token would look saved but fail every
+  // later Calendar API call, so reject incomplete OAuth responses early.
+  if (!tokens.access_token) throw new Error("Google did not return an access token.");
   await saveCalendarConnection({
     email,
-    accessToken: tokens.access_token || "",
+    accessToken: tokens.access_token,
     refreshToken: tokens.refresh_token || undefined,
     tokenExpiresAt: tokens.expiry_date ? new Date(tokens.expiry_date).toISOString() : "",
     scope: tokens.scope || CALENDAR_SCOPES.join(" "),

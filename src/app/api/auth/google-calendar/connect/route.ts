@@ -12,7 +12,9 @@ export async function GET(request: Request) {
   if (!rate.allowed) return NextResponse.json({ success: false, error: "Too many calendar connection attempts. Try again later." }, { status: 429, headers: rateLimitHeaders(rate) });
 
   try {
-    const url = getGoogleConsentUrl(user.email);
+    // Use the host that initiated OAuth so custom-domain deployments do not
+    // accidentally exchange the authorization code against localhost.
+    const url = getGoogleConsentUrl(user.email, new URL(request.url).origin);
     return NextResponse.redirect(url);
   } catch (error) {
     console.error("[Google Calendar] Failed to build consent URL:", error);
