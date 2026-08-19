@@ -31,6 +31,8 @@ test("final interview setup no longer asks for manual dates or availability wind
   assert.match(roleDetails, /Managed through the connected HR Google Calendar/);
   assert.doesNotMatch(roleForm, /addAvailability|removeAvailability|updateAvailability/);
   assert.doesNotMatch(bookings, /<option>Final Interview<\/option>/);
+  assert.match(bookings, /Final interview availability/);
+  assert.doesNotMatch(bookings, /<strong>AI Voice Interview<\/strong>/);
   assert.match(workflow, /let slots = kind === "final" \? \[\]/);
   assert.match(workflow, /Connect the HR Google Calendar before booking a final interview/);
   assert.match(calendarBusyRoute, /calendarConnected/);
