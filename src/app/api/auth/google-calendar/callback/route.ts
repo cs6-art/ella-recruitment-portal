@@ -4,6 +4,7 @@ import { exchangeCodeAndStore, verifyOAuthState } from "@/lib/google-calendar";
 
 function calendarErrorReason(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
+  if (/calendar_account_mismatch|CalendarAccountMismatchError/i.test(message)) return "The Google account selected is not the expected HR account. Sign out of other Google accounts, choose the HR account, and connect again.";
   // Keep provider and storage diagnostics useful to HR without exposing raw
   // OAuth responses, tokens, spreadsheet IDs, or other server details.
   if (/redirect_uri_mismatch/i.test(message)) return "The Google OAuth callback URL is not authorized for this portal domain.";
@@ -19,34 +20,34 @@ export async function GET(request: Request) {
   const state = url.searchParams.get("state");
   const oauthError = url.searchParams.get("error");
 
-  const dashboardUrl = new URL("/dashboard", url);
+  const settingsUrl = new URL("/settings", url);
 
   if (oauthError) {
-    dashboardUrl.searchParams.set("calendar", "denied");
-    return NextResponse.redirect(dashboardUrl);
+    settingsUrl.searchParams.set("calendar", "denied");
+    return NextResponse.redirect(settingsUrl);
   }
 
   if (!code || !state) {
-    dashboardUrl.searchParams.set("calendar", "error");
-    dashboardUrl.searchParams.set("calendar_reason", "The Google authorization response was incomplete. Please try again.");
-    return NextResponse.redirect(dashboardUrl);
+    settingsUrl.searchParams.set("calendar", "error");
+    settingsUrl.searchParams.set("calendar_reason", "The Google authorization response was incomplete. Please try again.");
+    return NextResponse.redirect(settingsUrl);
   }
 
   const email = verifyOAuthState(state);
   if (!email) {
-    dashboardUrl.searchParams.set("calendar", "error");
-    dashboardUrl.searchParams.set("calendar_reason", "The Google authorization session expired. Please try again.");
-    return NextResponse.redirect(dashboardUrl);
+    settingsUrl.searchParams.set("calendar", "error");
+    settingsUrl.searchParams.set("calendar_reason", "The Google authorization session expired. Please try again.");
+    return NextResponse.redirect(settingsUrl);
   }
 
   try {
     await exchangeCodeAndStore(code, email, url.origin);
-    dashboardUrl.searchParams.set("calendar", "connected");
+    settingsUrl.searchParams.set("calendar", "connected");
   } catch (error) {
     console.error("[Google Calendar] Token exchange failed:", error);
-    dashboardUrl.searchParams.set("calendar", "error");
-    dashboardUrl.searchParams.set("calendar_reason", calendarErrorReason(error));
+    settingsUrl.searchParams.set("calendar", "error");
+    settingsUrl.searchParams.set("calendar_reason", calendarErrorReason(error));
   }
 
-  return NextResponse.redirect(dashboardUrl);
+  return NextResponse.redirect(settingsUrl);
 }

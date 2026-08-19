@@ -26,8 +26,7 @@ export async function GET() {
     const entries = await Promise.all(roles
       .filter((role) => canManageInterviewAvailability(role.status))
       .map(async (role) => {
-        if (!role.hodEmail) return [role.roleId, { busy: [], connected: false }] as const;
-        const result = await getCalendarBusyWindows({ hodEmail: role.hodEmail, start, end });
+        const result = await getCalendarBusyWindows({ hodEmail: role.hodEmail || "", start, end });
         return [role.roleId, { busy: result.checked ? result.busy : [], connected: result.checked }] as const;
       }));
 

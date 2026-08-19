@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 
 import {
   deleteRoleRequest,
+  getFinalInterviewCalendarConfig,
   getRoleRequestById,
   getRoleStatusHistory,
   updateRoleRequestFields,
@@ -132,11 +133,12 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
 
     const body = await request.json() as Record<string, unknown>;
+    const finalInterviewCalendar = await getFinalInterviewCalendarConfig();
     const input = roleRequestSchema.parse({
       ...body,
       requesterName: access.role.requesterName || access.user.name,
       requesterEmail: access.role.requesterEmail || access.user.email,
-      hodEmail: "hrsg@mclinkgroup.com",
+      hodEmail: finalInterviewCalendar.email,
       replacementEmployee: body.requestType === "Staff Replacement" ? body.replacementEmployee : "",
     });
     const setupDraft = body.recruitmentSetupDraft && typeof body.recruitmentSetupDraft === "object"

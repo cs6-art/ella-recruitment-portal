@@ -379,9 +379,9 @@ export default function RoleRequestForm({ user, roleId, initialValues }: RoleReq
 
           <div className="grid-2">
             <div className="field full">
-              <label htmlFor="hodEmail">HR / Interviewer Email</label>
-              <input id="hodEmail" type="email" value={HR_INTERVIEW_EMAIL} readOnly aria-readonly="true" />
-              <small className="field-help">Final-interview availability is read automatically from this HR account&apos;s connected Google Calendar.</small>
+              <label htmlFor="hodEmail">Shared HR Calendar Account</label>
+              <input id="hodEmail" type="text" value="Configured in Settings" readOnly aria-readonly="true" />
+              <small className="field-help">Final-interview availability is read from the shared account configured in Settings and its connected HR Google Calendar. This role does not choose a personal calendar.</small>
             </div>
             <div className="field full">
               <label htmlFor="customScreeningQuestion1">HOD Screening Question 1 <span className="field-optional">(optional)</span></label>

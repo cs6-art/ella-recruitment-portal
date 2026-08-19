@@ -215,6 +215,8 @@ export const defaultPortalSettings: PortalSetting[] = [
   { key: "Portal_Name", value: "McLink Recruitment Portal", category: "Portal Settings", description: "The name shown in the portal and candidate-facing pages.", updatedAt: "", updatedBy: "" },
   { key: "Portal_Timezone", value: "Asia/Singapore", category: "Portal Settings", description: "Default timezone used when dates or times are displayed.", updatedAt: "", updatedBy: "" },
   { key: "Booking_Default_Timezone", value: "Asia/Singapore", category: "Booking & Interview", description: "Timezone preselected when HR creates interview availability.", updatedAt: "", updatedBy: "" },
+  { key: "Final_Interview_Calendar_Email", value: "hrsg@mclinkgroup.com", category: "Booking & Interview", description: "Google account used for every final-interview calendar check and booking event.", updatedAt: "", updatedBy: "" },
+  { key: "Final_Interview_Calendar_ID", value: "primary", category: "Booking & Interview", description: "Google Calendar ID used for final interviews. Use primary for the connected HR account's main calendar.", updatedAt: "", updatedBy: "" },
   { key: "Voice_Interview_Duration_Minutes", value: "10", category: "Booking & Interview", description: "Fixed duration for an AI Voice Interview slot.", updatedAt: "", updatedBy: "" },
   { key: "Final_Interview_Duration_Minutes", value: "60", category: "Booking & Interview", description: "Expected duration for a Final Interview slot.", updatedAt: "", updatedBy: "" },
   { key: "Booking_Link_Expiry_Days", value: "7", category: "Booking & Interview", description: "Number of days before a candidate booking link expires.", updatedAt: "", updatedBy: "" },
@@ -1274,6 +1276,14 @@ export async function getPortalSettings(): Promise<PortalSetting[]> {
       updatedBy: getField(record, ["Updated_By", "Updated By"]),
     }))
     .filter((setting) => setting.key !== "");
+}
+
+export async function getFinalInterviewCalendarConfig(): Promise<{ email: string; calendarId: string }> {
+  const stored = await getPortalSettings();
+  const storedByKey = new Map(stored.map((setting) => [setting.key, setting.value.trim()]));
+  const email = storedByKey.get("Final_Interview_Calendar_Email") || defaultPortalSettings.find((setting) => setting.key === "Final_Interview_Calendar_Email")?.value || "hrsg@mclinkgroup.com";
+  const calendarId = storedByKey.get("Final_Interview_Calendar_ID") || defaultPortalSettings.find((setting) => setting.key === "Final_Interview_Calendar_ID")?.value || "primary";
+  return { email: email.trim().toLowerCase(), calendarId: calendarId.trim() || "primary" };
 }
 
 export async function upsertPortalSettings(settings: PortalSetting[]): Promise<void> {

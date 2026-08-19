@@ -4,7 +4,6 @@ import { redirect } from "next/navigation";
 
 import AppShell from "@/components/AppShell";
 import DashboardMetrics from "@/components/DashboardMetrics";
-import GoogleCalendarConnect from "@/components/GoogleCalendarConnect";
 import UiIcon from "@/components/UiIcon";
 import {
   COOKIE_NAME,
@@ -63,7 +62,6 @@ export default async function DashboardPage() {
         </section>
 
         {hasRecruitmentAccess ? <section className="dashboard-stats"><DashboardMetrics scope={creatorOnly ? "personal" : "organization"} /></section> : <LimitedAccessCard user={user} />}
-        <GoogleCalendarConnect />
         <section className="dashboard-grid">
           <article className="dashboard-panel">
             <div className="dashboard-panel-header">

@@ -11,6 +11,8 @@ type NoticeKind = "success" | "warning" | "error";
 export default function GoogleCalendarConnect() {
   const router = useRouter();
   const [status, setStatus] = useState<Status>("loading");
+  const [connectedAccountEmail, setConnectedAccountEmail] = useState("");
+  const [expectedAccountEmail, setExpectedAccountEmail] = useState("");
   const [disconnecting, setDisconnecting] = useState(false);
   const [notice, setNotice] = useState("");
   const [noticeKind, setNoticeKind] = useState<NoticeKind>("success");
@@ -33,7 +35,11 @@ export default function GoogleCalendarConnect() {
 
     fetch("/api/auth/google-calendar/status")
       .then((res) => res.json())
-      .then((data) => setStatus(data.success && data.connected ? "connected" : "not_connected"))
+      .then((data) => {
+        setConnectedAccountEmail(typeof data.accountEmail === "string" ? data.accountEmail : "");
+        setExpectedAccountEmail(typeof data.expectedEmail === "string" ? data.expectedEmail : "");
+        setStatus(data.success && data.connected ? "connected" : "not_connected");
+      })
       .catch(() => { setStatus("error"); setNotice("Unable to check Google Calendar connection status."); setNoticeKind("error"); });
   }, []);
 
@@ -41,7 +47,7 @@ export default function GoogleCalendarConnect() {
     setDisconnecting(true);
     try {
       const res = await fetch("/api/auth/google-calendar/disconnect", { method: "POST" });
-      if (res.ok) { setStatus("not_connected"); setNotice("Google Calendar disconnected successfully."); setNoticeKind("success"); router.refresh(); }
+      if (res.ok) { setStatus("not_connected"); setConnectedAccountEmail(""); setNotice("Google Calendar disconnected successfully."); setNoticeKind("success"); router.refresh(); }
       else { setNotice("Could not disconnect Google Calendar. Please try again."); setNoticeKind("error"); }
     } finally {
       setDisconnecting(false);
@@ -53,21 +59,23 @@ export default function GoogleCalendarConnect() {
   return (
     <section className="card calendar-connect-card">
       <div className="card-header">
-        <h2>Google Calendar</h2>
+        <h2>Shared HR Google Calendar</h2>
         {status === "connected" ? <span className="calendar-status-pill calendar-status-connected">Connected</span> : null}
       </div>
       <div className="calendar-connect-body">
         {notice ? <ActionFeedback kind={noticeKind} className="calendar-connect-notice">{notice}</ActionFeedback> : null}
         {status === "connected" ? (
           <>
-            <p>Final interviews you&apos;re assigned to will be added to your primary Google Calendar automatically.</p>
+            <p>Connected account: <strong>{connectedAccountEmail}</strong></p>
+            <p>All final-interview availability and booking events use this shared HR calendar.</p>
             <button type="button" className="btn btn-secondary" onClick={handleDisconnect} disabled={disconnecting}>
               {disconnecting ? "Disconnecting…" : "Disconnect"}
             </button>
           </>
         ) : (
           <>
-            <p>Connect your Google Calendar so final interview slots you&apos;re scheduled for appear automatically, with candidate details included.</p>
+            <p>Connect the configured HR account so final-interview availability and booking events use the shared HR calendar.</p>
+            {expectedAccountEmail && <p>Expected Google account: <strong>{expectedAccountEmail}</strong></p>}
             <a className="btn btn-primary" href="/api/auth/google-calendar/connect">
               Connect Google Calendar
             </a>

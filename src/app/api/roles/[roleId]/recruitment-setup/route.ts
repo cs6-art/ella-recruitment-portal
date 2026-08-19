@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 
 import { canEditRecruitmentSetup, canUseRecruitmentSetup, canViewRole } from "@/lib/access-control";
-import { getRoleRequestById, updateRoleRequestFields } from "@/lib/google-sheets";
+import { getFinalInterviewCalendarConfig, getRoleRequestById, updateRoleRequestFields } from "@/lib/google-sheets";
 import { invalidateSheetsCache } from "@/lib/sheets-cache";
 import { consumeRateLimit, rateLimitHeaders, requestClientKey } from "@/lib/rate-limit";
 import { evaluationFieldsForSetup, recruitmentSetupSchema } from "@/lib/recruitment-setup-schema";
@@ -115,6 +115,7 @@ export async function POST(request: Request, context: Context) {
     if (!workflowConfigured && setupAction !== "save_draft") return NextResponse.json({ success: false, error: "The recruitment setup workflow is not configured. Save can still be used, but publishing requires the workflow." }, { status: 503 });
 
     const updatedAt = new Date().toISOString();
+    const finalInterviewCalendar = await getFinalInterviewCalendarConfig();
     const actionRequestId = setup.actionRequestId || crypto.randomUUID();
     const performerEmail = user.email.trim().toLowerCase();
     const configuredAppUrl = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, "");
@@ -196,7 +197,7 @@ export async function POST(request: Request, context: Context) {
       Voice_Interview_Auto_End_Date: setup.voiceInterviewAutoEndDate,
       Voice_Interview_Timezone: setup.voiceInterviewTimezone,
       Voice_Interview_Slots_Generated_At: setup.voiceInterviewSlotsGeneratedAt,
-      HOD_Email: role.hodEmail,
+      HOD_Email: finalInterviewCalendar.email,
       Recruitment_Setup_Status: setupStatusForAction(setupAction, role.recruitmentSetupStatus || "Draft"),
       Salary_Disclosure_Status: setup.salaryDisclosureStatus,
       Experience_Requirement_Status: setup.experienceRequirementStatus,

@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { getRoleRequests } from "@/lib/google-sheets";
+import { getFinalInterviewCalendarConfig, getRoleRequests } from "@/lib/google-sheets";
 import { invalidateSheetsCache } from "@/lib/sheets-cache";
 import { filterVisibleRoles } from "@/lib/access-control";
 import { roleRequestSchema } from "@/lib/role-schema";
@@ -147,11 +147,12 @@ export async function POST(request: Request) {
     }
 
     const clientInput = await request.json();
+    const finalInterviewCalendar = await getFinalInterviewCalendarConfig();
     const input = roleRequestSchema.parse({
       ...clientInput,
       requesterName: user.name,
       requesterEmail: sessionEmail,
-      hodEmail: "hrsg@mclinkgroup.com",
+      hodEmail: finalInterviewCalendar.email,
       replacementEmployee: clientInput.requestType === "Staff Replacement"
         ? clientInput.replacementEmployee
         : "",
@@ -263,7 +264,7 @@ export async function POST(request: Request) {
           input.replacementEmployee,
         targetHiringDate:
           input.targetHiringDate,
-        hodEmail: "hrsg@mclinkgroup.com",
+        hodEmail: finalInterviewCalendar.email,
         hodAvailabilityDates: input.hodAvailabilityDates,
         hodAvailabilityTimes: input.hodAvailabilityTimes,
         hodAvailabilitySlots: input.hodAvailabilitySlots,

@@ -2,12 +2,36 @@ import crypto from "node:crypto";
 import { google } from "googleapis";
 
 import { getCalendarConnection, saveCalendarConnection } from "@/lib/calendar-tokens";
+import { getFinalInterviewCalendarConfig } from "@/lib/google-sheets";
 import { scheduledInstant } from "@/lib/interview-time";
 
 const CALENDAR_SCOPES = [
   "https://www.googleapis.com/auth/calendar.events",
   "https://www.googleapis.com/auth/calendar.freebusy",
+  // Token introspection only includes the authorized account email when the
+  // email scope was granted. This prevents a token for another Google account
+  // from being stored under the HR role's expected email address.
+  "https://www.googleapis.com/auth/userinfo.email",
 ];
+
+export class CalendarAccountMismatchError extends Error {
+  constructor() {
+    super("calendar_account_mismatch");
+    this.name = "CalendarAccountMismatchError";
+  }
+}
+
+function normalizedEmail(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+async function finalInterviewCalendarTarget(fallbackEmail = ""): Promise<{ email: string; calendarId: string }> {
+  const configured = await getFinalInterviewCalendarConfig();
+  return {
+    email: configured.email || normalizedEmail(fallbackEmail),
+    calendarId: configured.calendarId || "primary",
+  };
+}
 
 // Reuses the same OAuth 2.0 Web application client already registered for
 // "Sign in with Google" (NEXT_PUBLIC_GOOGLE_CLIENT_ID / GOOGLE_CLIENT_ID).
@@ -83,6 +107,12 @@ export async function exchangeCodeAndStore(code: string, email: string, requestO
   // A connection without an access token would look saved but fail every
   // later Calendar API call, so reject incomplete OAuth responses early.
   if (!tokens.access_token) throw new Error("Google did not return an access token.");
+  // `login_hint` is only a suggestion. Google may authorize whichever account
+  // is active in the browser, so verify the token owner before persisting it.
+  const tokenInfo = await client.getTokenInfo(tokens.access_token);
+  const expectedEmail = normalizedEmail(email);
+  const authorizedEmail = normalizedEmail(tokenInfo.email || "");
+  if (!authorizedEmail || authorizedEmail !== expectedEmail) throw new CalendarAccountMismatchError();
   await saveCalendarConnection({
     email,
     accessToken: tokens.access_token,
@@ -92,31 +122,67 @@ export async function exchangeCodeAndStore(code: string, email: string, requestO
   });
 }
 
-/** Returns a ready-to-use OAuth2 client for this HR interviewer, refreshing (and
- * persisting) the access token first if it's expired or close to it. */
-async function getAuthorizedClient(email: string) {
+type AuthorizedCalendar = { client: InstanceType<typeof google.auth.OAuth2>; accountEmail: string };
+
+/**
+ * Returns a calendar client only when its OAuth token belongs to the expected
+ * HR email. Existing tokens without the email scope are treated as invalid so
+ * HR must reconnect instead of silently using an unknown account.
+ */
+async function getAuthorizedClientWithIdentity(email: string): Promise<AuthorizedCalendar | null> {
   const connection = await getCalendarConnection(email);
   if (!connection || !connection.refreshToken) return null;
 
   const client = newOAuthClient();
   const expiresAt = connection.tokenExpiresAt ? Date.parse(connection.tokenExpiresAt) : 0;
   const needsRefresh = !connection.accessToken || !expiresAt || expiresAt < Date.now() + 60_000;
+  let refreshedCredentials: { access_token?: string | null; expiry_date?: number | null; scope?: string | null } | null = null;
 
   if (needsRefresh) {
     client.setCredentials({ refresh_token: connection.refreshToken });
     const { credentials } = await client.refreshAccessToken();
-    await saveCalendarConnection({
-      email,
-      accessToken: credentials.access_token || "",
-      tokenExpiresAt: credentials.expiry_date ? new Date(credentials.expiry_date).toISOString() : "",
-      scope: credentials.scope || CALENDAR_SCOPES.join(" "),
-    });
     client.setCredentials(credentials);
+    refreshedCredentials = credentials;
   } else {
     client.setCredentials({ access_token: connection.accessToken, refresh_token: connection.refreshToken });
   }
 
-  return client;
+  const accessToken = client.credentials.access_token;
+  if (!accessToken) return null;
+  const tokenInfo = await client.getTokenInfo(accessToken);
+  const accountEmail = normalizedEmail(tokenInfo.email || "");
+  if (!accountEmail || accountEmail !== normalizedEmail(email)) {
+    console.warn("[Google Calendar] Stored OAuth token does not belong to the expected HR account.");
+    return null;
+  }
+  if (refreshedCredentials) {
+    await saveCalendarConnection({
+      email,
+      accessToken: refreshedCredentials.access_token || "",
+      tokenExpiresAt: refreshedCredentials.expiry_date ? new Date(refreshedCredentials.expiry_date).toISOString() : "",
+      scope: refreshedCredentials.scope || CALENDAR_SCOPES.join(" "),
+    });
+  }
+  return { client, accountEmail };
+}
+
+/** Returns a ready-to-use OAuth2 client for this HR interviewer, refreshing (and
+ * persisting) the access token first if it's expired or close to it. */
+async function getAuthorizedClient(email: string) {
+  const authorized = await getAuthorizedClientWithIdentity(email);
+  return authorized?.client || null;
+}
+
+export async function getCalendarConnectionStatus(email = ""): Promise<{ connected: boolean; accountEmail: string | null; connectedAt: string | null; expectedEmail: string }> {
+  try {
+    const target = await finalInterviewCalendarTarget(email);
+    const connection = await getCalendarConnection(target.email);
+    const authorized = await getAuthorizedClientWithIdentity(target.email);
+    return { connected: Boolean(authorized), accountEmail: authorized?.accountEmail || null, connectedAt: connection?.connectedAt || null, expectedEmail: target.email };
+  } catch (error) {
+    console.warn("[Google Calendar] Connection identity check failed:", error);
+    return { connected: false, accountEmail: null, connectedAt: null, expectedEmail: normalizedEmail(email) };
+  }
 }
 
 export type CalendarEventInput = {
@@ -147,14 +213,15 @@ export type CalendarAvailabilityResult =
  */
 export async function createFinalInterviewEvent(input: CalendarEventInput): Promise<CalendarEventResult> {
   try {
-    const client = await getAuthorizedClient(input.hodEmail);
+    const target = await finalInterviewCalendarTarget(input.hodEmail);
+    const client = await getAuthorizedClient(target.email);
     if (!client) return { created: false, reason: "not_connected" };
 
     const calendar = google.calendar({ version: "v3", auth: client });
     const start = scheduledInstant(input.date, input.startTime, input.timezone);
     const end = scheduledInstant(input.date, input.endTime, input.timezone);
     const response = await calendar.events.insert({
-      calendarId: "primary",
+      calendarId: target.calendarId,
       sendUpdates: "all",
       requestBody: {
         summary: input.summary,
@@ -173,7 +240,8 @@ export async function createFinalInterviewEvent(input: CalendarEventInput): Prom
 
 export async function checkCalendarAvailability(input: Pick<CalendarEventInput, "hodEmail" | "date" | "startTime" | "endTime" | "timezone">): Promise<CalendarAvailabilityResult> {
   try {
-    const client = await getAuthorizedClient(input.hodEmail);
+    const target = await finalInterviewCalendarTarget(input.hodEmail);
+    const client = await getAuthorizedClient(target.email);
     if (!client) return { available: false, checked: false, reason: "not_connected" };
 
     const start = scheduledInstant(input.date, input.startTime, input.timezone);
@@ -184,10 +252,10 @@ export async function checkCalendarAvailability(input: Pick<CalendarEventInput, 
         requestBody: {
           timeMin: start.toISOString(),
           timeMax: end.toISOString(),
-          items: [{ id: "primary" }],
+          items: [{ id: target.calendarId }],
         },
       });
-      const busy = response.data.calendars?.primary?.busy || [];
+      const busy = response.data.calendars?.[target.calendarId]?.busy || [];
       const conflict = busy.find((window) => window.start && window.end);
       if (conflict) return { available: false, checked: true, reason: "conflict", busyUntil: conflict.end || undefined };
       return { available: true, checked: true };
@@ -200,7 +268,7 @@ export async function checkCalendarAvailability(input: Pick<CalendarEventInput, 
       // Older connections may have calendar.events but not calendar.freebusy.
       // Read event windows as a compatible fallback until HR reconnects.
       const events = await calendar.events.list({
-        calendarId: "primary",
+        calendarId: target.calendarId,
         timeMin: start.toISOString(),
         timeMax: end.toISOString(),
         singleEvents: true,
@@ -233,7 +301,8 @@ export type CalendarBusyWindowsResult =
  */
 export async function getCalendarBusyWindows(input: { hodEmail: string; start: Date; end: Date }): Promise<CalendarBusyWindowsResult> {
   try {
-    const client = await getAuthorizedClient(input.hodEmail);
+    const target = await finalInterviewCalendarTarget(input.hodEmail);
+    const client = await getAuthorizedClient(target.email);
     if (!client) return { checked: false, busy: [], reason: "not_connected" };
     const calendar = google.calendar({ version: "v3", auth: client });
     try {
@@ -241,10 +310,10 @@ export async function getCalendarBusyWindows(input: { hodEmail: string; start: D
         requestBody: {
           timeMin: input.start.toISOString(),
           timeMax: input.end.toISOString(),
-          items: [{ id: "primary" }],
+          items: [{ id: target.calendarId }],
         },
       });
-      const busy = (response.data.calendars?.primary?.busy || [])
+      const busy = (response.data.calendars?.[target.calendarId]?.busy || [])
         .filter((window): window is { start: string; end: string } => Boolean(window.start && window.end))
         .map((window) => ({ start: window.start, end: window.end }));
       return { checked: true, busy };
@@ -254,7 +323,7 @@ export async function getCalendarBusyWindows(input: { hodEmail: string; start: D
         return { checked: false, busy: [], reason: "error", error: message };
       }
       const events = await calendar.events.list({
-        calendarId: "primary",
+        calendarId: target.calendarId,
         timeMin: input.start.toISOString(),
         timeMax: input.end.toISOString(),
         singleEvents: true,
@@ -274,10 +343,11 @@ export async function getCalendarBusyWindows(input: { hodEmail: string; start: D
 export async function deleteFinalInterviewEvent(hodEmail: string, eventId: string): Promise<{ deleted: true } | { deleted: false; reason: "not_connected" | "error"; error?: string }> {
   if (!eventId) return { deleted: true };
   try {
-    const client = await getAuthorizedClient(hodEmail);
+    const target = await finalInterviewCalendarTarget(hodEmail);
+    const client = await getAuthorizedClient(target.email);
     if (!client) return { deleted: false, reason: "not_connected" };
     const calendar = google.calendar({ version: "v3", auth: client });
-    await calendar.events.delete({ calendarId: "primary", eventId, sendUpdates: "all" });
+    await calendar.events.delete({ calendarId: target.calendarId, eventId, sendUpdates: "all" });
     return { deleted: true };
   } catch (error) {
     return { deleted: false, reason: "error", error: error instanceof Error ? error.message : String(error) };

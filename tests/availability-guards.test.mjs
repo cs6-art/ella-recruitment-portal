@@ -28,7 +28,7 @@ test("availability write API blocks stacked voice schedules and rejects manual f
 test("final interview setup no longer asks for manual dates or availability windows", () => {
   assert.doesNotMatch(roleDetails, /HodAvailabilityEditor/);
   assert.doesNotMatch(roleDetails, /Availability Windows/);
-  assert.match(roleDetails, /Managed through the connected HR Google Calendar/);
+  assert.match(roleDetails, /Managed through the shared HR Google Calendar configured in Settings/);
   assert.doesNotMatch(roleForm, /addAvailability|removeAvailability|updateAvailability/);
   assert.doesNotMatch(bookings, /<option>Final Interview<\/option>/);
   assert.match(bookings, /Final interview availability/);

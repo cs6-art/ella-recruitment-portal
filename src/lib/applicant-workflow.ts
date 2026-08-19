@@ -4,7 +4,7 @@ import { getGoogleServiceAccountPrivateKey } from "@/lib/google-service-account"
 import { z } from "zod";
 
 import { createFinalInterviewEvent, deleteFinalInterviewEvent, checkCalendarAvailability, getCalendarBusyWindows, type CalendarAvailabilityResult } from "@/lib/google-calendar";
-import { getRoleRequestById } from "@/lib/google-sheets";
+import { getFinalInterviewCalendarConfig, getRoleRequestById } from "@/lib/google-sheets";
 import { expandHodAvailabilitySlots, parseHodAvailabilitySlots, slotMatchesHodAvailability } from "@/lib/hod-availability";
 import { isValidTimezone, scheduledInstant } from "@/lib/interview-time";
 import { bookingLink } from "@/lib/public-url";
@@ -553,7 +553,7 @@ export async function getBookingContext(kind: BookingKind, token: string): Promi
     .filter((slot) => hasValidFutureTime(slot))
     .filter((slot) => slot.slotId)
     .sort(slotSort);
-  const finalCalendarEmail = kind === "final" ? text(role?.hodEmail || role?.requesterEmail) : "";
+  const finalCalendarEmail = kind === "final" ? (await getFinalInterviewCalendarConfig()).email : "";
   let slots = kind === "final" ? [] : candidateSlots;
   if (kind === "final") {
     // Check every candidate-visible Final Interview slot against HR's
@@ -723,8 +723,7 @@ export async function deleteApplicant(applicationId: string) {
     field(row, "Google_Calendar_Event_ID"),
   );
   if (finalBookedSlots.length > 0) {
-    const role = await getRoleRequestById(field(found.row, "Role_ID", "Role ID"));
-    const hodEmail = text(role?.hodEmail || role?.requesterEmail);
+    const hodEmail = (await getFinalInterviewCalendarConfig()).email;
     if (!hodEmail) throw new Error("The HR interviewer email is not configured, so the linked calendar event cannot be removed.");
     for (const { row } of finalBookedSlots) {
       const result = await deleteFinalInterviewEvent(hodEmail, field(row, "Google_Calendar_Event_ID"));
@@ -798,6 +797,7 @@ async function reserveBookingInternal(kind: BookingKind, token: string, slotId: 
   const [context, slotsData, applicantData] = await Promise.all([getBookingContext(kind, token), readSheet("Interview_Slots", "X"), readSheet("High_Match_Profile", "BH")]);
   if (!context) throw new Error("This booking link is invalid or expired.");
   const role = await getRoleRequestById(context.roleId);
+  const finalCalendarEmail = kind === "final" ? (await getFinalInterviewCalendarConfig()).email : "";
   let matchingSlotIndex = slotsData.rows.findIndex((row) => field(row, "Slot_ID", "Slot ID") === cleanSlotId);
   let matchingSlot = matchingSlotIndex >= 0 ? slotsData.rows[matchingSlotIndex] : undefined;
   let virtualReservation = false;
@@ -806,7 +806,7 @@ async function reserveBookingInternal(kind: BookingKind, token: string, slotId: 
     if (!virtualSlot || !isVirtualSlotId(cleanSlotId)) throw new Error("The selected interview slot is no longer available.");
     if (!hasValidFutureTime(virtualSlot)) throw new Error("This interview slot has already passed. Choose another time.");
     if (kind === "final") {
-      const hodEmail = (role?.hodEmail || role?.requesterEmail || "").trim();
+      const hodEmail = finalCalendarEmail;
       if (!hodEmail) throw new Error("No HR interviewer email is configured for this role.");
       const calendar = await checkCalendarAvailability({ hodEmail, date: virtualSlot.date, startTime: virtualSlot.startTime, endTime: virtualSlot.endTime, timezone: virtualSlot.timezone });
       if (!calendar.checked) throw new Error(calendar.reason === "not_connected" ? "Connect the HR Google Calendar before booking a final interview." : "Unable to verify the HR Google Calendar. Please try again.");
@@ -854,7 +854,7 @@ async function reserveBookingInternal(kind: BookingKind, token: string, slotId: 
     ? slotsData.rows.findIndex((row) => field(row, "Slot_ID", "Slot ID") === context.currentSlot?.slotId)
     : -1;
   if (oldSlotIndex === matchingSlotIndex) throw new Error("Choose a different interview slot to reschedule.");
-  const calendarHodEmail = (role?.hodEmail || role?.requesterEmail || "").trim();
+  const calendarHodEmail = finalCalendarEmail;
   if (kind === "final") {
     if (!calendarHodEmail) throw new Error("No HR interviewer email is configured for this role.");
     const calendar = await checkCalendarAvailability({ hodEmail: calendarHodEmail, date: field(matchingSlot, "Date"), startTime: field(matchingSlot, "Start_Time", "Start Time"), endTime: field(matchingSlot, "End_Time", "End Time"), timezone: field(matchingSlot, "Timezone", "Time Zone") || "Asia/Singapore" });
@@ -953,8 +953,8 @@ async function reserveBookingInternal(kind: BookingKind, token: string, slotId: 
       { tab: "High_Match_Profile", row: applicantRow, header: "Final_Interview_Booking_Token_Used_At", value: now },
       { tab: "High_Match_Profile", row: applicantRow, header: "Last_Updated", value: now },
     );
-    const interviewerName = role?.hodEmail ? "HR" : "";
-    const interviewerEmail = text(role?.hodEmail || role?.requesterEmail);
+    const interviewerName = finalCalendarEmail ? "HR" : "";
+    const interviewerEmail = finalCalendarEmail;
     updates.push(
       { tab: "Interview_Slots", row: slotRow, header: "Interviewer_Name", value: interviewerName },
       { tab: "Interview_Slots", row: slotRow, header: "Interviewer_Email", value: interviewerEmail },
@@ -978,8 +978,8 @@ async function reserveBookingInternal(kind: BookingKind, token: string, slotId: 
         roleId: context.roleId,
         selectedRole: context.selectedRole,
         slot: matchingSlot,
-        interviewerName: role?.hodEmail ? "HR" : "",
-        interviewerEmail: text(role?.hodEmail || role?.requesterEmail),
+        interviewerName: finalCalendarEmail ? "HR" : "",
+        interviewerEmail: finalCalendarEmail,
         updatedAt: now,
       });
     } catch (error) {
@@ -1317,7 +1317,7 @@ export async function createInterviewSlot(input: CreateInterviewSlotInput) {
   const role = input.interviewType === "Final Interview" ? await getRoleRequestById(roleId) : null;
   if (input.interviewType === "Final Interview" && !role) throw new Error("Role request not found.");
   if (input.interviewType === "Final Interview" && role) {
-    const hodEmail = (role.hodEmail || role.requesterEmail).trim();
+    const hodEmail = (await getFinalInterviewCalendarConfig()).email;
     if (!hodEmail) throw new Error("No HR interviewer email is configured for this role.");
     const calendar = await checkCalendarAvailability({ hodEmail, date, startTime, endTime, timezone });
     if (!calendar.checked) throw new Error(calendar.reason === "not_connected" ? "Connect the assigned HR Google Calendar before adding a final-interview slot." : "Unable to verify the HR Google Calendar for this final-interview slot.");
@@ -1636,9 +1636,9 @@ async function upsertFinalTracking(applicant: Row, applicationId: string, decisi
   const data = await readSheet("Final_Interview_Tracking", "AE");
   const existingIndex = data.rows.findIndex((row) => field(row, "Application_ID", "Application ID") === applicationId);
   const existing = existingIndex >= 0 ? data.rows[existingIndex] : {};
-  const role = await getRoleRequestById(field(applicant, "Role_ID", "Role ID"));
-  const hrName = role?.hodEmail ? "HR" : "";
-  const hrEmail = text(role?.hodEmail || role?.requesterEmail);
+  const finalInterviewCalendar = await getFinalInterviewCalendarConfig();
+  const hrName = finalInterviewCalendar.email ? "HR" : "";
+  const hrEmail = finalInterviewCalendar.email;
   const values = data.headers.map((header) => {
     const key = normalize(header);
     if (key === normalize("Application_ID")) return applicationId;

@@ -9,7 +9,7 @@ import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const runtimeSettingKeys = new Set(["Voice_Interview_Duration_Minutes"]);
+const runtimeSettingKeys = new Set(["Voice_Interview_Duration_Minutes", "Final_Interview_Calendar_Email", "Final_Interview_Calendar_ID"]);
 
 const settingSchema = z.object({ key: z.string().trim().min(1).max(200), value: z.string().max(10000), category: z.string().trim().max(100), description: z.string().max(1000), updatedAt: z.string().optional(), updatedBy: z.string().optional() });
 const settingsSchema = z.object({ settings: z.array(settingSchema).max(500) });
@@ -49,6 +49,14 @@ export async function PUT(request: Request) {
   if (!rate.allowed) return NextResponse.json({ success: false, error: "Too many settings updates. Try again later." }, { status: 429, headers: rateLimitHeaders(rate) });
   try {
     const input = settingsSchema.parse(await request.json());
+    for (const setting of input.settings) {
+      if (setting.key === "Final_Interview_Calendar_Email" && !z.string().email().safeParse(setting.value.trim()).success) {
+        return NextResponse.json({ success: false, error: "Final interview calendar email must be a valid email address." }, { status: 400 });
+      }
+      if (setting.key === "Final_Interview_Calendar_ID" && !/^[A-Za-z0-9._@-]+$/.test(setting.value.trim())) {
+        return NextResponse.json({ success: false, error: "Final interview calendar ID contains invalid characters." }, { status: 400 });
+      }
+    }
     const existing = await getPortalSettings();
     const submitted = new Map(input.settings.map((setting) => [setting.key, setting]));
     const merged = existing.map((setting) => secretKey(setting.key) ? setting : (submitted.get(setting.key) || setting));

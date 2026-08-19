@@ -96,12 +96,13 @@ test("role creation only renders the requisition and HR screening fields", () =>
 
 test("HR interviewer identity is explicit while final availability comes from Google Calendar", () => {
   assert.match(formSource, /id=\"hodEmail\"/);
-  assert.match(formSource, /HR \/ Interviewer Email/);
+  assert.match(formSource, /Shared HR Calendar Account/);
   assert.match(formSource, /connected HR Google Calendar/);
   assert.match(formSource, /generate the remaining screening questions when you click/);
   assert.match(formSource, /HOD Screening Question 1/);
   assert.match(formSource, /HOD Screening Question 2/);
   assert.doesNotMatch(formSource, /addAvailability|removeAvailability|updateAvailability/);
-  assert.match(apiSource, /hodEmail: "hrsg@mclinkgroup\.com"/);
+  assert.match(apiSource, /getFinalInterviewCalendarConfig/);
+  assert.match(apiSource, /hodEmail: finalInterviewCalendar\.email/);
   assert.match(apiSource, /hodAvailabilitySlots: input\.hodAvailabilitySlots/);
 });
