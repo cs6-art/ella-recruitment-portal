@@ -556,15 +556,19 @@ export async function getBookingContext(kind: BookingKind, token: string): Promi
   const finalCalendarEmail = kind === "final" ? text(role?.hodEmail || role?.requesterEmail) : "";
   let slots = candidateSlots;
   if (finalCalendarEmail && kind === "final") {
-    const virtualFinalSlots = candidateSlots.filter((slot) => isVirtualSlotId(slot.slotId));
-    const instants = virtualFinalSlots.flatMap((slot) => {
+    // Check every candidate-visible Final Interview slot against the HOD's
+    // calendar, not just generated ("virtual") ones. A handful of real,
+    // pre-existing Interview_Slots rows with Status=Available used to skip
+    // this check entirely (isVirtualSlotId(slot.slotId) short-circuited to
+    // true for them), so a slot that later became calendar-busy could still
+    // show as bookable if it happened to already exist as a sheet row.
+    const instants = candidateSlots.flatMap((slot) => {
       try { return [scheduledInstant(slot.date, slot.startTime, slot.timezone || "Asia/Singapore"), scheduledInstant(slot.date, slot.endTime, slot.timezone || "Asia/Singapore")]; } catch { return []; }
     });
     if (instants.length > 0) {
       const busyResult = await getCalendarBusyWindows({ hodEmail: finalCalendarEmail, start: new Date(Math.min(...instants.map((value) => value.getTime()))), end: new Date(Math.max(...instants.map((value) => value.getTime()))) });
       if (busyResult.checked && busyResult.busy.length > 0) {
         slots = candidateSlots.filter((slot) => {
-          if (!isVirtualSlotId(slot.slotId)) return true;
           try {
             const start = scheduledInstant(slot.date, slot.startTime, slot.timezone || "Asia/Singapore").getTime();
             const end = scheduledInstant(slot.date, slot.endTime, slot.timezone || "Asia/Singapore").getTime();
