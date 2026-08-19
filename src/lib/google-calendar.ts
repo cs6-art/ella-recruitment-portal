@@ -203,6 +203,26 @@ async function getStoredCalendarAccountEmail(email: string): Promise<string | nu
       // still safely report disconnected when Google does not reveal an email.
     }
   }
+  if (!accountEmail) {
+    try {
+      // Calendar tokens created before identity introspection was added do not
+      // include an email/profile scope. The events API still returns the
+      // authenticated calendar owner's address without exposing event data;
+      // use that owner identity for the read-only Settings status card.
+      const events = await google.calendar({ version: "v3", auth: client }).events.list({
+        calendarId: "primary",
+        maxResults: 10,
+        showDeleted: false,
+        singleEvents: false,
+        fields: "items(organizer,creator)",
+      });
+      const owner = (events.data.items || []).find((event) => event.organizer?.self || event.creator?.self);
+      accountEmail = normalizedEmail(owner?.organizer?.email || owner?.creator?.email || "");
+    } catch {
+      // Empty calendars or restricted legacy tokens may not expose event
+      // metadata; leave the account unknown rather than guessing.
+    }
+  }
   return accountEmail || null;
 }
 

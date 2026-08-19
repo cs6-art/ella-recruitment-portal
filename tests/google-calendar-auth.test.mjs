@@ -17,6 +17,8 @@ test("Google Calendar OAuth verifies the authorized account before storing token
   assert.match(calendar, /authorizedEmail !== expectedEmail/);
   assert.match(calendar, /getAuthorizedClientWithIdentity/);
   assert.match(calendar, /accountEmail !== normalizedEmail\(email\)/);
+  assert.match(calendar, /events\.list/);
+  assert.match(calendar, /authenticated calendar owner's address/);
   assert.match(callback, /calendar_account_mismatch/);
 });
 
