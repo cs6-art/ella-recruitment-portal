@@ -182,8 +182,10 @@ export default function BookingsList({ bookings: initialBookings, roles }: { boo
       })
       .filter((booking) => candidateVisibleAvailability(booking, roleOptions.find((role) => role.roleId.toLowerCase() === booking.roleId.toLowerCase())));
     const existing = new Set(legacy.map((booking) => slotKey(booking)));
+    // The HR calendar is the source of truth for role availability, so show
+    // generated slots for every approved role even before its first candidate
+    // booking link is issued.
     const generated = roleOptions
-      .filter((role) => role.hasActiveVoiceBookingLink === true || role.hasActiveFinalBookingLink === true)
       .flatMap((role) => virtualBookings(role, ruleOverrides[role.roleId]))
       .map((booking) => booking.status.toLowerCase() === "available" && !hasFutureTime(booking) ? { ...booking, status: "Expired" } : booking);
     return [...legacy, ...generated.filter((booking) => !existing.has(slotKey(booking)))].sort((a, b) => `${a.date} ${a.startTime}`.localeCompare(`${b.date} ${b.startTime}`));

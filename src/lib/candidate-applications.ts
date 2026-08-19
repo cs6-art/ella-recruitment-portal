@@ -435,9 +435,9 @@ function hasActiveBookingLink(record: SheetRow, kind: "voice" | "final") {
 }
 
 /**
- * The admin calendar should only count generated availability for roles that
- * currently have at least one candidate booking link. Persisted bookings are
- * still returned separately so completed appointments remain visible.
+ * Candidate booking links are tracked separately from the admin calendar's
+ * generated availability. Persisted bookings are still returned separately so
+ * completed appointments remain visible even when a link has expired.
  */
 export async function getActiveBookingLinkRoleIds() {
   const { rows } = await readTab("High_Match_Profile", "BH");
