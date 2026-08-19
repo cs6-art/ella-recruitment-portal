@@ -291,7 +291,7 @@ function buildDataset(today: string): DemoDataset {
     // Applications ramp up over the period so the history reads like growing
     // adoption rather than a flat synthetic line, and taper on weekends.
     const adoption = 0.25 + 0.75 * (dayOffset / totalDays);
-    const weekdayVolume = isWeekend(date) ? 0.8 : 4.4;
+    const weekdayVolume = isWeekend(date) ? 2 : 11.2;
     const expected = weekdayVolume * adoption;
     const count = Math.max(0, Math.round(expected + (random() * 2 - 1)));
 
