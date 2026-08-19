@@ -99,8 +99,8 @@ test("HR interviewer identity is explicit while final availability comes from Go
   assert.match(formSource, /HR \/ Interviewer Email/);
   assert.match(formSource, /connected HR Google Calendar/);
   assert.match(formSource, /generate the remaining screening questions when you click/);
-  assert.match(formSource, /HR Screening Question 1/);
-  assert.match(formSource, /HR Screening Question 2/);
+  assert.match(formSource, /HOD Screening Question 1/);
+  assert.match(formSource, /HOD Screening Question 2/);
   assert.doesNotMatch(formSource, /addAvailability|removeAvailability|updateAvailability/);
   assert.match(apiSource, /hodEmail: "hrsg@mclinkgroup\.com"/);
   assert.match(apiSource, /hodAvailabilitySlots: input\.hodAvailabilitySlots/);

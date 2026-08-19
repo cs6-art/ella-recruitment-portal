@@ -384,11 +384,11 @@ export default function RoleRequestForm({ user, roleId, initialValues }: RoleReq
               <small className="field-help">Final-interview availability is read automatically from this HR account&apos;s connected Google Calendar.</small>
             </div>
             <div className="field full">
-              <label htmlFor="customScreeningQuestion1">HR Screening Question 1 <span className="field-optional">(optional)</span></label>
+              <label htmlFor="customScreeningQuestion1">HOD Screening Question 1 <span className="field-optional">(optional)</span></label>
               <textarea id="customScreeningQuestion1" value={form.customScreeningQuestion1} onChange={(event) => update("customScreeningQuestion1", event.target.value)} placeholder="Ask something specific to this role" />
             </div>
             <div className="field full">
-              <label htmlFor="customScreeningQuestion2">HR Screening Question 2 <span className="field-optional">(optional)</span></label>
+              <label htmlFor="customScreeningQuestion2">HOD Screening Question 2 <span className="field-optional">(optional)</span></label>
               <textarea id="customScreeningQuestion2" value={form.customScreeningQuestion2} onChange={(event) => update("customScreeningQuestion2", event.target.value)} placeholder="Ask another role-specific question" />
             </div>
             {form.aiGeneratedScreeningQuestions.length > 0 && (
