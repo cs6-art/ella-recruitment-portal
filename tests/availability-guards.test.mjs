@@ -11,6 +11,7 @@ const roleForm = fs.readFileSync("src/components/RoleRequestForm.tsx", "utf8");
 const workflow = fs.readFileSync("src/lib/applicant-workflow.ts", "utf8");
 
 test("availability rules reject overlapping weekday windows and deduplicate legacy reads", () => {
+  assert.match(rules, /"Completed", "No Show", "Cancelled"/);
   assert.match(rules, /export function availabilityRulesOverlap/);
   assert.match(rules, /left\.weekdays\.some/);
   assert.match(rules, /export function withoutOverlappingAvailabilityRules/);

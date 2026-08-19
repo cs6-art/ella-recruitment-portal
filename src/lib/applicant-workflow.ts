@@ -16,6 +16,7 @@ import { hasValidFutureTime, isBeforeTargetHiringDate, isCurrentCalendarMonth, i
 export type BookingKind = "voice" | "final";
 export type ApplicantDecisionStage = "resume" | "voice" | "final";
 export type ApplicantDecision = "Approve" | "Reject" | "Manual Review" | "No Show";
+export type ApplicantHistoryAction = ApplicantDecision | "Completed";
 export type CandidateApplicationSource =
   | "Direct Application"
   | "Referral"
@@ -114,7 +115,7 @@ export type CandidateStatusHistoryEntry = {
   previousStatus: string;
   newStatus: string;
   stage: ApplicantDecisionStage | "final";
-  action: ApplicantDecision;
+  action: ApplicantHistoryAction;
   changedByName: string;
   changedByEmail: string;
   comments: string;
@@ -418,7 +419,7 @@ export function buildCandidateStatusHistoryEntry(input: {
   previousStatus: string;
   newStatus: string;
   stage: ApplicantDecisionStage | "final";
-  action: ApplicantDecision;
+  action: ApplicantHistoryAction;
   changedByName: string;
   changedByEmail: string;
   comments: string;
@@ -475,7 +476,7 @@ export async function getCandidateStatusHistory(applicationId: string): Promise<
         previousStatus: field(row, "Previous_Status", "Previous Status"),
         newStatus: field(row, "New_Status", "New Status"),
         stage: field(row, "Stage") as CandidateStatusHistoryEntry["stage"],
-        action: field(row, "Action") as ApplicantDecision,
+        action: field(row, "Action") as ApplicantHistoryAction,
         changedByName: field(row, "Changed_By_Name", "Changed By Name"),
         changedByEmail: field(row, "Changed_By_Email", "Changed By Email"),
         comments: field(row, "Comments"),
@@ -509,7 +510,7 @@ export async function getBookingContext(kind: BookingKind, token: string): Promi
     .map((slot, index) => ({ slot: slotFrom(slot), index }))
     .find(({ slot }) => slot.applicationId === field(row, "Application ID", "Application_ID")
       && slot.interviewType === bookingKindValue(kind)
-      && ["booked", "no show"].includes((slot.status || "").toLowerCase()));
+      && ["booked", "completed", "no show"].includes((slot.status || "").toLowerCase()));
   const tokenStatus = kind === "voice" ? field(row, "Booking_Token_Status") : field(row, "Final_Interview_Booking_Token_Status");
   // A completed booking token is normally single-use. A No Show is the one
   // exception: the candidate may use the original link to choose a
@@ -1181,7 +1182,12 @@ function hasCompletedInterviewResult(rows: Row[] | undefined, applicationId: str
     });
 }
 
-/** Reconcile booked interviews whose calendar day has passed. */
+/**
+ * Reconcile appointment outcomes for every role. A booked slot becomes
+ * Completed as soon as the voice/final result or applicant stage confirms
+ * attendance; only an untouched appointment from a past calendar day becomes
+ * No Show. Applicant outcomes such as Passed remain separate from slot state.
+ */
 export async function syncPastBookedInterviewsNoShow() {
   if (pastBookedNoShowSync) return pastBookedNoShowSync;
   pastBookedNoShowSync = (async () => {
@@ -1215,7 +1221,78 @@ export async function syncPastBookedInterviewsNoShow() {
       const resultRows = isVoice
         ? [...(voiceResultsData?.rows ?? []), ...(callLogsData?.rows ?? [])]
         : finalTrackingData?.rows;
-      if (interviewStatus.includes("interviewed") || interviewStatus.includes("completed") || hasCompletedInterviewResult(resultRows, applicationId, isVoice ? "voice" : "final")) return;
+      const hasAttendanceResult = interviewStatus.includes("interviewed")
+        || interviewStatus.includes("completed")
+        || hasCompletedInterviewResult(resultRows, applicationId, isVoice ? "voice" : "final");
+
+      // Result feeds can arrive before the scheduled day ends. Reconcile the
+      // slot immediately so the calendar does not keep reporting it as booked
+      // after the applicant has already attended.
+      if (hasAttendanceResult) {
+        const now = new Date().toISOString();
+        const slotRow = slotsData.rowNumbers[slotIndex];
+        updates.push(
+          { tab: "Interview_Slots", row: slotRow, header: "Status", value: "Completed" },
+          { tab: "Interview_Slots", row: slotRow, header: "Last_Updated", value: now },
+        );
+        if (applicant && applicantIndex >= 0) {
+          const applicantRow = applicantsData.rowNumbers[applicantIndex];
+          const decision = field(applicant, isVoice ? "Voice_HR_Decision" : "Final_Interview_Decision", "HR_Decision").toLowerCase();
+          const currentFinalStatus = field(applicant, "Final_Status");
+          const hasDecision = ["approve", "approved", "reject", "rejected"].includes(decision)
+            || /(passed|rejected|hired|not selected)/i.test(`${currentFinalStatus} ${interviewStatus}`);
+          const completedStatus = isVoice ? "Completed" : "Interview Completed";
+          const nextFinalStatus = hasDecision
+            ? currentFinalStatus
+            : `${isVoice ? "AI Voice Interview" : "Final Interview"} Completed - Awaiting HR Review`;
+          updates.push(
+            { tab: "High_Match_Profile", row: applicantRow, header: "Last_Updated", value: now },
+            { tab: "High_Match_Profile", row: applicantRow, header: isVoice ? "Status 2 (Voice Interview)" : "Status 3 (Final Interview)", value: completedStatus },
+            { tab: "High_Match_Profile", row: applicantRow, header: "Final_Status", value: nextFinalStatus },
+          );
+          if (isVoice) updates.push({ tab: "High_Match_Profile", row: applicantRow, header: "Voice_Interview_Booking_Status", value: "Completed" });
+          if (historyData && nextFinalStatus !== currentFinalStatus) {
+            historyRows.push(candidateHistoryValues(buildCandidateStatusHistoryEntry({
+              applicationId,
+              roleId: field(applicant, "Role_ID", "Role ID"),
+              changedAt: now,
+              previousStatus: currentFinalStatus || interviewStatus,
+              newStatus: nextFinalStatus,
+              stage: isVoice ? "voice" : "final",
+              action: "Completed",
+              changedByName: "Recruitment Portal",
+              changedByEmail: "system@recruitment-portal.local",
+              comments: `Automatically marked the ${isVoice ? "AI voice" : "final"} interview Completed after an attendance result was received.`,
+              actionSource: "Automatic Interview Status Monitor",
+            })));
+          }
+        }
+        if (isVoice) {
+          queueData.rows
+            .map((queueRow, queueIndex) => ({ queueRow, rowNumber: queueData.rowNumbers[queueIndex] }))
+            .filter(({ queueRow }) => field(queueRow, "Application_ID", "Application ID").toLowerCase() === applicationId.toLowerCase()
+              && ["scheduled", "queued", "calling", "initiated", "in progress"].includes(field(queueRow, "Voice_Call_Status").toLowerCase()))
+            .forEach(({ rowNumber }) => updates.push(
+              { tab: "Voice_Call_Queue", row: rowNumber, header: "Voice_Call_Status", value: "Completed" },
+              { tab: "Voice_Call_Queue", row: rowNumber, header: "Last_Updated", value: now },
+            ));
+        }
+        if (!isVoice && finalTrackingData) {
+          finalTrackingData.rows
+            .map((trackingRow, trackingIndex) => ({ trackingRow, rowNumber: finalTrackingData.rowNumbers[trackingIndex] }))
+            .filter(({ trackingRow }) => field(trackingRow, "Application_ID", "Application ID").toLowerCase() === applicationId.toLowerCase())
+            .forEach(({ rowNumber }) => updates.push(
+              { tab: "Final_Interview_Tracking", row: rowNumber, header: "Final_Interview_Status", value: "Completed" },
+              { tab: "Final_Interview_Tracking", row: rowNumber, header: "Last_Updated", value: now },
+            ));
+        }
+        changed += 1;
+        return;
+      }
+
+      // Only an appointment with no attendance/result after its day has
+      // passed is a No Show. Future bookings stay Scheduled/Booked.
+      if (!date || date >= todayInTimezone(timezone)) return;
 
       const now = new Date().toISOString();
       updates.push(

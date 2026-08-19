@@ -235,7 +235,8 @@ function nextActionFor(record: SheetRow) {
   if (finalStatus.includes("approved for ai voice") || voiceStatus === "awaiting schedule") return "Schedule Voice Interview";
   if (["calling", "initiated", "in progress"].includes(voiceStatus)) return "Voice Interview In Progress";
   if (voiceStatus === "scheduled" || finalStatus.includes("voice interview scheduled")) return "Complete Voice Interview";
-  if (voiceStatus === "interviewed" && voiceDecision === "pending") return "Review Voice Interview";
+  // Attendance is complete before HR makes the pass/reject decision.
+  if (["interviewed", "completed"].includes(voiceStatus) && ["pending", ""].includes(voiceDecision)) return "Review Voice Interview";
   const finalStagePending = finalInterviewStatus.includes("awaiting schedule") || finalInterviewStatus.includes("not started") || finalInterviewStatus.includes("pending");
   if (!finalStagePending && (finalInterviewStatus.includes("scheduled") || finalInterviewStatus.includes("booked") || finalStatus.includes("final interview scheduled"))) return "Attend Final Interview";
   if (finalStatus.includes("approved for final") || finalInterviewStatus === "awaiting schedule") return "Schedule Final Interview";

@@ -1,7 +1,10 @@
 import { parseVoiceInterviewSlots, type VoiceInterviewSlot } from "@/lib/voice-interview-availability";
 import { scheduledInstant } from "@/lib/interview-time";
 
-export const availabilityStatuses = ["Available", "Booked", "Blocked", "Expired", "Cancelled"] as const;
+// Slot status is the appointment lifecycle. Applicant outcomes such as
+// "Passed" remain on the applicant record, while the slot records whether the
+// appointment is available, scheduled, completed, or unable to proceed.
+export const availabilityStatuses = ["Available", "Booked", "Blocked", "Expired", "Completed", "No Show", "Cancelled"] as const;
 export type AvailabilityStatus = typeof availabilityStatuses[number];
 export type InterviewAvailabilityRule = {
   ruleId: string;

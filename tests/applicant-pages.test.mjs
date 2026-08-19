@@ -207,14 +207,23 @@ test("booking links render a branded unavailable page when the token is not vali
 test("past booked interviews reconcile to No Show without overwriting completed results", () => {
   const workflow = read("src/lib/applicant-workflow.ts");
   const bookings = read("src/components/BookingsList.tsx");
+  const applicantWorkflow = read("src/lib/candidate-applications.ts");
+  const bookingSelector = read("src/components/BookingSelector.tsx");
   assert.match(workflow, /syncPastBookedInterviewsNoShow/);
   assert.match(workflow, /Automatically marked No Show/);
   assert.match(workflow, /hasCompletedInterviewResult/);
+  assert.match(workflow, /header: "Status", value: "Completed"/);
+  assert.match(workflow, /Completed - Awaiting HR Review/);
+  assert.match(workflow, /\["booked", "completed", "no show"\]/);
   assert.match(workflow, /Final_Interview_Tracking/);
   assert.match(workflow, /canRescheduleNoShow/);
   assert.match(bookings, /summary-no-show/);
+  assert.match(bookings, /summary-completed/);
+  assert.match(bookings, /Completed/);
   assert.match(bookings, /statusClass\(booking\.status\)/);
   assert.match(bookings, /No Show/);
+  assert.match(applicantWorkflow, /\["interviewed", "completed"\]/);
+  assert.match(bookingSelector, /const completed/);
   assert.match(workflow, /syncPastAvailableInterviewSlots/);
   assert.match(workflow, /header: "Status", value: "Expired"/);
   assert.match(bookings, /calendarDisplayBookings/);
