@@ -1,5 +1,5 @@
 import { parseVoiceInterviewSlots, type VoiceInterviewSlot } from "@/lib/voice-interview-availability";
-import { parseHodAvailabilitySlots } from "@/lib/hod-availability";
+import { expandHodAvailabilitySlots, parseHodAvailabilitySlots } from "@/lib/hod-availability";
 import { scheduledInstant } from "@/lib/interview-time";
 
 export const availabilityStatuses = ["Available", "Booked", "Blocked", "Expired", "Cancelled"] as const;
@@ -40,6 +40,14 @@ function todayInTimezone(timezone: string) {
   const values = Object.fromEntries(parts.filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
   return `${values.year}-${values.month}-${values.day}`;
 }
+function monthStart(value: string) { return `${value.slice(0, 7)}-01`; }
+function monthEnd(value: string) { const nextMonth = addDays(monthStart(value), 32); return addDays(`${nextMonth.slice(0, 7)}-01`, -1); }
+export function isCurrentCalendarMonth(value: string, timezone = "Asia/Singapore", now = new Date()) {
+  if (!DATE.test(value)) return false;
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: validTimezone(timezone), year: "numeric", month: "2-digit" }).formatToParts(now);
+  const current = Object.fromEntries(parts.filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
+  return value.slice(0, 7) === `${current.year}-${current.month}`;
+}
 function stableRuleId(rule: Pick<InterviewAvailabilityRule, "roleId" | "interviewType" | "mode" | "startDate" | "endDate" | "startTime" | "endTime" | "timezone">) {
   return `RULE-${hash(JSON.stringify(rule)).toUpperCase()}`;
 }
@@ -67,7 +75,7 @@ export function parseAvailabilityRules(value: unknown): InterviewAvailabilityRul
       weekdays: Array.isArray(source.weekdays) ? source.weekdays.map(Number).filter((day) => day >= 0 && day <= 6) : [],
       startTime: text(source.startTime),
       endTime: text(source.endTime),
-      slotDurationMinutes: source.interviewType === "AI Voice Interview" && source.mode === "recurring" ? 10 : Number(source.slotDurationMinutes || 30),
+      slotDurationMinutes: source.interviewType === "AI Voice Interview" ? 10 : source.interviewType === "Final Interview" ? 60 : Number(source.slotDurationMinutes || 30),
       timezone: text(source.timezone) || "Asia/Singapore",
       specificSlots,
       status: source.status === "Archived" ? "Archived" : "Active",
@@ -96,18 +104,28 @@ export function isBeforeTargetHiringDate(date: string, targetHiringDate?: string
 
 export function ruleToSlots(rule: InterviewAvailabilityRule, maxDays = 180): VoiceInterviewSlot[] {
   if (rule.status !== "Active") return [];
-  if (rule.mode === "specific") return rule.specificSlots;
+  if (rule.mode === "specific") {
+    const specificSlots = rule.interviewType === "Final Interview"
+      ? expandHodAvailabilitySlots(rule.specificSlots, 60)
+      : rule.specificSlots;
+    return specificSlots.filter((slot) => isCurrentCalendarMonth(slot.date, slot.timezone));
+  }
   // AI voice interviews use one consistent weekday window so every role has
   // predictable ten-minute times and the candidate calendar stays simple.
   const isVoiceInterview = rule.interviewType === "AI Voice Interview";
-  const duration = isVoiceInterview ? 10 : Number.isInteger(rule.slotDurationMinutes) && rule.slotDurationMinutes >= 5 ? rule.slotDurationMinutes : 30;
+  const isFinalInterview = rule.interviewType === "Final Interview";
+  const duration = isVoiceInterview ? 10 : isFinalInterview ? 60 : Number.isInteger(rule.slotDurationMinutes) && rule.slotDurationMinutes >= 5 ? rule.slotDurationMinutes : 30;
   const startTime = isVoiceInterview ? 9 * 60 : minutes(rule.startTime);
   const endTime = isVoiceInterview ? 17 * 60 : minutes(rule.endTime);
   const weekdays = isVoiceInterview ? [1, 2, 3, 4, 5] : rule.weekdays;
   const result: VoiceInterviewSlot[] = [];
   const end = addDays(rule.startDate, Math.min(maxDays, 180));
-  const lastDate = rule.endDate < end ? rule.endDate : end;
-  for (let date = rule.startDate; date <= lastDate; date = addDays(date, 1)) {
+  const monthLimited = isVoiceInterview || isFinalInterview;
+  const today = monthLimited ? todayInTimezone(rule.timezone) : "";
+  const firstDate = monthLimited && today > rule.startDate ? monthStart(today) : rule.startDate;
+  const monthLimit = monthLimited ? monthEnd(today) : "9999-12-31";
+  const lastDate = [rule.endDate, end, monthLimit].sort()[0];
+  for (let date = firstDate; date <= lastDate; date = addDays(date, 1)) {
     if (!weekdays.includes(weekday(date))) continue;
     for (let start = startTime; start + duration <= endTime; start += duration) {
       result.push({ date, startTime: time(start), endTime: time(start + duration), timezone: rule.timezone });
@@ -127,13 +145,19 @@ export function roleAvailabilityRules(role: { roleId: string; targetHiringDate?:
     const configuredStart = DATE.test(role.voiceInterviewAutoStartDate || "") ? role.voiceInterviewAutoStartDate || today : today;
     const startDate = configuredStart > today ? configuredStart : today;
     const configuredEnd = DATE.test(role.voiceInterviewAutoEndDate || "") ? role.voiceInterviewAutoEndDate || "" : "";
-    const endDate = configuredEnd >= startDate ? configuredEnd : addDays(startDate, 90);
+    const endDate = configuredEnd >= startDate ? configuredEnd : monthEnd(today);
     rules.push({ ruleId: `DEFAULT-VOICE-${role.roleId}`, roleId: role.roleId, interviewType: "AI Voice Interview", mode: "recurring", startDate, endDate, weekdays: [1, 2, 3, 4, 5], startTime: "09:00", endTime: "17:00", slotDurationMinutes: 10, timezone, specificSlots: [], status: "Active" });
   }
   const hodSlots = parseHodAvailabilitySlots(role.hodAvailabilitySlots || "");
   const hasFinalRule = rules.some((rule) => rule.interviewType === "Final Interview");
-  if (!hasFinalRule && hodSlots.length > 0) {
-    rules.push({ ruleId: `LEGACY-FINAL-${role.roleId}`, roleId: role.roleId, interviewType: "Final Interview", mode: "specific", startDate: "", endDate: "", weekdays: [], startTime: "", endTime: "", slotDurationMinutes: 30, timezone: hodSlots[0].timezone, specificSlots: hodSlots, status: "Active" });
+  if (!hasFinalRule) {
+    const finalTimezone = validTimezone(text(role.voiceInterviewTimezone) || hodSlots[0]?.timezone || "Asia/Singapore");
+    const today = todayInTimezone(finalTimezone);
+    // Use submitted HOD windows when present; otherwise provide the temporary
+    // August weekday fallback requested for every published role.
+    rules.push(hodSlots.length > 0
+      ? { ruleId: `LEGACY-FINAL-${role.roleId}`, roleId: role.roleId, interviewType: "Final Interview", mode: "specific", startDate: "", endDate: "", weekdays: [], startTime: "", endTime: "", slotDurationMinutes: 60, timezone: finalTimezone, specificSlots: expandHodAvailabilitySlots(hodSlots, 60), status: "Active" }
+      : { ruleId: `DEFAULT-FINAL-${role.roleId}`, roleId: role.roleId, interviewType: "Final Interview", mode: "recurring", startDate: monthStart(today), endDate: monthEnd(today), weekdays: [1, 2, 3, 4, 5], startTime: "13:00", endTime: "17:00", slotDurationMinutes: 60, timezone: finalTimezone, specificSlots: [], status: "Active" });
   }
   return rules;
 }
@@ -153,5 +177,9 @@ export function slotKey(slot: { interviewType: string; roleId: string; date: str
 export function isStandardVoiceInterviewSlot(slot: { interviewType: string; startTime: string; endTime: string }) {
   if (!slot.interviewType.toLowerCase().includes("voice")) return true;
   return slot.startTime >= "09:00" && slot.endTime <= "17:00" && minutes(slot.endTime) - minutes(slot.startTime) === 10;
+}
+export function isStandardFinalInterviewSlot(slot: { interviewType: string; startTime: string; endTime: string }) {
+  if (!slot.interviewType.toLowerCase().includes("final")) return true;
+  return minutes(slot.endTime) - minutes(slot.startTime) === 60;
 }
 export function hasValidFutureTime(slot: { date: string; startTime: string; timezone: string }) { try { return scheduledInstant(slot.date, slot.startTime, slot.timezone || "Asia/Singapore").getTime() > Date.now(); } catch { return false; } }

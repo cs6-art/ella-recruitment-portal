@@ -5,13 +5,13 @@ import { z } from "zod";
 
 import { createFinalInterviewEvent, deleteFinalInterviewEvent, checkCalendarAvailability, getCalendarBusyWindows, type CalendarAvailabilityResult } from "@/lib/google-calendar";
 import { getRoleRequestById } from "@/lib/google-sheets";
-import { parseHodAvailabilitySlots, slotMatchesHodAvailability } from "@/lib/hod-availability";
+import { expandHodAvailabilitySlots, parseHodAvailabilitySlots, slotMatchesHodAvailability } from "@/lib/hod-availability";
 import { isValidTimezone, scheduledInstant } from "@/lib/interview-time";
 import { bookingLink } from "@/lib/public-url";
 import { cachedSheetsRead, invalidateSheetsCache } from "@/lib/sheets-cache";
 import type { ResumeFileRecord } from "@/lib/resume-files";
 import { generateAutomaticVoiceInterviewSlots, type VoiceInterviewSlot } from "@/lib/voice-interview-availability";
-import { hasValidFutureTime, isBeforeTargetHiringDate, isStandardVoiceInterviewSlot, isVirtualSlotId, slotKey, virtualSlotsForRole } from "@/lib/interview-availability-rules";
+import { hasValidFutureTime, isBeforeTargetHiringDate, isCurrentCalendarMonth, isStandardFinalInterviewSlot, isStandardVoiceInterviewSlot, isVirtualSlotId, slotKey, virtualSlotsForRole } from "@/lib/interview-availability-rules";
 
 export type BookingKind = "voice" | "final";
 export type ApplicantDecisionStage = "resume" | "voice" | "final";
@@ -528,6 +528,8 @@ export async function getBookingContext(kind: BookingKind, token: string): Promi
     .filter((slot) => isBeforeTargetHiringDate(field(slot, "Date"), role?.targetHiringDate))
     .map(slotFrom)
     .filter((slot) => kind !== "voice" || isStandardVoiceInterviewSlot(slot))
+    .filter((slot) => kind !== "final" || isStandardFinalInterviewSlot(slot))
+    .filter((slot) => isCurrentCalendarMonth(slot.date, slot.timezone || role?.voiceInterviewTimezone || "Asia/Singapore"))
     .filter((slot) => {
       try {
         return scheduledInstant(slot.date, slot.startTime, slot.timezone || "Asia/Singapore").getTime() > Date.now();
@@ -1352,7 +1354,11 @@ export async function createConfiguredVoiceInterviewSlots({ roleId, mode, manual
     : manualSlots;
   if (configuredSlots.length === 0) throw new Error("No AI Voice Interview slots were generated from the selected availability.");
   if (configuredSlots.some((slot) => !isValidTimezone(slot.timezone))) throw new Error("Choose a valid timezone for every AI Voice Interview slot.");
-  const slots = configuredSlots.filter((slot) => scheduledInstant(slot.date, slot.startTime, slot.timezone).getTime() > Date.now());
+  // Keep automatic voice availability limited to the current calendar month;
+  // this prevents setup actions from creating hidden future-month rows.
+  const slots = configuredSlots
+    .filter((slot) => isCurrentCalendarMonth(slot.date, slot.timezone))
+    .filter((slot) => scheduledInstant(slot.date, slot.startTime, slot.timezone).getTime() > Date.now());
   if (slots.length === 0) throw new Error("All selected AI Voice Interview slots are in the past. Choose a future date or time.");
 
   const data = await readSheet("Interview_Slots", "X");
@@ -1438,7 +1444,9 @@ function configuredSlotRow(data: SheetData, slot: ConfiguredInterviewSlot, roleI
  */
 export async function synchronizeFinalInterviewSlots({ roleId, hodEmail, availability }: { roleId: string; hodEmail: string; availability: string }): Promise<FinalInterviewSlotSyncResult> {
   const cleanRoleId = text(roleId);
-  const configured = [...new Map(parseHodAvailabilitySlots(availability).map((slot) => [configuredSlotKey(slot), slot])).values()];
+  const configured = [...new Map(expandHodAvailabilitySlots(parseHodAvailabilitySlots(availability), 60)
+    .filter((slot) => isCurrentCalendarMonth(slot.date, slot.timezone))
+    .map((slot) => [configuredSlotKey(slot), slot])).values()];
   const data = await readSheet("Interview_Slots", "X");
   const roleRows = data.rows
     .map((row, index) => ({ row, rowNumber: data.rowNumbers[index] }))

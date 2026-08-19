@@ -23,7 +23,7 @@ function cleanRule(roleId: string, raw: Partial<InterviewAvailabilityRule>): Int
     weekdays: Array.isArray(raw.weekdays) ? raw.weekdays.map(Number).filter((day) => Number.isInteger(day) && day >= 0 && day <= 6) : [],
     startTime: String(raw.startTime || ""),
     endTime: String(raw.endTime || ""),
-    slotDurationMinutes: interviewType === "AI Voice Interview" ? 10 : Number(raw.slotDurationMinutes || 30),
+    slotDurationMinutes: interviewType === "AI Voice Interview" ? 10 : 60,
     timezone: String(raw.timezone || "Asia/Singapore").trim(),
     specificSlots: Array.isArray(raw.specificSlots) ? raw.specificSlots as InterviewAvailabilityRule["specificSlots"] : [],
     status: "Active",

@@ -57,3 +57,24 @@ export function slotMatchesHodAvailability(slot: HodAvailabilitySlot, availabili
     && slot.startTime >= window.startTime
     && slot.endTime <= window.endTime);
 }
+
+/** Split each HOD window into bookable one-hour final-interview slots. */
+export function expandHodAvailabilitySlots(slots: HodAvailabilitySlot[], durationMinutes = 60): HodAvailabilitySlot[] {
+  if (!Number.isInteger(durationMinutes) || durationMinutes < 5) return [];
+  return slots.flatMap((slot) => {
+    const [startHour, startMinute] = slot.startTime.split(":").map(Number);
+    const [endHour, endMinute] = slot.endTime.split(":").map(Number);
+    const start = startHour * 60 + startMinute;
+    const end = endHour * 60 + endMinute;
+    const generated: HodAvailabilitySlot[] = [];
+    for (let cursor = start; cursor + durationMinutes <= end; cursor += durationMinutes) {
+      generated.push({
+        date: slot.date,
+        startTime: `${Math.floor(cursor / 60).toString().padStart(2, "0")}:${(cursor % 60).toString().padStart(2, "0")}`,
+        endTime: `${Math.floor((cursor + durationMinutes) / 60).toString().padStart(2, "0")}:${((cursor + durationMinutes) % 60).toString().padStart(2, "0")}`,
+        timezone: slot.timezone,
+      });
+    }
+    return generated;
+  });
+}

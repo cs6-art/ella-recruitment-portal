@@ -69,6 +69,19 @@ test("voice booking defaults to weekday ten-minute availability and creates only
   const availabilityRules = fs.readFileSync("src/lib/interview-availability-rules.ts", "utf8");
   assert.match(availabilityRules, /DEFAULT-VOICE-/);
   assert.match(availabilityRules, /slotDurationMinutes: 10/);
+  assert.match(availabilityRules, /isCurrentCalendarMonth/);
+  assert.match(availabilityRules, /monthLimit/);
+  assert.match(availabilityRules, /DEFAULT-FINAL-/);
+  assert.match(availabilityRules, /startTime: "13:00"/);
+  assert.match(availabilityRules, /slotDurationMinutes: 60/);
+  const workflow = fs.readFileSync("src/lib/applicant-workflow.ts", "utf8");
+  assert.match(workflow, /hidden future-month rows/);
+  assert.match(workflow, /expandHodAvailabilitySlots/);
+  const { expandHodAvailabilitySlots } = await import("../src/lib/hod-availability.ts");
+  const finalSlots = expandHodAvailabilitySlots([{ date: "2026-08-20", startTime: "13:00", endTime: "17:00", timezone: "Asia/Singapore" }]);
+  assert.equal(finalSlots.length, 4);
+  assert.deepEqual(finalSlots[0], { date: "2026-08-20", startTime: "13:00", endTime: "14:00", timezone: "Asia/Singapore" });
+  assert.deepEqual(finalSlots.at(-1), { date: "2026-08-20", startTime: "16:00", endTime: "17:00", timezone: "Asia/Singapore" });
 });
 
 test("setup action status is synchronized for legacy and canonical n8n payload readers", () => {
