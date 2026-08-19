@@ -50,6 +50,7 @@ for these published roles:
 - `SM01` - Sales Manager
 - `BDE01` - Business Development Executive
 - `ISS01` - Inside Sales Supervisor
+- `ISSP01` - Inside Sales Specialist
 - `OT01` - Outdoor Technician
 - `SBOFC01` - SAP Business One Functional Consultant
 - `WD01` - Web Developer

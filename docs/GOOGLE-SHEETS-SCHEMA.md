@@ -152,8 +152,11 @@ workflow when a conflict is found. Past available rows are treated as
 
 Binary resume files, DOCX uploads, and base64-encoded resume blobs must not be
 stored in Google Sheets. Keep file storage separate and store only metadata plus
-extracted text in the sheet. The portal's `RESUME_STORAGE_DIR` must be a
-private, persistent directory in production; expired files are not downloadable.
+extracted text in the sheet. The portal stores the binaries in Google Drive
+(`RESUME_STORAGE_DRIVE_FOLDER_ID`), not on local disk — Vercel's filesystem
+is read-only outside `/tmp`. That Drive folder must be shared with
+`GOOGLE_SERVICE_ACCOUNT_EMAIL` (Editor access); expired files are not
+downloadable.
 
 ## User_Directory
 

@@ -265,7 +265,7 @@ The active workflow `JD Role Folder Bulk Resume Screening`
 (`MWt7W7LNFNZxcc0q`) reads active role-to-folder mappings from the
 `Bulk_Role_Folder_Map` tab. Each mapped role folder contains month/year folders
 such as `Dec 2025` or `January 2026`; only PDF, legacy DOC, and DOCX files inside
-those month folders are screened. Up to five resumes are claimed every ten
+those month folders are screened. Up to 20 resumes are claimed every ten
 minutes and processed sequentially with API pauses and bounded Sheet retries.
 Missing email or mobile values
 are stored as blank and do not prevent the applicant from appearing in the

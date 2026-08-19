@@ -11,9 +11,11 @@ fallback during rollout. PDF, DOC, and DOCX bytes are never placed in
    the extension and a 10 MB maximum.
 2. `/api/uploads/resumes` is restricted to authenticated HR reviewers. It
    validates the file signature, extracts readable text with server-side
-   PDF/DOC/DOCX parsers, and stores the binary under a generated private object key
-   in `RESUME_STORAGE_DIR`. Public applicants submit resumes inline through
-   `/api/public/applications`, which is rate-limited separately.
+   PDF/DOC/DOCX parsers, and stores the binary as a Google Drive file (not
+   local disk — Vercel's filesystem is read-only outside `/tmp`) in the
+   folder configured via `RESUME_STORAGE_DRIVE_FOLDER_ID`. Public applicants
+   submit resumes inline through `/api/public/applications`, which is
+   rate-limited separately.
 3. The application webhook carries `resumeFile` metadata alongside the
    extracted `resumeText`. n8n validates the metadata and screens the extracted
    text; no binary data crosses the webhook.
@@ -24,10 +26,11 @@ fallback during rollout. PDF, DOC, and DOCX bytes are never placed in
 
 Uploads are limited per client/user and request bodies are bounded before
 `formData()` parsing. In the Node.js server runtime, `src/instrumentation.ts`
-runs retention cleanup at startup and hourly afterward. Expired metadata and
-binaries, including old orphaned binary files from interrupted writes, can
-also be cleaned by a scheduled hosting job calling
-`cleanupExpiredResumeFiles()`. Before production enablement, configure
-`RESUME_STORAGE_DIR` as a private, persistent directory and add malware
+runs retention cleanup at startup and hourly afterward, deleting any Drive
+file whose `expiresAt` property has passed. This can also be triggered by a
+scheduled hosting job calling `cleanupExpiredResumeFiles()`. Before
+production enablement, share the `RESUME_STORAGE_DRIVE_FOLDER_ID` folder with
+`GOOGLE_SERVICE_ACCOUNT_EMAIL` (Editor access — prefer a Shared Drive, since
+a service account has no Drive storage quota of its own) and add malware
 scanning at the hosting edge or storage layer. The route rejects invalid file
 signatures and empty extraction results before screening.

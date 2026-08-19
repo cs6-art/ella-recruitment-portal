@@ -66,7 +66,9 @@ test("applicants are reachable from the reviewer shell and role detail", () => {
   const sidebarTop = shell.match(/className=\{styles\.sidebarTop\}>[\s\S]*?<\/div>/);
   assert.ok(sidebarTop);
   assert.doesNotMatch(sidebarTop[0], /collapseButton/);
-  assert.match(shell, /!isDashboard && !isRoleRequestArea && <div className=\{styles\.pageToolbar\}>[\s\S]*portal-back-button/);
+  // Applicant detail pages own their back navigation, so the shell toolbar
+  // should remain hidden on both the list and detail routes.
+  assert.match(shell, /!isDashboard && !isRoleRequestArea && !isApplicantDetail && <div className=\{styles\.pageToolbar\}>[\s\S]*portal-back-button/);
   assert.match(shell, /isRoleRequestArea/);
 });
 
@@ -121,7 +123,9 @@ test("candidate intake forms and decisions expose the required fields", () => {
   assert.match(decisionPanel, /<h2>HR Decisions<\/h2>/);
   assert.match(decisionPanel, /reviewStage/);
   assert.match(decisionPanel, /CompletedDecision/);
-  assert.match(decisionPanel, /router\.refresh\(\)/);
+  // Decisions reload the server-backed detail page so every summary and
+  // workflow control reflects the saved state together.
+  assert.match(decisionPanel, /window\.location\.reload\(\)/);
   assert.match(decisionPanel, /Request Manual Review/);
   assert.match(decisionPanel, /Comments \*/);
   assert.match(decisionPanel, /disabled=\{busy \|\|/);
@@ -161,7 +165,7 @@ test("resume processing is bounded and standalone uploads require HR review acce
   assert.match(publicRoute, /MAX_RESUME_REQUEST_BYTES/);
   assert.match(resumeFiles, /cleanupExpiredResumeFiles/);
   assert.match(resumeFiles, /CLEANUP_INTERVAL_MS/);
-  assert.match(resumeFiles, /orphanCutoff/);
+  assert.match(resumeFiles, /expiresAt/);
   assert.match(limiter, /MAX_BUCKETS/);
   assert.match(instrumentation, /cleanupExpiredResumeFiles/);
   assert.match(instrumentation, /setInterval/);
@@ -174,7 +178,7 @@ test("candidate screening contract is role-bound and HR-owned", () => {
   assert.match(workflow, /Role_ID/);
   assert.match(n8nContract, /role-specific AI screening/);
   assert.match(n8nContract, /For HR Review/);
-  assert.match(n8nContract, /portal accepts either pasted resume text or one validated PDF\/DOCX file/);
+  assert.match(n8nContract, /portal accepts either pasted resume text or one validated PDF, legacy DOC, or DOCX file/);
   assert.match(n8nContract, /Binary or base64 resume content is\s+never sent/);
 });
 

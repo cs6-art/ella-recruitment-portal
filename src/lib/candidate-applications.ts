@@ -358,7 +358,9 @@ export function calculateApplicantMetrics(rows: SheetRow[], now = new Date(), ti
 
     result.total += 1;
     if (calendarDate(field(record, "Date_of_Application", "Date of Application"), timeZone) === today) result.today += 1;
-    if (resumeStatus === "processed") result.screened += 1;
+    // Bulk screening records use "Processed"; the public n8n application
+    // workflow records the same completed AI result as "For HR Review".
+    if (resumeStatus === "processed" || resumeStatus === "for hr review") result.screened += 1;
     if (voiceStatus === "interviewed" || voiceStatus === "completed") result.interviewed += 1;
     if (resumeApproved) result.resumeApproved += 1;
     if (voiceBookingPending) result.voiceBookingPending += 1;
