@@ -3,6 +3,8 @@ import { google } from "googleapis";
 import { cachedSheetsRead, invalidateSheetsCache } from "@/lib/sheets-cache";
 import { BASELINE_EVALUATION_FIELDS, EVALUATION_FIELD_CATALOG } from "@/lib/recruitment-setup-schema";
 import { getGoogleServiceAccountPrivateKey } from "@/lib/google-service-account";
+import { demoRoleSummaries } from "@/lib/demo-data";
+import { isDemoMode } from "@/lib/demo-mode";
 
 const spreadsheetId =
   process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
@@ -892,6 +894,8 @@ export async function updateDirectoryUser(originalEmail: string, user: Directory
 export async function getRoleRequests(): Promise<
   RoleRequestSummary[]
 > {
+  if (isDemoMode()) return demoRoleSummaries();
+
   const records =
     await getRoleRequestRecords();
 

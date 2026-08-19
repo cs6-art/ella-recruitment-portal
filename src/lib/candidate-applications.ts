@@ -1,6 +1,8 @@
 import { google } from "googleapis";
 import { getGoogleServiceAccountPrivateKey } from "@/lib/google-service-account";
 import { cachedSheetsRead } from "@/lib/sheets-cache";
+import { demoActiveBookingLinkRoleIds, demoApplicantRows, demoInterviewBookings } from "@/lib/demo-data";
+import { isDemoMode } from "@/lib/demo-mode";
 import { getRoleRequestById, type RoleRequestDetails } from "@/lib/google-sheets";
 import { evaluationFieldsForSetup, type EvaluationField } from "@/lib/recruitment-setup-schema";
 
@@ -384,7 +386,7 @@ export function calculateApplicantMetrics(rows: SheetRow[], now = new Date(), ti
 export async function getApplicants(): Promise<ApplicantSummary[]> {
   // No-show maintenance runs in the background. Keep the Applicants page
   // focused on reading the data it needs to render.
-  const { rows } = await readTab("High_Match_Profile", "BH");
+  const rows = isDemoMode() ? demoApplicantRows() : (await readTab("High_Match_Profile", "BH")).rows;
   return rows
     .map(mapApplicant)
     .filter((applicant) => applicant.applicationId !== "")
@@ -394,7 +396,7 @@ export async function getApplicants(): Promise<ApplicantSummary[]> {
 export async function getApplicantMetrics(): Promise<ApplicantMetrics> {
   // The scheduled interview maintenance handles past no-show updates. Keep
   // dashboard metrics read-only so the dashboard does not wait on that work.
-  const { rows } = await readTab("High_Match_Profile", "BH");
+  const rows = isDemoMode() ? demoApplicantRows() : (await readTab("High_Match_Profile", "BH")).rows;
   return calculateApplicantMetrics(rows.filter((record) => applicationId(record) !== ""));
 }
 
@@ -402,6 +404,7 @@ export async function getInterviewBookings(): Promise<InterviewBooking[]> {
   // Maintenance runs from the server background task. Keep this read-only so
   // the Bookings page is not blocked by several reconciliation sheet reads
   // and writes before it can render.
+  if (isDemoMode()) return demoInterviewBookings();
   const { rows } = await readTab("Interview_Slots", "X");
   return rows.map((record) => ({
     slotId: field(record, "Slot_ID", "Slot ID"),
@@ -446,6 +449,10 @@ function hasActiveBookingLink(record: SheetRow, kind: "voice" | "final") {
  * completed appointments remain visible even when a link has expired.
  */
 export async function getActiveBookingLinkRoleIds() {
+  if (isDemoMode()) {
+    const roleIds = demoActiveBookingLinkRoleIds().map((roleId) => roleId.toLowerCase());
+    return { voice: roleIds, final: roleIds };
+  }
   const { rows } = await readTab("High_Match_Profile", "BH");
   const voice = new Set<string>();
   const final = new Set<string>();

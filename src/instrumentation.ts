@@ -4,6 +4,15 @@ const INTERVIEW_MAINTENANCE_INTERVAL_MS = 5 * 60 * 1000;
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
+  // Demo mode must never touch live data. The interview maintenance below
+  // writes "No Show" rows back to Google Sheets, which the n8n pollers would
+  // observe and act on — exactly the emails and calls a demo must not send.
+  const { isDemoMode } = await import("./lib/demo-mode");
+  if (isDemoMode()) {
+    console.info("[Demo Mode] Background maintenance disabled; no data will be written.");
+    return;
+  }
+
   const { cleanupExpiredResumeFiles } = await import("./lib/resume-files");
   const runCleanup = () => {
     void cleanupExpiredResumeFiles().catch((error) => {
