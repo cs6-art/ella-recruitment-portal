@@ -72,10 +72,10 @@ function FinalInterviewCard({ applicant, role }: { applicant: ApplicantDetails; 
   const timezone = recordValue(slot, "Timezone", "Time Zone") || (isScheduled ? applicant.finalTimezone : "");
   const slotInterviewerName = recordValue(slot, "Interviewer_Name", "Interviewer Name") || recordValue(slot, "HOD_Name", "HOD Name");
   const slotInterviewerEmail = recordValue(slot, "Interviewer_Email", "Interviewer Email") || recordValue(slot, "HOD_Email", "HOD Email");
-  const hodName = slotInterviewerName || role?.requesterName || role?.submittedByName || role?.hodEmail || "";
-  const hodEmail = slotInterviewerEmail || role?.hodEmail || role?.requesterEmail || "";
-  const interviewer = hodName
-    ? [hodName, hodEmail && hodEmail !== hodName ? hodEmail : ""].filter(Boolean).join(" · ")
+  const hrName = slotInterviewerName || (role?.hodEmail ? "HR" : "");
+  const hrEmail = slotInterviewerEmail || role?.hodEmail || "";
+  const interviewer = hrName
+    ? [hrName, hrEmail && hrEmail !== hrName ? hrEmail : ""].filter(Boolean).join(" · ")
     : recordValue(finalInterview, "Interviewer_Name", "Interviewer Name") || "Not assigned";
   const storedRecommendation = recordValue(finalInterview, "Final_Recommendation", "Final Recommendation");
   const finalOutcomeSource = [applicant.finalStatus, applicant.finalInterviewStatus, status].join(" ");

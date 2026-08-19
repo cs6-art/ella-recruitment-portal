@@ -30,12 +30,11 @@ async function BookingsData() {
   const [bookings, roles, activeBookingLinks] = await Promise.all([getInterviewBookings(), getRoleRequests(), getActiveBookingLinkRoleIds()]);
   const approvedRoles = await Promise.all(roles
     .filter((role) => canManageInterviewAvailability(role.status))
-    .map(async ({ roleId, jobTitle, targetHiringDate, hodEmail, hodAvailabilitySlots, voiceInterviewAvailabilityMode, voiceInterviewSlots, voiceInterviewAutoStartDate, voiceInterviewAutoEndDate, voiceInterviewTimezone, interviewAvailabilityRules }) => ({
+    .map(async ({ roleId, jobTitle, targetHiringDate, hodEmail, voiceInterviewAvailabilityMode, voiceInterviewSlots, voiceInterviewAutoStartDate, voiceInterviewAutoEndDate, voiceInterviewTimezone, interviewAvailabilityRules }) => ({
       roleId,
       jobTitle,
       targetHiringDate,
       hodEmail,
-      hodAvailabilitySlots,
       voiceInterviewAvailabilityMode,
       voiceInterviewSlots,
       voiceInterviewAutoStartDate,

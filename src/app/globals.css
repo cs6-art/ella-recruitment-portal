@@ -1909,7 +1909,7 @@ html { scroll-behavior: smooth; }
 .template-preview-text { white-space: pre-wrap; line-height: 1.55; }
 .recruitment-editor .setup-prompt-guidance::after { content: "Recommended format: 1. System Prompt  2. Core Questions  3. Assess  4. Final AI Evaluation"; display: block; padding-top: 4px; color: var(--blue); font-weight: 800; }
 .recruitment-editor .setup-template-heading small::after { content: "Recommended: Proven Vapi Interview Structure"; display: block; padding-top: 3px; color: var(--blue); font-weight: 800; }
-.ella-question-plan-note::after { content: "After the phone interview, Ella sends the recommendation summary to HR. HR approval is required before the F2F HOD scheduling email is sent."; display: block; padding-top: 4px; color: var(--navy); font-weight: 700; }
+.ella-question-plan-note::after { content: "After the phone interview, Ella sends the recommendation summary to HR. HR approval is required before the final-interview scheduling email is sent."; display: block; padding-top: 4px; color: var(--navy); font-weight: 700; }
 
 @media (max-width: 640px) {
   .recruitment-editor .setup-template { grid-template-columns: 1fr; margin-inline: 16px; }

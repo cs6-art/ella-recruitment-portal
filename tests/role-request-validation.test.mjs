@@ -58,7 +58,7 @@ test("required-field and vacancy rules remain in the shared schema", () => {
   assert.match(schemaSource, /targetHiringDate: z\.string\(\)\.trim\(\)\.min/);
 });
 
-test("role creation only renders the requisition and HOD screening fields", () => {
+test("role creation only renders the requisition and HR screening fields", () => {
   assert.match(formSource, /id=\"employmentType\"/);
   assert.match(apiSource, /employmentType: input\.employmentType/);
   assert.match(schemaSource, /employmentType: z\.enum/);
@@ -70,16 +70,10 @@ test("role creation only renders the requisition and HOD screening fields", () =
     "numberOfVacancies",
     "reasonForRequest",
     "targetHiringDate",
-    "hodAvailabilityDates",
-    "hodAvailabilityTimes",
     "customScreeningQuestion1",
     "customScreeningQuestion2",
   ]) {
-    if (field === "hodAvailabilityDates" || field === "hodAvailabilityTimes") {
-      assert.match(formSource, new RegExp(field));
-    } else {
-      assert.match(formSource, new RegExp(`id=\\"${field}\\"`));
-    }
+    assert.match(formSource, new RegExp(`id=\\"${field}\\"`));
   }
 
   for (const removedField of [
@@ -100,9 +94,11 @@ test("role creation only renders the requisition and HOD screening fields", () =
   }
 });
 
-test("HOD scheduling data is structured and server payloads carry the explicit HOD", () => {
+test("HR interviewer identity is explicit while final availability comes from Google Calendar", () => {
   assert.match(formSource, /id=\"hodEmail\"/);
-  assert.match(formSource, /hodAvailabilitySlots/);
-  assert.match(apiSource, /hodEmail: clientInput\.hodEmail \|\| sessionEmail/);
+  assert.match(formSource, /HR \/ Interviewer Email/);
+  assert.match(formSource, /connected HR Google Calendar/);
+  assert.doesNotMatch(formSource, /addAvailability|removeAvailability|updateAvailability/);
+  assert.match(apiSource, /hodEmail: "hrsg@mclinkgroup\.com"/);
   assert.match(apiSource, /hodAvailabilitySlots: input\.hodAvailabilitySlots/);
 });

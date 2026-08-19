@@ -9,7 +9,7 @@ import { consumeRateLimit, rateLimitHeaders, requestClientKey } from "@/lib/rate
 import { evaluationFieldsForSetup, recruitmentSetupSchema } from "@/lib/recruitment-setup-schema";
 import { getSetupReadiness, setupStatusForAction } from "@/lib/recruitment-setup-readiness";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
-import { createConfiguredVoiceInterviewSlots, synchronizeFinalInterviewSlots } from "@/lib/applicant-workflow";
+import { createConfiguredVoiceInterviewSlots } from "@/lib/applicant-workflow";
 import { serializeVoiceInterviewSlots } from "@/lib/voice-interview-availability";
 
 export const runtime = "nodejs";
@@ -97,7 +97,7 @@ export async function POST(request: Request, context: Context) {
     }
     if (!canUseRecruitmentSetup(role.status)) return NextResponse.json({ success: false, error: `Recruitment setup is unavailable while this role is \"${role.status || "Unknown"}\". Refresh the role and try again.` }, { status: 409 });
     const readinessLevel = setupAction === "mark_recruitment_ready" ? "recruitment-ready" : setupAction === "mark_ready_for_publishing" || setupAction === "publish_role" ? "ready-for-publishing" : "draft";
-    const readiness = getSetupReadiness({ ...setup, hodAvailabilitySlots: role.hodAvailabilitySlots }, readinessLevel);
+    const readiness = getSetupReadiness(setup, readinessLevel);
     if (!readiness.valid) return NextResponse.json({ success: false, code: "RECRUITMENT_SETUP_INCOMPLETE", message: setupAction === "save_draft" ? "Complete the three required draft fields before saving." : "The recruitment setup is not ready for this stage.", missingFields: readiness.missingFields.map((field) => field.key), missingFieldLabels: readiness.missingFields.map((field) => field.label) }, { status: 422 });
     // The staged buttons stay available for HR who want an explicit audit
     // trail, but a setup that already satisfies every ready-for-publishing
@@ -184,9 +184,11 @@ export async function POST(request: Request, context: Context) {
       Salary_Maximum: role.salaryMax,
       Work_Schedule: role.workSchedule,
       Notice_Period_Requirement: role.noticePeriodRequirement,
-      HOD_Availability_Dates: role.hodAvailabilityDates,
-      HOD_Availability_Times: role.hodAvailabilityTimes,
-      HOD_Availability_Slots: role.hodAvailabilitySlots,
+      // Legacy columns remain in the n8n contract, but manual final-interview
+      // windows are retired in favor of the connected HR Google Calendar.
+      HOD_Availability_Dates: "",
+      HOD_Availability_Times: "",
+      HOD_Availability_Slots: "[]",
       Voice_Interview_Availability_Mode: setup.voiceInterviewAvailabilityMode,
       Voice_Interview_Slots: serializeVoiceInterviewSlots(setup.voiceInterviewSlots),
       Voice_Interview_Auto_Start_Date: setup.voiceInterviewAutoStartDate,
@@ -331,21 +333,6 @@ export async function POST(request: Request, context: Context) {
         console.error("[API Recruitment Setup] Voice slot generation failed:", voiceSlotError);
       }
     }
-    let finalSlotWarning = "";
-    try {
-      const finalSlots = await synchronizeFinalInterviewSlots({
-        roleId: role.roleId,
-        hodEmail: role.hodEmail || role.requesterEmail,
-        availability: role.hodAvailabilitySlots,
-      });
-      if (finalSlots.warnings.length > 0) {
-        finalSlotWarning = `Some final-interview slots were blocked: ${finalSlots.warnings.join(" ")}`;
-      }
-    } catch (finalSlotError) {
-      finalSlotWarning = finalSlotError instanceof Error ? `Final-interview slots could not be synchronized: ${finalSlotError.message}` : "Final-interview slots could not be synchronized.";
-      console.error("[API Recruitment Setup] Final slot synchronization failed:", finalSlotError);
-    }
-    const slotWarning = [voiceSlotWarning, finalSlotWarning].filter(Boolean).join(" ");
     return NextResponse.json({
       success: true,
       roleId: role.roleId,
@@ -356,9 +343,8 @@ export async function POST(request: Request, context: Context) {
       actionRequestId,
       notificationStatus: typeof result.notificationStatus === "string" ? result.notificationStatus : "not_configured",
       notificationError: typeof result.notificationError === "string" ? result.notificationError : "",
-      message: slotWarning || workflowWarning || "Recruitment setup saved successfully.",
+      message: voiceSlotWarning || workflowWarning || "Recruitment setup saved successfully.",
       voiceSlotWarning,
-      finalSlotWarning,
       voiceSlotsGeneratedAt,
     });
   } catch (error) {

@@ -60,7 +60,7 @@ export const roleRequestSchema = z.object({
   ),
   hodEmail: z.string().trim().toLowerCase().email().refine(
     (value) => value.endsWith("@mclinkgroup.com"),
-    "HOD email must use the McLink email domain.",
+    "HR interviewer email must use the McLink email domain.",
   ).default(""),
 }).superRefine((value, context) => {
   if (value.requestType === "Staff Replacement" && !value.replacementEmployee) {

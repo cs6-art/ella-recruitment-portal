@@ -14,7 +14,7 @@ function failure(error: string, status: number) {
 export async function POST(request: Request) {
   try {
     const user = verifySessionToken((await cookies()).get(COOKIE_NAME)?.value);
-    if (!user || user.canCreateRole !== true) return failure("Only authorized HR or HOD users can create role drafts.", 403);
+    if (!user || user.canCreateRole !== true) return failure("Only authorized HR users can create role drafts.", 403);
 
     const parserUrl = process.env.N8N_ROLE_DESCRIPTION_PARSER_WEBHOOK_URL?.trim();
     const webhookSecret = process.env.N8N_WEBHOOK_SECRET?.trim();

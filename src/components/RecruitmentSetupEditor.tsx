@@ -56,7 +56,6 @@ type Setup = {
   experienceRequirementStatus?: string;
   licenseRequirementStatus?: string;
   hodInterviewRequired?: string;
-  hodAvailabilitySlots?: string;
   voiceInterviewAvailabilityMode?: string;
   voiceInterviewSlots?: VoiceInterviewSlot[] | string;
   voiceInterviewAutoStartDate?: string;
@@ -116,8 +115,7 @@ const setupFieldLabels: Record<string, string> = {
   postingChannels: "Posting channels",
   salaryDisclosureStatus: "Salary visibility",
   licenseRequirementStatus: "License requirement",
-  hodInterviewRequired: "HOD interview",
-  hodAvailabilitySlots: "HOD interview availability",
+  hodInterviewRequired: "HR interview",
   customEvaluationFields: "Custom evaluation fields",
 };
 
@@ -130,8 +128,7 @@ const setupFieldAnchors: Record<string, string> = {
   requiredInterviewQuestion5: "#vapi-question-5",
   salaryDisclosureStatus: "#vapi-salary-disclosure",
   licenseRequirementStatus: "#vapi-license-requirement",
-  hodInterviewRequired: "#vapi-hod-interview",
-  hodAvailabilitySlots: "#hod-interview-availability",
+  hodInterviewRequired: "#vapi-hr-interview",
 };
 
 function setupFieldLabel(field: string) {
@@ -164,7 +161,7 @@ function buildInitialValues(setup: Setup): Setup {
   const hodQuestion2 = valueText(setup.hodScreeningQuestion2);
   return {
     ...setup,
-    // Slots 1-2 are reserved for the HOD's own screening questions from the
+    // Slots 1-2 are reserved for HR's screening questions from the
     // role request, when they provided any — HR fills in the remaining slots.
     requiredInterviewQuestion1: hodQuestion1 || questions[0],
     requiredInterviewQuestion2: hodQuestion2 || questions[1],
@@ -302,7 +299,7 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
   const questions = getQuestions(values);
   const suggestedQuestions = useMemo(() => suggestedQuestionItems(values.aiGeneratedScreeningQuestions), [values.aiGeneratedScreeningQuestions]);
   const draftPayload = promptPayload(values, currentPrompt, "save_draft", actionRequestId.current);
-  const readinessInput = { ...draftPayload, hodAvailabilitySlots: setup.hodAvailabilitySlots } as SetupReadinessInput;
+  const readinessInput = draftPayload as SetupReadinessInput;
   const draftReadiness = getSetupReadiness(readinessInput, "draft");
   const recruitmentReadiness = getSetupReadiness(readinessInput, "recruitment-ready");
   const publishingReadiness = getSetupReadiness(readinessInput, "ready-for-publishing");
@@ -396,7 +393,7 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
       : action === "mark_ready_for_publishing" || action === "publish_role"
         ? "ready-for-publishing"
         : "draft";
-    const readiness = getSetupReadiness({ ...parsed.data, hodAvailabilitySlots: setup.hodAvailabilitySlots } as SetupReadinessInput, level);
+    const readiness = getSetupReadiness(parsed.data as SetupReadinessInput, level);
     if (!readiness.valid) {
       setValidationIssues(readiness.missingFields.map((field) => ({ field: field.key, label: field.label, message: "Complete this item before continuing.", href: setupFieldAnchors[field.key] })));
       setError("Please complete the highlighted setup fields before continuing.");
@@ -518,13 +515,13 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
 
       <div className="vapi-builder">
         <div className="vapi-section-heading">
-          <div><span className="vapi-kicker">INTERVIEW QUESTIONS</span><h3>What should Ella ask?</h3><p>{(valueText(values.hodScreeningQuestion1) || valueText(values.hodScreeningQuestion2)) ? "The hiring manager's questions from the role request come first and can't be edited here. Add your own questions after that, in order — Ella asks all of them exactly as written." : "Write 3 to 5 questions in the order you want them asked. Ella asks them exactly as written, one at a time, and doesn't make up her own."} These questions appear directly in the script preview below.</p></div>
+          <div><span className="vapi-kicker">INTERVIEW QUESTIONS</span><h3>What should Ella ask?</h3><p>{(valueText(values.hodScreeningQuestion1) || valueText(values.hodScreeningQuestion2)) ? "HR's questions from the role request come first and can't be edited here. Add your own questions after that, in order — Ella asks all of them exactly as written." : "Write 3 to 5 questions in the order you want them asked. Ella asks them exactly as written, one at a time, and doesn't make up her own."} These questions appear directly in the script preview below.</p></div>
           <span className={`vapi-count-badge ${questions.length >= 3 ? "complete" : ""}`}>{questions.length} of {questionKeys.length} configured · 3 required</span>
         </div>
         {suggestedQuestions.length > 0 && (
           <div className="vapi-suggested-questions">
             <div className="vapi-section-heading">
-              <div><span className="vapi-kicker">AI SUGGESTIONS</span><h4>Suggested interview questions</h4><p>Review these ideas with the hiring manager and enter the final wording in the question fields below.</p></div>
+              <div><span className="vapi-kicker">AI SUGGESTIONS</span><h4>Suggested interview questions</h4><p>Review these ideas with HR and enter the final wording in the question fields below.</p></div>
               <span className="vapi-readonly-badge">For review</span>
             </div>
             <ol>
@@ -534,12 +531,12 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
         )}
         <div className="vapi-question-grid">
           {questionKeys.map((key, index) => {
-            const lockedFromHod = index === 0 ? valueText(values.hodScreeningQuestion1) : index === 1 ? valueText(values.hodScreeningQuestion2) : "";
+            const lockedFromHr = index === 0 ? valueText(values.hodScreeningQuestion1) : index === 1 ? valueText(values.hodScreeningQuestion2) : "";
             return (
-              <label className={`vapi-question${lockedFromHod ? " vapi-question-locked" : ""}`} htmlFor={`vapi-question-${index + 1}`} key={key}>
-                <span><strong>{index + 1}</strong>{`Question ${index + 1}`}{lockedFromHod ? " · from the hiring manager" : index < 3 ? " *" : " (optional)"}</span>
-                {lockedFromHod ? (
-                  <p className="vapi-question-locked-text">{lockedFromHod}</p>
+              <label className={`vapi-question${lockedFromHr ? " vapi-question-locked" : ""}`} htmlFor={`vapi-question-${index + 1}`} key={key}>
+                <span><strong>{index + 1}</strong>{`Question ${index + 1}`}{lockedFromHr ? " · from HR" : index < 3 ? " *" : " (optional)"}</span>
+                {lockedFromHr ? (
+                  <p className="vapi-question-locked-text">{lockedFromHr}</p>
                 ) : (
                   <textarea id={`vapi-question-${index + 1}`} value={values[key] ?? ""} disabled={!editable || saving} placeholder="Write the exact question Ella should ask." onChange={(event) => update(key, event.target.value)} />
                 )}
@@ -585,7 +582,7 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
           <div className="vapi-policy-grid">
             <label htmlFor="vapi-salary-disclosure">Salary visibility<select id="vapi-salary-disclosure" value={values.salaryDisclosureStatus || ""} disabled={!editable || saving} onChange={(event) => update("salaryDisclosureStatus", event.target.value)}><option value="">Choose one</option><option>Disclosed</option><option>Not disclosed</option></select></label>
             <label htmlFor="vapi-license-requirement">License requirement<select id="vapi-license-requirement" value={values.licenseRequirementStatus || ""} disabled={!editable || saving} onChange={(event) => update("licenseRequirementStatus", event.target.value)}><option value="">Choose one</option><option>Required</option><option>Preferred</option><option>Not required</option></select></label>
-            <label htmlFor="vapi-hod-interview">HOD interview<select id="vapi-hod-interview" value={values.hodInterviewRequired || ""} disabled={!editable || saving} onChange={(event) => update("hodInterviewRequired", event.target.value)}><option value="">Choose one</option><option>Required</option><option>Not required</option></select></label>
+            <label htmlFor="vapi-hr-interview">HR interview<select id="vapi-hr-interview" value={values.hodInterviewRequired || ""} disabled={!editable || saving} onChange={(event) => update("hodInterviewRequired", event.target.value)}><option value="">Choose one</option><option>Required</option><option>Not required</option></select></label>
           </div>
         </div>
       </details>

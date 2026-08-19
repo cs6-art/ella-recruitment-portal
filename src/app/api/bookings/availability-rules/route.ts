@@ -3,16 +3,16 @@ import crypto from "node:crypto";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { canEditHodAvailability, canEditRecruitmentSetup, canViewRole } from "@/lib/access-control";
+import { canEditRecruitmentSetup, canViewRole } from "@/lib/access-control";
 import { getRoleRequestById, updateRoleRequestFields } from "@/lib/google-sheets";
-import { hasValidFutureTime, parseAvailabilityRules, roleAvailabilityRules, serializeAvailabilityRules, virtualSlotsForRole, type InterviewAvailabilityRule } from "@/lib/interview-availability-rules";
+import { availabilityRulesOverlap, hasValidFutureTime, parseAvailabilityRules, serializeAvailabilityRules, virtualSlotsForRole, type InterviewAvailabilityRule } from "@/lib/interview-availability-rules";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 function cleanRule(roleId: string, raw: Partial<InterviewAvailabilityRule>): InterviewAvailabilityRule {
-  const interviewType = raw.interviewType === "Final Interview" ? "Final Interview" : "AI Voice Interview";
+  const interviewType = "AI Voice Interview" as const;
   return {
     ruleId: String(raw.ruleId || crypto.randomUUID()),
     roleId,
@@ -42,11 +42,10 @@ export async function POST(request: Request) {
     const role = await getRoleRequestById(roleId);
     if (!role || !canViewRole(user, role)) return NextResponse.json({ success: false, error: "Role request not found." }, { status: 404 });
     if (!["Approved", "Recruitment Setup", "Job Posted"].includes(role.status)) return NextResponse.json({ success: false, error: "Availability can only be added for an approved or published role." }, { status: 409 });
-    const interviewType = body.rule.interviewType === "Final Interview" ? "Final Interview" : "AI Voice Interview";
-    const canEdit = interviewType === "Final Interview"
-      ? canEditHodAvailability(user, role)
-      : canEditRecruitmentSetup(user);
-    if (!canEdit) return NextResponse.json({ success: false, error: "You do not have permission to update this interview availability." }, { status: 403 });
+    if (body.rule.interviewType === "Final Interview") {
+      return NextResponse.json({ success: false, error: "Final-interview availability is managed automatically through the connected HR Google Calendar." }, { status: 409 });
+    }
+    if (!canEditRecruitmentSetup(user)) return NextResponse.json({ success: false, error: "You do not have permission to update this interview availability." }, { status: 403 });
     const rule = cleanRule(role.roleId, body.rule);
     const parsed = parseAvailabilityRules([rule]);
     if (parsed.length !== 1) return NextResponse.json({ success: false, error: "Add a valid recurring schedule or specific interview slots." }, { status: 400 });
@@ -55,8 +54,14 @@ export async function POST(request: Request) {
     if (futureSlots.length === 0) {
       return NextResponse.json({ success: false, error: "This schedule creates no future interview times before the target hiring date. Choose an earlier date or a later target hiring date." }, { status: 422 });
     }
-    const existing = roleAvailabilityRules(role).filter((item) => !item.ruleId.startsWith("LEGACY-"));
-    const merged = [...existing.filter((item) => item.ruleId !== rule.ruleId), parsed[0]];
+    // DEFAULT and LEGACY rules are read fallbacks. Do not persist and stack
+    // them when an HR user adds a real availability rule.
+    const existing = parseAvailabilityRules(role.interviewAvailabilityRules);
+    const replaced = existing.filter((item) => item.ruleId !== rule.ruleId);
+    if (replaced.some((item) => availabilityRulesOverlap(item, parsed[0]))) {
+      return NextResponse.json({ success: false, error: "This availability overlaps an existing active schedule for the same role and interview type. Edit the existing window instead." }, { status: 409 });
+    }
+    const merged = [...replaced, parsed[0]];
     if (merged.length > 50) return NextResponse.json({ success: false, error: "A role can have up to 50 active availability rules." }, { status: 400 });
     const updatedAt = new Date().toISOString();
     await updateRoleRequestFields(role.roleId, {

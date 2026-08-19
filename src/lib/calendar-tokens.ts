@@ -22,7 +22,7 @@ function text(v: unknown): string {
 }
 
 /**
- * Access and refresh tokens are OAuth credentials for a HOD's personal
+ * Access and refresh tokens are OAuth credentials for HR's connected
  * Google Calendar, so they're encrypted at rest with a key derived from
  * SESSION_SECRET rather than stored as plain text in the sheet.
  */

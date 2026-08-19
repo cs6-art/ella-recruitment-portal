@@ -1,6 +1,3 @@
-import { parseHodAvailabilitySlots } from "@/lib/hod-availability";
-import { scheduledInstant } from "@/lib/interview-time";
-
 export type SetupReadinessLevel = "draft" | "recruitment-ready" | "ready-for-publishing";
 
 export type SetupReadinessInput = {
@@ -22,7 +19,6 @@ export type SetupReadinessInput = {
   licenseRequirementStatus?: string;
   licenseOrCertificateRequired?: string;
   hodInterviewRequired?: string;
-  hodAvailabilitySlots?: string;
 };
 
 export type MissingReadinessField = { key: string; label: string };
@@ -49,12 +45,8 @@ export function getSetupReadiness(input: SetupReadinessInput, level: SetupReadin
 
   if (level === "recruitment-ready") return { valid: missingFields.length === 0, missingFields };
 
-  const hasFutureHodAvailability = parseHodAvailabilitySlots(text(input.hodAvailabilitySlots)).some((slot) => {
-    try { return scheduledInstant(slot.date, slot.startTime, slot.timezone).getTime() > Date.now(); } catch { return false; }
-  });
-  if (!hasFutureHodAvailability) missingFields.push({ key: "hodAvailabilitySlots", label: "At least one future HOD interview availability window" });
   if (!['Disclosed', 'Not disclosed'].includes(text(input.salaryDisclosureStatus))) missingFields.push({ key: "Salary_Disclosure_Status", label: "Salary visibility (Disclosed or Not disclosed)" });
-  if (!["Required", "Not required"].includes(text(input.hodInterviewRequired))) missingFields.push({ key: "HOD_Interview_Required", label: "HOD interview requirement" });
+  if (!["Required", "Not required"].includes(text(input.hodInterviewRequired))) missingFields.push({ key: "HOD_Interview_Required", label: "HR interview requirement" });
   if (!["Required", "Preferred", "Not required"].includes(text(input.licenseRequirementStatus))) missingFields.push({ key: "License_Requirement_Status", label: "License or certificate requirement" });
   else if (text(input.licenseRequirementStatus) === "Required") requireField("License_or_Certificate_Required", "License or Certificate Required", input.licenseOrCertificateRequired);
   return { valid: missingFields.length === 0, missingFields };

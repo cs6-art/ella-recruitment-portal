@@ -13,7 +13,7 @@ const CALENDAR_SCOPES = [
 // "Sign in with Google" (NEXT_PUBLIC_GOOGLE_CLIENT_ID / GOOGLE_CLIENT_ID).
 // That flow only ever requests an ID token, so it never needed a client
 // secret; the calendar flow uses the authorization-code grant instead
-// (offline access, so we can refresh without the HOD present), which does.
+// (offline access, so we can refresh without HR present), which does.
 // Add GOOGLE_OAUTH_CLIENT_SECRET to enable it; the redirect URI is derived
 // from the current request origin, with GOOGLE_OAUTH_REDIRECT_URI retained as
 // a fallback for non-requested server-side callers.
@@ -70,7 +70,7 @@ export function getGoogleConsentUrl(email: string, requestOrigin?: string): stri
   const client = newOAuthClient(requestOrigin);
   return client.generateAuthUrl({
     access_type: "offline",
-    prompt: "select_account consent", // lets HODs choose the intended Google account and renews the refresh token
+    prompt: "select_account consent", // lets HR choose the intended Google account and renews the refresh token
     scope: CALENDAR_SCOPES,
     state: createOAuthState(email),
     login_hint: email,
@@ -92,7 +92,7 @@ export async function exchangeCodeAndStore(code: string, email: string, requestO
   });
 }
 
-/** Returns a ready-to-use OAuth2 client for this HOD, refreshing (and
+/** Returns a ready-to-use OAuth2 client for this HR interviewer, refreshing (and
  * persisting) the access token first if it's expired or close to it. */
 async function getAuthorizedClient(email: string) {
   const connection = await getCalendarConnection(email);
@@ -140,8 +140,8 @@ export type CalendarAvailabilityResult =
   | { available: false; checked: false; reason: "not_connected" | "error"; error?: string };
 
 /**
- * Creates the final-interview event on the HOD's own connected Google
- * Calendar. Deliberately non-throwing: a HOD who hasn't connected their
+ * Creates the final-interview event on HR's connected Google Calendar.
+ * Deliberately non-throwing: an HR interviewer who hasn't connected their
  * calendar yet (or a transient API error) must never block the candidate's
  * booking — the caller logs the outcome and moves on.
  */
@@ -198,7 +198,7 @@ export async function checkCalendarAvailability(input: Pick<CalendarEventInput, 
       }
 
       // Older connections may have calendar.events but not calendar.freebusy.
-      // Read event windows as a compatible fallback until the HOD reconnects.
+      // Read event windows as a compatible fallback until HR reconnects.
       const events = await calendar.events.list({
         calendarId: "primary",
         timeMin: start.toISOString(),

@@ -58,7 +58,7 @@ export function slotMatchesHodAvailability(slot: HodAvailabilitySlot, availabili
     && slot.endTime <= window.endTime);
 }
 
-/** Split each HOD window into bookable one-hour final-interview slots. */
+/** Split each legacy HR window into bookable one-hour final-interview slots. */
 export function expandHodAvailabilitySlots(slots: HodAvailabilitySlot[], durationMinutes = 60): HodAvailabilitySlot[] {
   if (!Number.isInteger(durationMinutes) || durationMinutes < 5) return [];
   return slots.flatMap((slot) => {

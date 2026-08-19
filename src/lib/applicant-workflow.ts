@@ -554,27 +554,29 @@ export async function getBookingContext(kind: BookingKind, token: string): Promi
     .filter((slot) => slot.slotId)
     .sort(slotSort);
   const finalCalendarEmail = kind === "final" ? text(role?.hodEmail || role?.requesterEmail) : "";
-  let slots = candidateSlots;
-  if (finalCalendarEmail && kind === "final") {
-    // Check every candidate-visible Final Interview slot against the HOD's
+  let slots = kind === "final" ? [] : candidateSlots;
+  if (kind === "final") {
+    // Check every candidate-visible Final Interview slot against HR's
     // calendar, not just generated ("virtual") ones. A handful of real,
     // pre-existing Interview_Slots rows with Status=Available used to skip
     // this check entirely (isVirtualSlotId(slot.slotId) short-circuited to
     // true for them), so a slot that later became calendar-busy could still
     // show as bookable if it happened to already exist as a sheet row.
-    const instants = candidateSlots.flatMap((slot) => {
-      try { return [scheduledInstant(slot.date, slot.startTime, slot.timezone || "Asia/Singapore"), scheduledInstant(slot.date, slot.endTime, slot.timezone || "Asia/Singapore")]; } catch { return []; }
-    });
-    if (instants.length > 0) {
-      const busyResult = await getCalendarBusyWindows({ hodEmail: finalCalendarEmail, start: new Date(Math.min(...instants.map((value) => value.getTime()))), end: new Date(Math.max(...instants.map((value) => value.getTime()))) });
-      if (busyResult.checked && busyResult.busy.length > 0) {
-        slots = candidateSlots.filter((slot) => {
-          try {
-            const start = scheduledInstant(slot.date, slot.startTime, slot.timezone || "Asia/Singapore").getTime();
-            const end = scheduledInstant(slot.date, slot.endTime, slot.timezone || "Asia/Singapore").getTime();
-            return !busyResult.busy.some((window) => Date.parse(window.start) < end && Date.parse(window.end) > start);
-          } catch { return false; }
-        });
+    if (finalCalendarEmail) {
+      const instants = candidateSlots.flatMap((slot) => {
+        try { return [scheduledInstant(slot.date, slot.startTime, slot.timezone || "Asia/Singapore"), scheduledInstant(slot.date, slot.endTime, slot.timezone || "Asia/Singapore")]; } catch { return []; }
+      });
+      if (instants.length > 0) {
+        const busyResult = await getCalendarBusyWindows({ hodEmail: finalCalendarEmail, start: new Date(Math.min(...instants.map((value) => value.getTime()))), end: new Date(Math.max(...instants.map((value) => value.getTime()))) });
+        slots = busyResult.checked
+          ? candidateSlots.filter((slot) => {
+            try {
+              const start = scheduledInstant(slot.date, slot.startTime, slot.timezone || "Asia/Singapore").getTime();
+              const end = scheduledInstant(slot.date, slot.endTime, slot.timezone || "Asia/Singapore").getTime();
+              return !busyResult.busy.some((window) => Date.parse(window.start) < end && Date.parse(window.end) > start);
+            } catch { return false; }
+          })
+          : [];
       }
     }
   }
@@ -723,7 +725,7 @@ export async function deleteApplicant(applicationId: string) {
   if (finalBookedSlots.length > 0) {
     const role = await getRoleRequestById(field(found.row, "Role_ID", "Role ID"));
     const hodEmail = text(role?.hodEmail || role?.requesterEmail);
-    if (!hodEmail) throw new Error("The HOD email is not configured, so the linked calendar event cannot be removed.");
+    if (!hodEmail) throw new Error("The HR interviewer email is not configured, so the linked calendar event cannot be removed.");
     for (const { row } of finalBookedSlots) {
       const result = await deleteFinalInterviewEvent(hodEmail, field(row, "Google_Calendar_Event_ID"));
       if (!result.deleted) throw new Error(result.error || "Unable to remove the linked final-interview calendar event.");
@@ -805,10 +807,10 @@ async function reserveBookingInternal(kind: BookingKind, token: string, slotId: 
     if (!hasValidFutureTime(virtualSlot)) throw new Error("This interview slot has already passed. Choose another time.");
     if (kind === "final") {
       const hodEmail = (role?.hodEmail || role?.requesterEmail || "").trim();
-      if (hodEmail) {
-        const calendar = await checkCalendarAvailability({ hodEmail, date: virtualSlot.date, startTime: virtualSlot.startTime, endTime: virtualSlot.endTime, timezone: virtualSlot.timezone });
-        if (calendar.checked && !calendar.available) throw new Error("This final-interview time is now blocked by the HOD Google Calendar. Choose another time.");
-      }
+      if (!hodEmail) throw new Error("No HR interviewer email is configured for this role.");
+      const calendar = await checkCalendarAvailability({ hodEmail, date: virtualSlot.date, startTime: virtualSlot.startTime, endTime: virtualSlot.endTime, timezone: virtualSlot.timezone });
+      if (!calendar.checked) throw new Error(calendar.reason === "not_connected" ? "Connect the HR Google Calendar before booking a final interview." : "Unable to verify the HR Google Calendar. Please try again.");
+      if (!calendar.available) throw new Error("This final-interview time is now blocked by the HR Google Calendar. Choose another time.");
     }
     const values = slotsData.headers.map((header) => {
       const key = normalize(header);
@@ -853,10 +855,11 @@ async function reserveBookingInternal(kind: BookingKind, token: string, slotId: 
     : -1;
   if (oldSlotIndex === matchingSlotIndex) throw new Error("Choose a different interview slot to reschedule.");
   const calendarHodEmail = (role?.hodEmail || role?.requesterEmail || "").trim();
-  if (kind === "final" && calendarHodEmail) {
+  if (kind === "final") {
+    if (!calendarHodEmail) throw new Error("No HR interviewer email is configured for this role.");
     const calendar = await checkCalendarAvailability({ hodEmail: calendarHodEmail, date: field(matchingSlot, "Date"), startTime: field(matchingSlot, "Start_Time", "Start Time"), endTime: field(matchingSlot, "End_Time", "End Time"), timezone: field(matchingSlot, "Timezone", "Time Zone") || "Asia/Singapore" });
-    if (calendar.checked && !calendar.available) throw new Error("This final-interview time is now blocked by the HOD Google Calendar. Choose another time.");
-    if (!calendar.checked && calendar.reason === "error") throw new Error("Unable to verify the HOD Google Calendar. Please try again.");
+    if (!calendar.checked) throw new Error(calendar.reason === "not_connected" ? "Connect the HR Google Calendar before booking a final interview." : "Unable to verify the HR Google Calendar. Please try again.");
+    if (!calendar.available) throw new Error("This final-interview time is now blocked by the HR Google Calendar. Choose another time.");
   }
   let oldCalendarEventCleanup: { deleted: true } | { deleted: false; reason: "not_connected" | "error"; error?: string } | null = null;
   if (kind === "final" && oldSlotIndex >= 0 && calendarHodEmail) {
@@ -950,7 +953,7 @@ async function reserveBookingInternal(kind: BookingKind, token: string, slotId: 
       { tab: "High_Match_Profile", row: applicantRow, header: "Final_Interview_Booking_Token_Used_At", value: now },
       { tab: "High_Match_Profile", row: applicantRow, header: "Last_Updated", value: now },
     );
-    const interviewerName = text(role?.requesterName || role?.submittedByName || role?.hodEmail);
+    const interviewerName = role?.hodEmail ? "HR" : "";
     const interviewerEmail = text(role?.hodEmail || role?.requesterEmail);
     updates.push(
       { tab: "Interview_Slots", row: slotRow, header: "Interviewer_Name", value: interviewerName },
@@ -975,7 +978,7 @@ async function reserveBookingInternal(kind: BookingKind, token: string, slotId: 
         roleId: context.roleId,
         selectedRole: context.selectedRole,
         slot: matchingSlot,
-        interviewerName: text(role?.requesterName || role?.submittedByName || role?.hodEmail),
+        interviewerName: role?.hodEmail ? "HR" : "",
         interviewerEmail: text(role?.hodEmail || role?.requesterEmail),
         updatedAt: now,
       });
@@ -986,10 +989,9 @@ async function reserveBookingInternal(kind: BookingKind, token: string, slotId: 
       console.warn("[Final Interview Tracking] Unable to sync booking:", error);
     }
 
-    // Best-effort: put the event on the HOD's own connected Google Calendar.
-    // The role's requester is treated as the HOD for calendar purposes (the
-    // person who submits a role request is the HOD or authorized requester
-    // per the recruitment workflow). A HOD who hasn't connected their
+    // Best-effort: put the event on HR's connected Google Calendar.
+    // The role's requester remains a compatibility fallback for older records.
+    // An HR interviewer who hasn't connected their
     // calendar yet, or a transient Calendar API error, must never fail the
     // candidate's booking — this runs after updateCells and only logs.
     try {
@@ -1012,7 +1014,7 @@ async function reserveBookingInternal(kind: BookingKind, token: string, slotId: 
             { tab: "Interview_Slots", row: slotRow, header: "Google_Calendar_Event_Error", value: "" },
           ]
           : [
-            { tab: "Interview_Slots", row: slotRow, header: "Google_Calendar_Event_Status", value: result.reason === "not_connected" ? "HOD Calendar Not Connected" : "Creation Failed" },
+            { tab: "Interview_Slots", row: slotRow, header: "Google_Calendar_Event_Status", value: result.reason === "not_connected" ? "HR Calendar Not Connected" : "Creation Failed" },
             { tab: "Interview_Slots", row: slotRow, header: "Google_Calendar_Event_Error", value: result.error || result.reason },
           ];
         await updateCells(calendarUpdates);
@@ -1020,10 +1022,10 @@ async function reserveBookingInternal(kind: BookingKind, token: string, slotId: 
         else console.log("[Final Interview Calendar] Not created:", result.reason, "error" in result ? result.error : "");
       } else {
         await updateCells([
-          { tab: "Interview_Slots", row: slotRow, header: "Google_Calendar_Event_Status", value: "HOD Email Not Configured" },
-          { tab: "Interview_Slots", row: slotRow, header: "Google_Calendar_Event_Error", value: "No HOD email is configured for this role." },
+          { tab: "Interview_Slots", row: slotRow, header: "Google_Calendar_Event_Status", value: "HR Email Not Configured" },
+          { tab: "Interview_Slots", row: slotRow, header: "Google_Calendar_Event_Error", value: "No HR interviewer email is configured for this role." },
         ]);
-        console.log("[Final Interview Calendar] No HOD email found for role:", context.roleId);
+        console.log("[Final Interview Calendar] No HR interviewer email found for role:", context.roleId);
       }
     } catch (error) {
       console.error("[Final Interview Calendar] Unexpected failure:", error);
@@ -1315,18 +1317,11 @@ export async function createInterviewSlot(input: CreateInterviewSlotInput) {
   const role = input.interviewType === "Final Interview" ? await getRoleRequestById(roleId) : null;
   if (input.interviewType === "Final Interview" && !role) throw new Error("Role request not found.");
   if (input.interviewType === "Final Interview" && role) {
-    const availability = parseHodAvailabilitySlots(role.hodAvailabilitySlots);
-    if (availability.length > 0 && !slotMatchesHodAvailability({ date, startTime, endTime, timezone }, availability)) {
-      throw new Error("This final-interview slot is outside the HOD availability submitted for the role.");
-    }
-
     const hodEmail = (role.hodEmail || role.requesterEmail).trim();
-    if (hodEmail) {
-      const calendar = await checkCalendarAvailability({ hodEmail, date, startTime, endTime, timezone });
-      if (calendar.checked && !calendar.available) throw new Error("The HOD Google Calendar is busy during this final-interview slot.");
-      if (!calendar.checked && calendar.reason === "not_connected") throw new Error("Connect the assigned HOD's Google Calendar before adding a final-interview slot.");
-      if (!calendar.checked && calendar.reason === "error") throw new Error("Unable to verify the HOD Google Calendar for this final-interview slot.");
-    }
+    if (!hodEmail) throw new Error("No HR interviewer email is configured for this role.");
+    const calendar = await checkCalendarAvailability({ hodEmail, date, startTime, endTime, timezone });
+    if (!calendar.checked) throw new Error(calendar.reason === "not_connected" ? "Connect the assigned HR Google Calendar before adding a final-interview slot." : "Unable to verify the HR Google Calendar for this final-interview slot.");
+    if (!calendar.available) throw new Error("The HR Google Calendar is busy during this final-interview slot.");
   }
   const data = await readSheet("Interview_Slots", "X");
   const duplicate = data.rows.some((row) => field(row, "Interview_Type", "Interview Type") === input.interviewType && field(row, "Role_ID", "Role ID").toLowerCase() === roleId.toLowerCase() && field(row, "Date") === date && field(row, "Start_Time", "Start Time") === startTime);
@@ -1416,9 +1411,9 @@ function configuredSlotKey(slot: ConfiguredInterviewSlot) {
 }
 
 function calendarBlockReason(result: CalendarAvailabilityResult) {
-  if (result.checked && !result.available) return "HOD Google Calendar is busy during this interview window.";
-  if ("reason" in result && result.reason === "not_connected") return "The HOD Google Calendar is not connected.";
-  return "error" in result ? result.error || "The HOD Google Calendar could not be verified." : "The HOD Google Calendar could not be verified.";
+  if (result.checked && !result.available) return "HR Google Calendar is busy during this interview window.";
+  if ("reason" in result && result.reason === "not_connected") return "The HR Google Calendar is not connected.";
+  return "error" in result ? result.error || "The HR Google Calendar could not be verified." : "The HR Google Calendar could not be verified.";
 }
 
 function configuredSlotRow(data: SheetData, slot: ConfiguredInterviewSlot, roleId: string, status: string) {
@@ -1434,16 +1429,16 @@ function configuredSlotRow(data: SheetData, slot: ConfiguredInterviewSlot, roleI
     if (key === normalize("Timezone")) return slot.timezone;
     if (key === normalize("Status")) return status;
     if (key === normalize("Last_Updated")) return new Date().toISOString();
-    if (key === normalize("Google_Calendar_Event_Status")) return status === "Blocked" ? "Blocked by HOD Calendar" : "Availability Checked";
+    if (key === normalize("Google_Calendar_Event_Status")) return status === "Blocked" ? "Blocked by HR Calendar" : "Availability Checked";
     if (key === normalize("Google_Calendar_Event_Error")) return status === "Blocked" ? "The slot is not available for candidate booking." : "";
     return "";
   });
 }
 
 /**
- * Makes HOD availability usable by the candidate booking flow. Each saved HOD
+ * Converts legacy HR availability into candidate slots. Each saved legacy
  * window is represented by a final-interview slot, but it is only bookable
- * when the assigned HOD's connected Google Calendar is free. Existing
+ * when the assigned HR interviewer's connected Google Calendar is free. Existing
  * unbooked slots are rechecked so a calendar conflict cannot remain open.
  */
 export async function synchronizeFinalInterviewSlots({ roleId, hodEmail, availability }: { roleId: string; hodEmail: string; availability: string }): Promise<FinalInterviewSlotSyncResult> {
@@ -1488,7 +1483,7 @@ export async function synchronizeFinalInterviewSlots({ roleId, hodEmail, availab
     if (currentStatus.toLowerCase() !== "blocked") blocked += 1;
     updates.push(
       { tab: "Interview_Slots", row: rowNumber, header: "Status", value: "Blocked" },
-      { tab: "Interview_Slots", row: rowNumber, header: "Google_Calendar_Event_Status", value: "Blocked by HOD Calendar" },
+      { tab: "Interview_Slots", row: rowNumber, header: "Google_Calendar_Event_Status", value: "Blocked by HR Calendar" },
       { tab: "Interview_Slots", row: rowNumber, header: "Google_Calendar_Event_Error", value: reason },
       { tab: "Interview_Slots", row: rowNumber, header: "Last_Updated", value: new Date().toISOString() },
     );
@@ -1508,8 +1503,8 @@ export async function synchronizeFinalInterviewSlots({ roleId, hodEmail, availab
       if (currentStatus !== "blocked") blocked += 1;
       updates.push(
         { tab: "Interview_Slots", row: rowNumber, header: "Status", value: "Blocked" },
-        { tab: "Interview_Slots", row: rowNumber, header: "Google_Calendar_Event_Status", value: "Blocked by HOD Availability" },
-        { tab: "Interview_Slots", row: rowNumber, header: "Google_Calendar_Event_Error", value: "This slot is outside the current HOD availability." },
+        { tab: "Interview_Slots", row: rowNumber, header: "Google_Calendar_Event_Status", value: "Blocked by legacy HR Availability" },
+        { tab: "Interview_Slots", row: rowNumber, header: "Google_Calendar_Event_Error", value: "This slot is outside the current legacy HR availability." },
         { tab: "Interview_Slots", row: rowNumber, header: "Last_Updated", value: new Date().toISOString() },
       );
       continue;
@@ -1642,8 +1637,8 @@ async function upsertFinalTracking(applicant: Row, applicationId: string, decisi
   const existingIndex = data.rows.findIndex((row) => field(row, "Application_ID", "Application ID") === applicationId);
   const existing = existingIndex >= 0 ? data.rows[existingIndex] : {};
   const role = await getRoleRequestById(field(applicant, "Role_ID", "Role ID"));
-  const hodName = text(role?.requesterName || role?.submittedByName || role?.hodEmail);
-  const hodEmail = text(role?.hodEmail || role?.requesterEmail);
+  const hrName = role?.hodEmail ? "HR" : "";
+  const hrEmail = text(role?.hodEmail || role?.requesterEmail);
   const values = data.headers.map((header) => {
     const key = normalize(header);
     if (key === normalize("Application_ID")) return applicationId;
@@ -1662,8 +1657,8 @@ async function upsertFinalTracking(applicant: Row, applicationId: string, decisi
     if (["Reviewed_By", "Reviewer", "HR_Reviewer"].map(normalize).includes(key)) return reviewer.name;
     if (["Decision_Date", "Reviewed_At"].map(normalize).includes(key)) return now;
     if (key === normalize("Last_Updated")) return now;
-    if (key === normalize("Interviewer_Name")) return hodName || field(existing, "Interviewer_Name", "Interviewer Name");
-    if (key === normalize("Interviewer_Email")) return hodEmail || field(existing, "Interviewer_Email", "Interviewer Email");
+    if (key === normalize("Interviewer_Name")) return hrName || field(existing, "Interviewer_Name", "Interviewer Name");
+    if (key === normalize("Interviewer_Email")) return hrEmail || field(existing, "Interviewer_Email", "Interviewer Email");
     return "";
   });
   if (existingIndex >= 0) {

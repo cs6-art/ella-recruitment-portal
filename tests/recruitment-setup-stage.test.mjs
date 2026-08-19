@@ -27,8 +27,8 @@ test("publishing uses explicit conditional requirements", () => {
   assert.match(readiness, /Salary_Disclosure_Status/);
   assert.doesNotMatch(readiness, /Experience_Requirement_Status/);
   assert.match(readiness, /HOD_Interview_Required/);
-  assert.match(readiness, /hodAvailabilitySlots/);
-  assert.match(readiness, /future HOD interview availability window/);
+  assert.match(readiness, /HR interview requirement/);
+  assert.doesNotMatch(readiness, /hodAvailabilitySlots/);
   assert.match(readiness, /License_Requirement_Status/);
 });
 
@@ -71,12 +71,14 @@ test("voice booking defaults to weekday ten-minute availability and creates only
   assert.match(availabilityRules, /slotDurationMinutes: 10/);
   assert.match(availabilityRules, /isCurrentCalendarMonth/);
   assert.match(availabilityRules, /monthLimit/);
-  assert.match(availabilityRules, /DEFAULT-FINAL-/);
+  assert.match(availabilityRules, /CALENDAR-FINAL-/);
+  assert.match(availabilityRules, /connected HR Google/);
+  assert.match(availabilityRules, /interviewType !== "Final Interview"/);
   assert.match(availabilityRules, /startTime: "13:00"/);
   assert.match(availabilityRules, /slotDurationMinutes: 60/);
   const workflow = fs.readFileSync("src/lib/applicant-workflow.ts", "utf8");
   assert.match(workflow, /hidden future-month rows/);
-  assert.match(workflow, /expandHodAvailabilitySlots/);
+  assert.match(workflow, /Unable to verify the HR Google Calendar/);
   const { expandHodAvailabilitySlots } = await import("../src/lib/hod-availability.ts");
   const finalSlots = expandHodAvailabilitySlots([{ date: "2026-08-20", startTime: "13:00", endTime: "17:00", timezone: "Asia/Singapore" }]);
   assert.equal(finalSlots.length, 4);

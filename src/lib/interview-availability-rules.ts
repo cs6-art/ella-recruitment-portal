@@ -1,5 +1,4 @@
 import { parseVoiceInterviewSlots, type VoiceInterviewSlot } from "@/lib/voice-interview-availability";
-import { expandHodAvailabilitySlots, parseHodAvailabilitySlots } from "@/lib/hod-availability";
 import { scheduledInstant } from "@/lib/interview-time";
 
 export const availabilityStatuses = ["Available", "Booked", "Blocked", "Expired", "Cancelled"] as const;
@@ -93,6 +92,62 @@ export function parseAvailabilityRules(value: unknown): InterviewAvailabilityRul
 
 export function serializeAvailabilityRules(value: unknown) { return JSON.stringify(parseAvailabilityRules(value)); }
 
+function timesOverlap(leftStart: string, leftEnd: string, rightStart: string, rightEnd: string) {
+  return leftStart < rightEnd && leftEnd > rightStart;
+}
+
+function datesOverlap(leftStart: string, leftEnd: string, rightStart: string, rightEnd: string) {
+  return leftStart <= rightEnd && leftEnd >= rightStart;
+}
+
+function specificSlotsOverlap(left: VoiceInterviewSlot, right: VoiceInterviewSlot) {
+  if (left.timezone === right.timezone) {
+    return left.date === right.date && timesOverlap(left.startTime, left.endTime, right.startTime, right.endTime);
+  }
+  try {
+    const leftStart = scheduledInstant(left.date, left.startTime, left.timezone).getTime();
+    const leftEnd = scheduledInstant(left.date, left.endTime, left.timezone).getTime();
+    const rightStart = scheduledInstant(right.date, right.startTime, right.timezone).getTime();
+    const rightEnd = scheduledInstant(right.date, right.endTime, right.timezone).getTime();
+    return leftStart < rightEnd && leftEnd > rightStart;
+  } catch {
+    return false;
+  }
+}
+
+/** Rules for the same role and interview type must not create overlapping candidate times. */
+export function availabilityRulesOverlap(left: InterviewAvailabilityRule, right: InterviewAvailabilityRule) {
+  if (left.roleId !== right.roleId || left.interviewType !== right.interviewType) return false;
+  if (left.status !== "Active" || right.status !== "Active") return false;
+
+  if (left.mode === "recurring" && right.mode === "recurring") {
+    return datesOverlap(left.startDate, left.endDate, right.startDate, right.endDate)
+      && left.weekdays.some((day) => right.weekdays.includes(day))
+      && timesOverlap(left.startTime, left.endTime, right.startTime, right.endTime);
+  }
+
+  const recurring = left.mode === "recurring" ? left : right.mode === "recurring" ? right : null;
+  const specific = left.mode === "specific" ? left : right.mode === "specific" ? right : null;
+  if (recurring && specific) {
+    return specific.specificSlots.some((slot) =>
+      slot.date >= recurring.startDate
+      && slot.date <= recurring.endDate
+      && recurring.weekdays.includes(weekday(slot.date))
+      && timesOverlap(recurring.startTime, recurring.endTime, slot.startTime, slot.endTime),
+    );
+  }
+
+  return left.specificSlots.some((slot) => right.specificSlots.some((other) => specificSlotsOverlap(slot, other)));
+}
+
+export function withoutOverlappingAvailabilityRules(rules: InterviewAvailabilityRule[]) {
+  return rules.reduce<InterviewAvailabilityRule[]>((accepted, rule) => {
+    if (rule.status === "Active" && accepted.some((existing) => availabilityRulesOverlap(existing, rule))) return accepted;
+    accepted.push(rule);
+    return accepted;
+  }, []);
+}
+
 /**
  * Availability is only useful before the role's target hiring date. Keep this
  * rule in the shared slot generator so the admin calendar and candidate link
@@ -105,10 +160,7 @@ export function isBeforeTargetHiringDate(date: string, targetHiringDate?: string
 export function ruleToSlots(rule: InterviewAvailabilityRule, maxDays = 180): VoiceInterviewSlot[] {
   if (rule.status !== "Active") return [];
   if (rule.mode === "specific") {
-    const specificSlots = rule.interviewType === "Final Interview"
-      ? expandHodAvailabilitySlots(rule.specificSlots, 60)
-      : rule.specificSlots;
-    return specificSlots.filter((slot) => isCurrentCalendarMonth(slot.date, slot.timezone));
+    return rule.specificSlots.filter((slot) => isCurrentCalendarMonth(slot.date, slot.timezone));
   }
   // AI voice interviews use one consistent weekday window so every role has
   // predictable ten-minute times and the candidate calendar stays simple.
@@ -134,20 +186,13 @@ export function ruleToSlots(rule: InterviewAvailabilityRule, maxDays = 180): Voi
   return result;
 }
 
-function hasUsableCurrentFinalSlot(slots: VoiceInterviewSlot[], targetHiringDate?: string) {
-  return slots.some((slot) => {
-    if (!isBeforeTargetHiringDate(slot.date, targetHiringDate) || !isCurrentCalendarMonth(slot.date, slot.timezone)) return false;
-    try {
-      return scheduledInstant(slot.date, slot.startTime, slot.timezone).getTime() > Date.now();
-    } catch {
-      return false;
-    }
-  });
-}
-
-export function roleAvailabilityRules(role: { roleId: string; targetHiringDate?: string; hodAvailabilitySlots?: string; voiceInterviewAvailabilityMode?: string; voiceInterviewSlots?: string; voiceInterviewAutoStartDate?: string; voiceInterviewAutoEndDate?: string; voiceInterviewTimezone?: string; interviewAvailabilityRules?: string }): InterviewAvailabilityRule[] {
-  const stored = parseAvailabilityRules(role.interviewAvailabilityRules);
-  const rules = [...stored];
+export function roleAvailabilityRules(role: { roleId: string; targetHiringDate?: string; voiceInterviewAvailabilityMode?: string; voiceInterviewSlots?: string; voiceInterviewAutoStartDate?: string; voiceInterviewAutoEndDate?: string; voiceInterviewTimezone?: string; interviewAvailabilityRules?: string }): InterviewAvailabilityRule[] {
+  // Final-interview availability is derived from the connected HR Google
+  // Calendar. Ignore legacy manually saved final rules.
+  const stored = parseAvailabilityRules(role.interviewAvailabilityRules).filter((rule) => rule.interviewType !== "Final Interview");
+  // New writes are rejected by the API. This defensive pass also prevents
+  // existing workbook data from multiplying generated candidate slots.
+  const rules = withoutOverlappingAvailabilityRules(stored);
   const hasVoiceRule = rules.some((rule) => rule.interviewType === "AI Voice Interview");
   if (!hasVoiceRule) {
     // Legacy roles without a stored rule inherit the standard voice schedule.
@@ -159,33 +204,21 @@ export function roleAvailabilityRules(role: { roleId: string; targetHiringDate?:
     const endDate = configuredEnd >= startDate ? configuredEnd : monthEnd(today);
     rules.push({ ruleId: `DEFAULT-VOICE-${role.roleId}`, roleId: role.roleId, interviewType: "AI Voice Interview", mode: "recurring", startDate, endDate, weekdays: [1, 2, 3, 4, 5], startTime: "09:00", endTime: "17:00", slotDurationMinutes: 10, timezone, specificSlots: [], status: "Active" });
   }
-  const hodSlots = parseHodAvailabilitySlots(role.hodAvailabilitySlots || "");
-  const finalTimezone = validTimezone(text(role.voiceInterviewTimezone) || hodSlots[0]?.timezone || "Asia/Singapore");
-  const hasUsableStoredFinalRule = rules
-    .filter((rule) => rule.interviewType === "Final Interview")
-    .some((rule) => hasUsableCurrentFinalSlot(ruleToSlots(rule), role.targetHiringDate));
-  if (!hasUsableStoredFinalRule) {
-    const currentHodSlots = expandHodAvailabilitySlots(hodSlots, 60)
-      .filter((slot) => hasUsableCurrentFinalSlot([slot], role.targetHiringDate));
-    const today = todayInTimezone(finalTimezone);
-    // Published roles must still expose temporary August final-interview
-    // times when legacy HOD windows are empty, expired, or outside the current
-    // month. Valid HOD windows remain the preferred source of slots.
-    rules.push(currentHodSlots.length > 0
-      ? { ruleId: `LEGACY-FINAL-${role.roleId}`, roleId: role.roleId, interviewType: "Final Interview", mode: "specific", startDate: "", endDate: "", weekdays: [], startTime: "", endTime: "", slotDurationMinutes: 60, timezone: finalTimezone, specificSlots: currentHodSlots, status: "Active" }
-      : { ruleId: `DEFAULT-FINAL-${role.roleId}`, roleId: role.roleId, interviewType: "Final Interview", mode: "recurring", startDate: monthStart(today), endDate: monthEnd(today), weekdays: [1, 2, 3, 4, 5], startTime: "13:00", endTime: "17:00", slotDurationMinutes: 60, timezone: finalTimezone, specificSlots: [], status: "Active" });
-  }
+  const finalTimezone = "Asia/Singapore";
+  const today = todayInTimezone(finalTimezone);
+  rules.push({ ruleId: `CALENDAR-FINAL-${role.roleId}`, roleId: role.roleId, interviewType: "Final Interview", mode: "recurring", startDate: monthStart(today), endDate: monthEnd(today), weekdays: [1, 2, 3, 4, 5], startTime: "13:00", endTime: "17:00", slotDurationMinutes: 60, timezone: finalTimezone, specificSlots: [], status: "Active" });
   return rules;
 }
 
 export function virtualSlotsForRole(role: Parameters<typeof roleAvailabilityRules>[0], interviewType: "AI Voice Interview" | "Final Interview") {
-  return roleAvailabilityRules(role).filter((rule) => rule.interviewType === interviewType).flatMap((rule) => ruleToSlots(rule).filter((slot) => isBeforeTargetHiringDate(slot.date, role.targetHiringDate)).map((slot) => ({
+  const slots = roleAvailabilityRules(role).filter((rule) => rule.interviewType === interviewType).flatMap((rule) => ruleToSlots(rule).filter((slot) => isBeforeTargetHiringDate(slot.date, role.targetHiringDate)).map((slot) => ({
     slotId: `VIRTUAL-${hash(`${rule.ruleId}|${slot.date}|${slot.startTime}|${slot.endTime}|${slot.timezone}`).toUpperCase()}`,
     interviewType,
     roleId: role.roleId,
     ...slot,
     status: "Available" as const,
   })));
+  return [...new Map(slots.map((slot) => [slotKey(slot), slot])).values()];
 }
 
 export function isVirtualSlotId(slotId: string) { return slotId.startsWith("VIRTUAL-"); }

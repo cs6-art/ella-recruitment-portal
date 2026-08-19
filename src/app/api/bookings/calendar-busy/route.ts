@@ -20,14 +20,22 @@ export async function GET() {
     const roles = await getRoleRequests();
     const start = new Date();
     const end = new Date(start.getTime() + 180 * 24 * 60 * 60 * 1000);
+    // Return connection state separately from busy windows. An empty busy
+    // list means either a free calendar or an unavailable calendar, so the
+    // client must not treat it as proof that final slots are bookable.
     const entries = await Promise.all(roles
-      .filter((role) => canManageInterviewAvailability(role.status) && role.hodEmail)
+      .filter((role) => canManageInterviewAvailability(role.status))
       .map(async (role) => {
+        if (!role.hodEmail) return [role.roleId, { busy: [], connected: false }] as const;
         const result = await getCalendarBusyWindows({ hodEmail: role.hodEmail, start, end });
-        return [role.roleId, result.checked ? result.busy : []] as const;
+        return [role.roleId, { busy: result.checked ? result.busy : [], connected: result.checked }] as const;
       }));
 
-    return NextResponse.json({ success: true, busyWindows: Object.fromEntries(entries) }, { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json({
+      success: true,
+      busyWindows: Object.fromEntries(entries.map(([roleId, value]) => [roleId, value.busy])),
+      calendarConnected: Object.fromEntries(entries.map(([roleId, value]) => [roleId, value.connected])),
+    }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.warn("[Bookings Calendar] Conflict lookup failed:", error);
     return NextResponse.json({ success: false, error: "Unable to load calendar conflicts." }, { status: 500 });

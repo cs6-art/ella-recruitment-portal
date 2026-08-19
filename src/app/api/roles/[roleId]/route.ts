@@ -136,7 +136,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       ...body,
       requesterName: access.role.requesterName || access.user.name,
       requesterEmail: access.role.requesterEmail || access.user.email,
-      hodEmail: body.hodEmail || access.role.hodEmail || access.user.email,
+      hodEmail: "hrsg@mclinkgroup.com",
       replacementEmployee: body.requestType === "Staff Replacement" ? body.replacementEmployee : "",
     });
     const setupDraft = body.recruitmentSetupDraft && typeof body.recruitmentSetupDraft === "object"

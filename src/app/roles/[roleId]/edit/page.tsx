@@ -5,7 +5,6 @@ import AppShell from "@/components/AppShell";
 import RecruitmentSetupEditor from "@/components/RecruitmentSetupEditor";
 import RoleRequestForm, { type RoleRequestFormValues } from "@/components/RoleRequestForm";
 import { canEditRoleRequest, canViewRole } from "@/lib/access-control";
-import { parseHodAvailabilitySlots } from "@/lib/hod-availability";
 import { getRoleRequestById } from "@/lib/google-sheets";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
 
@@ -51,7 +50,6 @@ export default async function EditRolePage({ params }: EditRolePageProps) {
     replacementEmployee: role.replacementEmployee,
     targetHiringDate: role.targetHiringDate,
     hodEmail: role.hodEmail,
-    hodAvailabilitySlots: parseHodAvailabilitySlots(role.hodAvailabilitySlots),
     customScreeningQuestion1: role.customScreeningQuestion1,
     customScreeningQuestion2: role.customScreeningQuestion2,
     aiGeneratedScreeningQuestions: screeningQuestions(role.aiGeneratedScreeningQuestions),
@@ -111,7 +109,6 @@ export default async function EditRolePage({ params }: EditRolePageProps) {
     experienceRequirementStatus: role.experienceRequirementStatus || "",
     licenseRequirementStatus: role.licenseRequirementStatus || "",
     hodInterviewRequired: role.hodInterviewRequired || "",
-    hodAvailabilitySlots: role.hodAvailabilitySlots || "",
     voiceInterviewAvailabilityMode: role.voiceInterviewAvailabilityMode || "none",
     voiceInterviewSlots: role.voiceInterviewSlots || "",
     voiceInterviewAutoStartDate: role.voiceInterviewAutoStartDate || "",
@@ -131,7 +128,7 @@ export default async function EditRolePage({ params }: EditRolePageProps) {
               Back to Role Details
             </a>
             <h1>Edit Role Request</h1>
-            <p>Update the vacancy details and HOD screening information before the request moves forward.</p>
+            <p>Update the vacancy details and HR screening information before the request moves forward.</p>
           </div>
         </div>
         <RoleRequestForm

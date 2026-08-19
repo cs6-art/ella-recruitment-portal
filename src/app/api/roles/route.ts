@@ -151,7 +151,7 @@ export async function POST(request: Request) {
       ...clientInput,
       requesterName: user.name,
       requesterEmail: sessionEmail,
-      hodEmail: clientInput.hodEmail || sessionEmail,
+      hodEmail: "hrsg@mclinkgroup.com",
       replacementEmployee: clientInput.requestType === "Staff Replacement"
         ? clientInput.replacementEmployee
         : "",
@@ -247,7 +247,7 @@ export async function POST(request: Request) {
       requester: {
         name: user.name,
         email: performerEmail,
-        type: "HOD or Management",
+        type: "HR or Management",
       },
 
       role: {
@@ -263,7 +263,7 @@ export async function POST(request: Request) {
           input.replacementEmployee,
         targetHiringDate:
           input.targetHiringDate,
-        hodEmail: input.hodEmail || performerEmail,
+        hodEmail: "hrsg@mclinkgroup.com",
         hodAvailabilityDates: input.hodAvailabilityDates,
         hodAvailabilityTimes: input.hodAvailabilityTimes,
         hodAvailabilitySlots: input.hodAvailabilitySlots,

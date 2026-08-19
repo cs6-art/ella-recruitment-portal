@@ -7,11 +7,6 @@ import { useRouter } from "next/navigation";
 import ActionFeedback from "@/components/ActionFeedback";
 import UiIcon from "@/components/UiIcon";
 import ValidationSummary from "@/components/ValidationSummary";
-import {
-  legacyAvailabilityDates,
-  legacyAvailabilityTimes,
-} from "@/lib/hod-availability";
-import type { HodAvailabilitySlot } from "@/lib/hod-availability";
 import { roleRequestSchema } from "@/lib/role-schema";
 import type { RoleAiDraft } from "@/lib/role-ai-draft-schema";
 
@@ -42,7 +37,6 @@ type FormState = {
   replacementEmployee: string;
   targetHiringDate: string;
   hodEmail: string;
-  hodAvailabilitySlots: HodAvailabilitySlot[];
   customScreeningQuestion1: string;
   customScreeningQuestion2: string;
   aiGeneratedScreeningQuestions: string[];
@@ -50,6 +44,9 @@ type FormState = {
 };
 
 export type RoleRequestFormValues = FormState;
+
+// All final interviews are owned by the shared HR calendar account.
+const HR_INTERVIEW_EMAIL = "hrsg@mclinkgroup.com";
 
 const initial: FormState = {
   requestType: "Staff Addition",
@@ -61,8 +58,7 @@ const initial: FormState = {
   jobDescription: "",
   replacementEmployee: "",
   targetHiringDate: "",
-  hodEmail: "",
-  hodAvailabilitySlots: [{ date: "", startTime: "09:00", endTime: "09:30", timezone: "Asia/Singapore" }],
+  hodEmail: HR_INTERVIEW_EMAIL,
   customScreeningQuestion1: "",
   customScreeningQuestion2: "",
   aiGeneratedScreeningQuestions: [],
@@ -95,10 +91,7 @@ const fieldLabels: Record<string, string> = {
   jobDescription: "Job Description",
   replacementEmployee: "Employee or Position Being Replaced",
   targetHiringDate: "Target Hiring Date",
-  hodAvailabilityDates: "HOD Availability Dates",
-  hodAvailabilityTimes: "HOD Availability Times",
-  hodAvailabilitySlots: "HOD availability",
-  hodEmail: "HOD email",
+  hodEmail: "HR interviewer email",
   customScreeningQuestion1: "Custom Screening Question 1",
   customScreeningQuestion2: "Custom Screening Question 2",
 };
@@ -109,7 +102,7 @@ export default function RoleRequestForm({ user, roleId, initialValues }: RoleReq
   const initialForm = useMemo<FormState>(() => ({
     ...initial,
     ...initialValues,
-    hodAvailabilitySlots: initialValues?.hodAvailabilitySlots ?? initial.hodAvailabilitySlots,
+    hodEmail: HR_INTERVIEW_EMAIL,
   }), [initialValues]);
   const [form, setForm] = useState<FormState>(() => initialForm);
   const [loading, setLoading] = useState(false);
@@ -140,43 +133,14 @@ export default function RoleRequestForm({ user, roleId, initialValues }: RoleReq
     setFieldErrors((current) => ({ ...current, [name]: "" }));
   }
 
-  function updateAvailability(index: number, name: keyof HodAvailabilitySlot, value: string) {
-    setForm((current) => ({
-      ...current,
-      hodAvailabilitySlots: current.hodAvailabilitySlots.map((slot, slotIndex) => (
-        slotIndex === index ? { ...slot, [name]: value } : slot
-      )),
-    }));
-    setError("");
-    setFieldErrors((current) => ({ ...current, hodAvailabilitySlots: "" }));
-  }
-
-  function addAvailability() {
-    setForm((current) => ({
-      ...current,
-      hodAvailabilitySlots: [...current.hodAvailabilitySlots, { date: "", startTime: "09:00", endTime: "09:30", timezone: "Asia/Singapore" }],
-    }));
-  }
-
-  function removeAvailability(index: number) {
-    setForm((current) => ({
-      ...current,
-      hodAvailabilitySlots: current.hodAvailabilitySlots.length > 1
-        ? current.hodAvailabilitySlots.filter((_, slotIndex) => slotIndex !== index)
-        : [{ date: "", startTime: "09:00", endTime: "09:30", timezone: "Asia/Singapore" }],
-    }));
-  }
-
   function availabilityPayload() {
-    const slots = form.hodAvailabilitySlots.filter((slot) => slot.date
-      || slot.startTime !== "09:00"
-      || slot.endTime !== "09:30"
-      || slot.timezone !== "Asia/Singapore");
     return {
-      hodEmail: form.hodEmail || user.email,
-      hodAvailabilitySlots: slots,
-      hodAvailabilityDates: legacyAvailabilityDates(slots),
-      hodAvailabilityTimes: legacyAvailabilityTimes(slots),
+      hodEmail: HR_INTERVIEW_EMAIL,
+      // Legacy sheet fields stay empty. Final-interview times now come from
+      // the connected HR Google Calendar rather than manually entered windows.
+      hodAvailabilitySlots: [],
+      hodAvailabilityDates: "",
+      hodAvailabilityTimes: "",
     };
   }
 
@@ -409,52 +373,22 @@ export default function RoleRequestForm({ user, roleId, initialValues }: RoleReq
         <section className="section">
           <div className="section-title">
             <span className="section-number">2</span>
-            <h2>HOD availability and screening</h2>
+            <h2>HR interview and screening</h2>
           </div>
-          <p className="section-intro">Add interview availability and up to two questions. Ella will generate the remaining screening questions.</p>
+          <p className="section-intro">Review the HR interviewer and add up to two questions. Ella will generate the remaining screening questions.</p>
 
           <div className="grid-2">
             <div className="field full">
-              <label htmlFor="hodEmail">HOD / Interviewer Email</label>
-              <input id="hodEmail" {...fieldErrorProps("hodEmail")} type="email" value={form.hodEmail || user.email} onChange={(event) => update("hodEmail", event.target.value)} placeholder="The person whose calendar will receive final interviews" />
-              <small className="field-help">This defaults to your McLink account but can identify the HOD when management submits the request.</small>
+              <label htmlFor="hodEmail">HR / Interviewer Email</label>
+              <input id="hodEmail" type="email" value={HR_INTERVIEW_EMAIL} readOnly aria-readonly="true" />
+              <small className="field-help">Final-interview availability is read automatically from this HR account&apos;s connected Google Calendar.</small>
             </div>
             <div className="field full">
-              <label>HOD Availability Windows <span className="field-optional">(optional)</span></label>
-              <small className="field-help">These windows guide HR slot creation. Include the timezone for each window.</small>
-              <div className="availability-entry-list">
-                {form.hodAvailabilitySlots.map((slot, index) => (
-                  <div className="availability-entry" key={`availability-${index}`}>
-                    <label htmlFor={index === 0 ? "hodAvailabilityDates" : `hodAvailabilityDates-${index}`}>Date
-                      <input id={index === 0 ? "hodAvailabilityDates" : `hodAvailabilityDates-${index}`} type="date" value={slot.date} onChange={(event) => updateAvailability(index, "date", event.target.value)} />
-                    </label>
-                    <label htmlFor={index === 0 ? "hodAvailabilityTimes" : `hodAvailabilityTimes-${index}`}>Start time
-                      <input id={index === 0 ? "hodAvailabilityTimes" : `hodAvailabilityTimes-${index}`} type="time" value={slot.startTime} onChange={(event) => updateAvailability(index, "startTime", event.target.value)} />
-                    </label>
-                    <label htmlFor={`hodAvailabilityEndTime-${index}`}>End time
-                      <input id={`hodAvailabilityEndTime-${index}`} type="time" value={slot.endTime} onChange={(event) => updateAvailability(index, "endTime", event.target.value)} />
-                    </label>
-                    <label htmlFor={`hodAvailabilityTimezone-${index}`}>Timezone
-                      <select id={`hodAvailabilityTimezone-${index}`} value={slot.timezone} onChange={(event) => updateAvailability(index, "timezone", event.target.value)}>
-                        <option>Asia/Singapore</option>
-                        <option>Asia/Manila</option>
-                        <option>Asia/Hong_Kong</option>
-                        <option>UTC</option>
-                        <option>America/Los_Angeles</option>
-                      </select>
-                    </label>
-                    <button type="button" className="btn btn-secondary availability-entry-remove" onClick={() => removeAvailability(index)} aria-label={`Remove availability window ${index + 1}`}>Remove</button>
-                  </div>
-                ))}
-              </div>
-              <button type="button" className="btn btn-secondary availability-entry-add" onClick={addAvailability}>+ Add availability window</button>
-            </div>
-            <div className="field full">
-              <label htmlFor="customScreeningQuestion1">Custom HOD Screening Question 1 <span className="field-optional">(optional)</span></label>
+              <label htmlFor="customScreeningQuestion1">Custom HR Screening Question 1 <span className="field-optional">(optional)</span></label>
               <textarea id="customScreeningQuestion1" value={form.customScreeningQuestion1} onChange={(event) => update("customScreeningQuestion1", event.target.value)} placeholder="Ask something specific to this role" />
             </div>
             <div className="field full">
-              <label htmlFor="customScreeningQuestion2">Custom HOD Screening Question 2 <span className="field-optional">(optional)</span></label>
+              <label htmlFor="customScreeningQuestion2">Custom HR Screening Question 2 <span className="field-optional">(optional)</span></label>
               <textarea id="customScreeningQuestion2" value={form.customScreeningQuestion2} onChange={(event) => update("customScreeningQuestion2", event.target.value)} placeholder="Ask another role-specific question" />
             </div>
             {form.aiGeneratedScreeningQuestions.length > 0 && (

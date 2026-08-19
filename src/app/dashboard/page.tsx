@@ -90,7 +90,7 @@ export default async function DashboardPage() {
                   </strong>
 
                   <p>
-                    The HOD or authorised requester
+                    HR or the authorised requester
                     submits the staffing requirement.
                   </p>
                 </div>
