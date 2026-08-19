@@ -120,6 +120,17 @@ test("recruitment setup uses one guided editor with simple HR-facing fields", ()
   assert.doesNotMatch(roleDetails, /EllaSetupFields/);
 });
 
+test("required publishing fields stay visible and checklist opens by default", () => {
+  assert.match(editor, /className="vapi-publishing" open/);
+  assert.match(editor, /Posting channels \*/);
+  assert.match(editor, /Salary visibility \*/);
+  assert.match(editor, /License requirement \*/);
+  assert.match(editor, /HR interview \*/);
+  assert.match(editor, /setupFieldAnchors\[field\.key\]/);
+  assert.match(route, /hasField\("evaluationFieldToggles"\)/);
+  assert.match(route, /hasField\("postingChannels"\)/);
+});
+
 test("VAPI prompt is interview-only and has no scheduling context", () => {
   const prompt = fs.readFileSync("src/lib/recruitment-prompt.ts", "utf8");
   assert.match(prompt, /This call is an interview only/);

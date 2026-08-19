@@ -294,11 +294,11 @@ export default function RoleRequestForm({ user, roleId, initialValues }: RoleReq
             <span className="section-number">1</span>
           <h2>{isEditing ? "Edit role request" : "Role request"}</h2>
           </div>
-          <p className="section-intro">Provide the information HR and Ella need to understand the vacancy.</p>
+          <p className="section-intro">Provide the information HR and Ella need to understand the vacancy. <strong className="required-mark">*</strong> Required fields.</p>
 
           <div className="grid-2">
             <div className="field full">
-              <label htmlFor="jobDescription">Job Description</label>
+              <label htmlFor="jobDescription">Job Description <strong className="required-mark">*</strong></label>
               <textarea id="jobDescription" {...fieldErrorProps("jobDescription")} required value={form.jobDescription} onChange={(event) => update("jobDescription", event.target.value)} placeholder="Describe the purpose and main scope of this role." />
               <div className="ai-draft-panel">
                 <div>
@@ -318,7 +318,7 @@ export default function RoleRequestForm({ user, roleId, initialValues }: RoleReq
             </div>
 
             <div className="field">
-              <label htmlFor="requestType">Request Type</label>
+              <label htmlFor="requestType">Request Type <strong className="required-mark">*</strong></label>
               <select id="requestType" {...fieldErrorProps("requestType")} value={form.requestType} onChange={(event) => update("requestType", event.target.value)}>
                 <option>Staff Addition</option>
                 <option>Staff Replacement</option>
@@ -326,12 +326,12 @@ export default function RoleRequestForm({ user, roleId, initialValues }: RoleReq
             </div>
 
             <div className="field">
-              <label htmlFor="department">Department</label>
+              <label htmlFor="department">Department <strong className="required-mark">*</strong></label>
               <input id="department" {...fieldErrorProps("department")} required value={form.department} onChange={(event) => update("department", event.target.value)} placeholder="e.g. Inside Sales" />
             </div>
 
             <div className="field">
-              <label htmlFor="employmentType">Employment Type</label>
+              <label htmlFor="employmentType">Employment Type <strong className="required-mark">*</strong></label>
               <select id="employmentType" {...fieldErrorProps("employmentType")} value={form.employmentType} onChange={(event) => update("employmentType", event.target.value)}>
                 <option>Full-Time</option>
                 <option>Part-Time</option>
@@ -342,29 +342,29 @@ export default function RoleRequestForm({ user, roleId, initialValues }: RoleReq
             </div>
 
             <div className="field">
-              <label htmlFor="jobTitle">Job Title</label>
+              <label htmlFor="jobTitle">Job Title <strong className="required-mark">*</strong></label>
               <input id="jobTitle" {...fieldErrorProps("jobTitle")} required value={form.jobTitle} onChange={(event) => update("jobTitle", event.target.value)} placeholder="e.g. Inside Sales Specialist" />
             </div>
 
             <div className="field">
-              <label htmlFor="numberOfVacancies">Number of Vacancies</label>
+              <label htmlFor="numberOfVacancies">Number of Vacancies <strong className="required-mark">*</strong></label>
               <input id="numberOfVacancies" {...fieldErrorProps("numberOfVacancies")} required min="1" max="100" type="number" value={form.numberOfVacancies} onChange={(event) => update("numberOfVacancies", Number(event.target.value))} />
             </div>
 
             <div className="field">
-              <label htmlFor="targetHiringDate">Target Hiring Date</label>
+              <label htmlFor="targetHiringDate">Target Hiring Date <strong className="required-mark">*</strong></label>
               <input id="targetHiringDate" {...fieldErrorProps("targetHiringDate")} required type="date" value={form.targetHiringDate} onChange={(event) => update("targetHiringDate", event.target.value)} />
             </div>
 
             {form.requestType === "Staff Replacement" && (
               <div className="field full">
-                <label htmlFor="replacementEmployee">Employee or Position Being Replaced</label>
+                <label htmlFor="replacementEmployee">Employee or Position Being Replaced <strong className="required-mark">*</strong></label>
                 <input id="replacementEmployee" {...fieldErrorProps("replacementEmployee")} required value={form.replacementEmployee} onChange={(event) => update("replacementEmployee", event.target.value)} placeholder="Name or position" />
               </div>
             )}
 
             <div className="field full">
-              <label htmlFor="reasonForRequest">Reason for Request</label>
+              <label htmlFor="reasonForRequest">Reason for Request <strong className="required-mark">*</strong></label>
               <textarea id="reasonForRequest" {...fieldErrorProps("reasonForRequest")} required value={form.reasonForRequest} onChange={(event) => update("reasonForRequest", event.target.value)} placeholder="Why is this additional or replacement staff member needed?" />
             </div>
           </div>
@@ -375,7 +375,7 @@ export default function RoleRequestForm({ user, roleId, initialValues }: RoleReq
             <span className="section-number">2</span>
             <h2>HR interview and screening</h2>
           </div>
-          <p className="section-intro">Review the HR interviewer and add up to two questions. Ella will generate the remaining screening questions.</p>
+          <p className="section-intro">Review the HR interviewer and add up to two optional questions. Ella will generate the remaining screening questions when you click <strong>Generate draft</strong> before submitting.</p>
 
           <div className="grid-2">
             <div className="field full">
@@ -384,18 +384,18 @@ export default function RoleRequestForm({ user, roleId, initialValues }: RoleReq
               <small className="field-help">Final-interview availability is read automatically from this HR account&apos;s connected Google Calendar.</small>
             </div>
             <div className="field full">
-              <label htmlFor="customScreeningQuestion1">Custom HR Screening Question 1 <span className="field-optional">(optional)</span></label>
+              <label htmlFor="customScreeningQuestion1">HR Screening Question 1 <span className="field-optional">(optional)</span></label>
               <textarea id="customScreeningQuestion1" value={form.customScreeningQuestion1} onChange={(event) => update("customScreeningQuestion1", event.target.value)} placeholder="Ask something specific to this role" />
             </div>
             <div className="field full">
-              <label htmlFor="customScreeningQuestion2">Custom HR Screening Question 2 <span className="field-optional">(optional)</span></label>
+              <label htmlFor="customScreeningQuestion2">HR Screening Question 2 <span className="field-optional">(optional)</span></label>
               <textarea id="customScreeningQuestion2" value={form.customScreeningQuestion2} onChange={(event) => update("customScreeningQuestion2", event.target.value)} placeholder="Ask another role-specific question" />
             </div>
             {form.aiGeneratedScreeningQuestions.length > 0 && (
               <div className="field full">
                 <div className="ai-question-review">
-                  <strong>AI-generated interview questions</strong>
-                  <small className="field-help">Review these questions before submitting. HR can refine them later in Recruitment Setup.</small>
+                  <strong>AI-generated screening questions for HR review</strong>
+                  <small className="field-help">These were generated from the uploaded job description. HR can refine them later in Recruitment Setup.</small>
                   <ol>
                     {form.aiGeneratedScreeningQuestions.map((question, index) => <li key={`${question}-${index}`}>{question}</li>)}
                   </ol>

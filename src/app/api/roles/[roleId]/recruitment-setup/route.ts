@@ -33,6 +33,7 @@ export async function POST(request: Request, context: Context) {
   try {
     const requestBody = await request.json() as Record<string, unknown>;
     const parsedSetup = recruitmentSetupSchema.parse(requestBody);
+    const hasField = (key: string) => Object.prototype.hasOwnProperty.call(requestBody, key);
     const hasCustomEvaluationFields = Object.prototype.hasOwnProperty.call(requestBody, "customEvaluationFields");
     // The editor normally sends the complete current setup. Keep the value
     // already stored on the role whenever an older client or an incomplete
@@ -46,7 +47,7 @@ export async function POST(request: Request, context: Context) {
       requiredInterviewQuestion4: parsedSetup.requiredInterviewQuestion4 || role.requiredInterviewQuestion4 || "",
       requiredInterviewQuestion5: parsedSetup.requiredInterviewQuestion5 || role.requiredInterviewQuestion5 || "",
       aiSystemPrompt: parsedSetup.aiSystemPrompt || role.aiSystemPrompt || "",
-      postingChannels: parsedSetup.postingChannels.length
+      postingChannels: hasField("postingChannels")
         ? parsedSetup.postingChannels
         : (role.postingChannels || "").split(",").map((channel) => channel.trim()).filter(Boolean),
       licenseOrCertificateRequired: parsedSetup.licenseOrCertificateRequired || role.licenseOrCertificateRequired || "",
@@ -55,7 +56,7 @@ export async function POST(request: Request, context: Context) {
       transferableSkillsAccepted: parsedSetup.transferableSkillsAccepted || role.transferableSkillsAccepted || "",
       salaryOrBudgetRange: parsedSetup.salaryOrBudgetRange || role.salaryOrBudgetRange || "",
       earliestAvailabilityRule: parsedSetup.earliestAvailabilityRule || role.earliestAvailabilityRule || "",
-      evaluationFieldToggles: parsedSetup.evaluationFieldToggles.length
+      evaluationFieldToggles: hasField("evaluationFieldToggles")
         ? parsedSetup.evaluationFieldToggles
         : (role.evaluationFieldToggles || "").split(",").map((field) => field.trim()).filter(Boolean),
       // An explicit empty array means HR removed the custom fields. Only use
@@ -63,10 +64,10 @@ export async function POST(request: Request, context: Context) {
       customEvaluationFields: hasCustomEvaluationFields
         ? parsedSetup.customEvaluationFields
         : role.customEvaluationFields || [],
-      salaryDisclosureStatus: parsedSetup.salaryDisclosureStatus || role.salaryDisclosureStatus || "",
-      experienceRequirementStatus: parsedSetup.experienceRequirementStatus || role.experienceRequirementStatus || "",
-      licenseRequirementStatus: parsedSetup.licenseRequirementStatus || role.licenseRequirementStatus || "",
-      hodInterviewRequired: parsedSetup.hodInterviewRequired || role.hodInterviewRequired || "",
+      salaryDisclosureStatus: hasField("salaryDisclosureStatus") ? parsedSetup.salaryDisclosureStatus : role.salaryDisclosureStatus || "",
+      experienceRequirementStatus: hasField("experienceRequirementStatus") ? parsedSetup.experienceRequirementStatus : role.experienceRequirementStatus || "",
+      licenseRequirementStatus: hasField("licenseRequirementStatus") ? parsedSetup.licenseRequirementStatus : role.licenseRequirementStatus || "",
+      hodInterviewRequired: hasField("hodInterviewRequired") ? parsedSetup.hodInterviewRequired : role.hodInterviewRequired || "",
     };
     const setupAction = setup.setupAction || "save_draft";
 

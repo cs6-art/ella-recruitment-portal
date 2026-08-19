@@ -106,6 +106,19 @@ function valueText(value: unknown) {
 }
 
 const setupFieldLabels: Record<string, string> = {
+  Job_Description: "Job description",
+  Screening_Criteria: "Screening instructions",
+  AI_System_Prompt: "VAPI system prompt",
+  Required_Interview_Question_1: "Question 1",
+  Required_Interview_Question_2: "Question 2",
+  Required_Interview_Question_3: "Question 3",
+  Required_Interview_Question_4: "Question 4",
+  Required_Interview_Question_5: "Question 5",
+  Posting_Channels: "At least one posting channel",
+  Salary_Disclosure_Status: "Salary visibility",
+  License_Requirement_Status: "License or certificate requirement",
+  License_or_Certificate_Required: "License or certificate details",
+  HOD_Interview_Required: "HR interview requirement",
   screeningCriteria: "Screening instructions",
   requiredInterviewQuestion1: "Question 1",
   requiredInterviewQuestion2: "Question 2",
@@ -120,6 +133,19 @@ const setupFieldLabels: Record<string, string> = {
 };
 
 const setupFieldAnchors: Record<string, string> = {
+  Job_Description: "#recruitment-setup",
+  Screening_Criteria: "#vapi-screeningCriteria",
+  AI_System_Prompt: "#vapi-preview",
+  Required_Interview_Question_1: "#vapi-question-1",
+  Required_Interview_Question_2: "#vapi-question-2",
+  Required_Interview_Question_3: "#vapi-question-3",
+  Required_Interview_Question_4: "#vapi-question-4",
+  Required_Interview_Question_5: "#vapi-question-5",
+  Posting_Channels: "#vapi-posting-channels",
+  Salary_Disclosure_Status: "#vapi-salary-disclosure",
+  License_Requirement_Status: "#vapi-license-requirement",
+  License_or_Certificate_Required: "#vapi-license",
+  HOD_Interview_Required: "#vapi-hr-interview",
   screeningCriteria: "#vapi-screeningCriteria",
   requiredInterviewQuestion1: "#vapi-question-1",
   requiredInterviewQuestion2: "#vapi-question-2",
@@ -258,9 +284,9 @@ function Field({
     <label className={`field${multiline ? " field-wide" : ""}`} htmlFor={id}>
       <span>{label}{required ? " *" : ""}</span>
       {multiline ? (
-        <textarea id={id} value={value ?? ""} disabled={disabled} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} />
+        <textarea id={id} value={value ?? ""} disabled={disabled} required={required} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} />
       ) : (
-        <input id={id} type={type} value={value ?? ""} disabled={disabled} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} />
+        <input id={id} type={type} value={value ?? ""} disabled={disabled} required={required} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} />
       )}
       {hint && <small>{hint}</small>}
     </label>
@@ -287,11 +313,13 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
   const actionRequestId = useRef(globalThis.crypto.randomUUID());
   const errorSummaryRef = useRef<HTMLDivElement>(null);
   const initialSetupKey = useMemo(() => JSON.stringify(initialValues), [initialValues]);
+  const [savedSetupKey, setSavedSetupKey] = useState(initialSetupKey);
 
   useEffect(() => {
     setValues(initialValues);
+    setSavedSetupKey(initialSetupKey);
     setAdvancedPrompt(false);
-  }, [initialValues]);
+  }, [initialSetupKey, initialValues]);
 
   const currentPrompt = valueText(values.aiSystemPrompt) || STANDARD_VAPI_SYSTEM_PROMPT_TEMPLATE;
   const generated = useMemo(() => generatedPrompt(values, currentPrompt), [currentPrompt, values]);
@@ -305,7 +333,7 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
   const publishingReadiness = getSetupReadiness(readinessInput, "ready-for-publishing");
   const setupStatus = values.recruitmentSetupStatus || setup.recruitmentSetupStatus || "Draft";
 
-  const setupHasChanges = JSON.stringify(values) !== initialSetupKey;
+  const setupHasChanges = JSON.stringify(values) !== savedSetupKey;
 
   if (!(status === "Approved" || status === "Recruitment Setup" || status === "Job Posted")) return null;
 
@@ -422,19 +450,21 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
       };
       setMessage(confirmationMessages[action] || result.message || "Recruitment setup saved successfully.");
       setWarning([notification.warning, typeof result.voiceSlotWarning === "string" ? result.voiceSlotWarning : ""].filter(Boolean).join(" "));
+      setSavedSetupKey(JSON.stringify(values));
       actionRequestId.current = globalThis.crypto.randomUUID();
-      onSaved?.(typeof result.status === "string" ? result.status : undefined);
+      // Keep the local draft mounted after a normal Save. Reloading the parent
+      // immediately can race the workflow's sheet write and make selected
+      // checkboxes appear to clear even though the draft was accepted.
+      if (action !== "save_draft") onSaved?.(typeof result.status === "string" ? result.status : undefined);
       if (action === "publish_role") {
         router.push("/roles");
       }
     } catch (caught) {
       setValidationIssues([]);
       setError(`${caught instanceof Error ? caught.message : "Unable to save recruitment setup."} Your entries were reloaded from the saved record below, so you can see exactly what was kept before retrying.`);
-      // The setup fields are written to the sheet before the workflow call, so
-      // a failure here does not necessarily mean nothing was saved. Reloading
-      // shows the actually persisted state instead of leaving HR guessing
-      // whether to redo the work.
-      onSaved?.();
+      // The setup fields are written before the workflow call. Keep the local
+      // draft mounted after an error so HR can retry without losing checkbox
+      // selections or other in-progress fields.
     } finally {
       setSaving(false);
       setSavingAction("");
@@ -465,7 +495,7 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
         </div>
         <div className="form-grid vapi-form-grid">
           <Field id="vapi-screeningCriteria" label="What should Ella listen for?" value={values.screeningCriteria} onChange={(value) => update("screeningCriteria", value)} disabled={!editable || saving} multiline required placeholder="What evidence should HR and Ella look for in each candidate?" hint="Ella will use this as extra guidance during the call, alongside the fields below." />
-          <Field id="vapi-license" label="License or certificate" value={values.licenseOrCertificateRequired} onChange={(value) => update("licenseOrCertificateRequired", value)} disabled={!editable || saving} placeholder="Example: CPA preferred" />
+          <Field id="vapi-license" label="License or certificate" value={values.licenseOrCertificateRequired} onChange={(value) => update("licenseOrCertificateRequired", value)} disabled={!editable || saving} required={values.licenseRequirementStatus === "Required"} placeholder="Example: CPA preferred" />
           <Field id="vapi-keywords" label="Keywords to look for" value={values.keywordsToLookFor} onChange={(value) => update("keywordsToLookFor", value)} disabled={!editable || saving} placeholder="Separate keywords with commas" />
            <Field id="vapi-transferable-skills" label="Transferable skills accepted" value={values.transferableSkillsAccepted} onChange={(value) => update("transferableSkillsAccepted", value)} disabled={!editable || saving} multiline placeholder="Describe adjacent experience that may be accepted." />
            <Field id="vapi-experience" label="Minimum relevant experience" value={values.minimumYearsOfExperience} onChange={(value) => update("minimumYearsOfExperience", value)} disabled={!editable || saving} placeholder="Example: None, 3 years, or 5+ years" hint="Use None when no experience threshold applies." />
@@ -477,6 +507,7 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
       <div className="vapi-builder">
         <div className="vapi-section-heading">
           <div><span className="vapi-kicker">EVALUATION FIELDS</span><h3>What should Ella score or note for this role?</h3><p>Score, recommendation, strengths, and concerns are always included. Add anything extra this role needs — the same list is used for both resume screening and the voice interview.</p></div>
+          <small className="vapi-required-note"><strong>*</strong> Required fields are marked with an asterisk.</small>
         </div>
         <div className="vapi-baseline-fields">
           <span className="vapi-kicker">Always included</span>
@@ -533,12 +564,12 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
           {questionKeys.map((key, index) => {
             const lockedFromHr = index === 0 ? valueText(values.hodScreeningQuestion1) : index === 1 ? valueText(values.hodScreeningQuestion2) : "";
             return (
-              <label className={`vapi-question${lockedFromHr ? " vapi-question-locked" : ""}`} htmlFor={`vapi-question-${index + 1}`} key={key}>
+              <label id={`vapi-question-${index + 1}`} className={`vapi-question${lockedFromHr ? " vapi-question-locked" : ""}`} htmlFor={`vapi-question-input-${index + 1}`} key={key}>
                 <span><strong>{index + 1}</strong>{`Question ${index + 1}`}{lockedFromHr ? " · from HR" : index < 3 ? " *" : " (optional)"}</span>
                 {lockedFromHr ? (
                   <p className="vapi-question-locked-text">{lockedFromHr}</p>
                 ) : (
-                  <textarea id={`vapi-question-${index + 1}`} value={values[key] ?? ""} disabled={!editable || saving} placeholder="Write the exact question Ella should ask." onChange={(event) => update(key, event.target.value)} />
+                  <textarea id={`vapi-question-input-${index + 1}`} value={values[key] ?? ""} disabled={!editable || saving} placeholder="Write the exact question Ella should ask." onChange={(event) => update(key, event.target.value)} />
                 )}
               </label>
             );
@@ -546,7 +577,7 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
         </div>
       </div>
 
-      <div className="vapi-preview">
+      <div id="vapi-preview" className="vapi-preview">
         <div className="vapi-section-heading">
           <div><span className="vapi-kicker">{advancedPrompt ? "ADVANCED" : "SCRIPT PREVIEW"}</span><h3>{advancedPrompt ? "Edit the full interview script" : "See what Ella will say"}</h3><p>{advancedPrompt ? "For advanced use only. Keep the marker that says system_prompt exactly where it is — that's where your field answers above get inserted automatically." : "This includes your questions above and everything else Ella will say on the call, after your answers are filled in."}</p></div>
           <div className="vapi-preview-actions">
@@ -565,11 +596,12 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
         )}
       </div>
 
-      <details className="vapi-publishing">
-        <summary><span><strong>Publishing checklist</strong><small>Choose where and how this approved role will be published.</small></span><span className="vapi-status-badge">{setupStatus}</span></summary>
+      <details id="vapi-publishing-checklist" className="vapi-publishing" open>
+        <summary><span><strong>Publishing checklist</strong><small>Required fields are marked *. Complete the missing items below before publishing.</small></span><span className="vapi-status-badge">{setupStatus}</span></summary>
         <div className="vapi-publishing-content">
-          <fieldset className="vapi-channel-fieldset">
-            <legend>Posting channels</legend>
+          <fieldset id="vapi-posting-channels" className="vapi-channel-fieldset">
+            <legend>Posting channels *</legend>
+            <small className="vapi-required-help">Choose at least one place to publish this role.</small>
             <div className="vapi-channel-options">
               {channels.map((channel) => (
                 <label key={channel} className="vapi-channel-option">
@@ -580,9 +612,9 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
             </div>
           </fieldset>
           <div className="vapi-policy-grid">
-            <label htmlFor="vapi-salary-disclosure">Salary visibility<select id="vapi-salary-disclosure" value={values.salaryDisclosureStatus || ""} disabled={!editable || saving} onChange={(event) => update("salaryDisclosureStatus", event.target.value)}><option value="">Choose one</option><option>Disclosed</option><option>Not disclosed</option></select></label>
-            <label htmlFor="vapi-license-requirement">License requirement<select id="vapi-license-requirement" value={values.licenseRequirementStatus || ""} disabled={!editable || saving} onChange={(event) => update("licenseRequirementStatus", event.target.value)}><option value="">Choose one</option><option>Required</option><option>Preferred</option><option>Not required</option></select></label>
-            <label htmlFor="vapi-hr-interview">HR interview<select id="vapi-hr-interview" value={values.hodInterviewRequired || ""} disabled={!editable || saving} onChange={(event) => update("hodInterviewRequired", event.target.value)}><option value="">Choose one</option><option>Required</option><option>Not required</option></select></label>
+            <label htmlFor="vapi-salary-disclosure"><span>Salary visibility *</span><select required id="vapi-salary-disclosure" value={values.salaryDisclosureStatus || ""} disabled={!editable || saving} onChange={(event) => update("salaryDisclosureStatus", event.target.value)}><option value="">Choose one</option><option>Disclosed</option><option>Not disclosed</option></select></label>
+            <label htmlFor="vapi-license-requirement"><span>License requirement *</span><select required id="vapi-license-requirement" value={values.licenseRequirementStatus || ""} disabled={!editable || saving} onChange={(event) => update("licenseRequirementStatus", event.target.value)}><option value="">Choose one</option><option>Required</option><option>Preferred</option><option>Not required</option></select></label>
+            <label htmlFor="vapi-hr-interview"><span>HR interview *</span><select required id="vapi-hr-interview" value={values.hodInterviewRequired || ""} disabled={!editable || saving} onChange={(event) => update("hodInterviewRequired", event.target.value)}><option value="">Choose one</option><option>Required</option><option>Not required</option></select></label>
           </div>
         </div>
       </details>
@@ -592,7 +624,7 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
           <div className={`setup-readiness-card${readiness.valid ? "" : " has-missing"}`} key={title}>
             <strong>{title}</strong>
             <small>{readiness.valid ? "All required items complete" : `${readiness.missingFields.length} item${readiness.missingFields.length === 1 ? "" : "s"} missing`}</small>
-            {!readiness.valid && <ul>{readiness.missingFields.slice(0, 4).map((field) => <li key={field.key}>{field.label}</li>)}</ul>}
+            {!readiness.valid && <ul>{readiness.missingFields.map((field) => <li key={field.key}>{setupFieldAnchors[field.key] ? <a href={setupFieldAnchors[field.key]}>{field.label}</a> : field.label}</li>)}</ul>}
           </div>
         ))}
       </div>

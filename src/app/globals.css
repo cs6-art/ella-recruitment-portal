@@ -1115,6 +1115,12 @@ a { color: inherit; text-decoration: none; }
 .vapi-channel-fieldset legend { padding-inline: 5px; color: var(--navy); font-size: 13px; font-weight: 800; }
 .vapi-channel-options { display: flex; flex-wrap: wrap; gap: 8px; }
 .vapi-channel-option { display: inline-flex; align-items: center; gap: 7px; padding: 9px 10px; border: 1px solid #dce6f0; border-radius: 8px; color: #44516a; background: #fbfdff; font-size: 12px; font-weight: 700; }
+.vapi-channel-option:has(input:checked) { border-color: #6baee0; color: var(--navy); background: #edf6ff; box-shadow: 0 0 0 2px rgba(37, 132, 202, .08); }
+.vapi-channel-option input { accent-color: var(--blue); }
+.vapi-required-note { display: block; margin-top: 6px; color: #7a4b00; font-size: 12px; line-height: 1.4; }
+.vapi-required-note strong, .vapi-required-help, .required-mark { color: #b3362d; }
+.vapi-required-help { display: block; margin: -4px 0 10px; font-size: 11px; line-height: 1.4; }
+.vapi-publishing fieldset:has(input:invalid), .vapi-publishing label:has(select:invalid) { border-color: #e6aaa3; }
 .vapi-baseline-fields { display: grid; gap: 8px; margin-bottom: 14px; }
 .vapi-baseline-chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .vapi-chip { display: inline-flex; align-items: center; padding: 6px 11px; border-radius: 999px; color: #176746; background: #e4f5eb; font-size: 12px; font-weight: 700; }
@@ -1542,6 +1548,9 @@ html { scroll-behavior: smooth; }
 .recruitment-editor .setup-readiness-card ul { margin: 6px 0 0; padding-left: 16px; color: #a12b22; font-size: 10px; line-height: 1.35; }
 .recruitment-editor .setup-readiness-card.has-missing { border-color: #efd1cd; background: #fffaf9; }
 .recruitment-editor .setup-readiness-card.has-missing small { color: #a12b22; }
+.recruitment-editor .setup-readiness-card a { color: #a12b22; font-weight: 800; text-decoration: underline; text-underline-offset: 2px; }
+.recruitment-editor .setup-readiness-card a:hover, .recruitment-editor .setup-readiness-card a:focus-visible { color: var(--navy); }
+.required-mark { font-weight: 900; }
 .recruitment-editor .setup-stage-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .recruitment-editor .setup-stage-actions .btn { min-height: 40px; }
 .template-preview-backdrop { position: fixed; z-index: 30; inset: 0; display: grid; place-items: center; padding: 24px; background: rgba(14, 32, 51, .42); }
