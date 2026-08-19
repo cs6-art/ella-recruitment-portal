@@ -48,6 +48,7 @@ export default function BookingSelector({ token, initialContext }: { token: stri
   const [confirmationMessage, setConfirmationMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const title = context.kind === "voice" ? "AI Voice Interview Booking" : "Final Interview Booking";
+  const roleName = context.selectedRole.trim();
   const noShow = context.currentSlot?.status?.toLowerCase() === "no show" || context.bookingStatus.toLowerCase() === "no show";
   const booked = context.currentSlot?.status?.toLowerCase() === "booked" || (!context.currentSlot && (context.bookingStatus.toLowerCase() === "used" || context.bookingStatus.toLowerCase().includes("scheduled") || context.bookingStatus.toLowerCase() === "booked" || Boolean(context.scheduledDate)));
   const selecting = !booked || noShow;
@@ -95,7 +96,7 @@ export default function BookingSelector({ token, initialContext }: { token: stri
     <div className="booking-brand"><span className="booking-brand-mark">M</span><span><strong>McLink</strong><small>Recruitment Portal</small></span></div>
     <div className="booking-eyebrow">{title}</div>
     <h1>{noAvailability ? (noShow ? "No replacement times available" : "No interview times available") : noShow ? "Choose a new interview time" : booked ? "Your interview is scheduled" : "Choose a time that works for you"}</h1>
-    <p className="booking-intro">Hi {context.candidateName || "there"}. {noAvailability ? <>There are currently no available times for your <strong>{context.selectedRole || "interview"}</strong>.</> : selecting ? <>Select an available slot for your <strong>{context.selectedRole || "interview"}</strong>.</> : <>Your <strong>{context.selectedRole || "interview"}</strong> is confirmed.</>}</p>
+    <p className="booking-intro">Hi {context.candidateName || "there"}. {noAvailability ? <>There are currently no available times for {roleName ? <><strong>{roleName}</strong> role</> : "this role"}.</> : selecting ? <>Select an available slot for {roleName ? <><strong>{roleName}</strong> role</> : "this role"}.</> : <>{roleName ? <>Your <strong>{roleName}</strong> interview is confirmed.</> : "Your interview is confirmed."}</>}</p>
     {booked && !noShow ? <div className="booking-confirmed">
       {confirmationMessage && <ActionFeedback kind="success" className="booking-confirmed-feedback">{confirmationMessage}</ActionFeedback>}
       <div className="booking-confirmed-icon">✓</div>
