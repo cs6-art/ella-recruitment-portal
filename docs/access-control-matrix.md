@@ -14,9 +14,18 @@ The portal currently exposes five boolean permissions in `User_Directory`:
 | --- | --- | --- | --- | --- | --- |
 | Admin | Yes | Yes | Yes | Yes | Yes |
 | HR | Yes | Yes | No | No | No |
-| Management | Optional | No | Yes | No | No |
-| HOD / Hiring Manager | Yes | Optional, scoped to assigned work | No | No | No |
-| Viewer / CS | No | No | No | No | No |
+| Management | No | Yes | Yes | No | No |
+| HOD / Department Head | Yes | Yes | No | No | No |
+| Recruiter | Yes | Yes | No | No | No |
+| Interviewer | No | Yes | No | No | No |
+| Hiring Manager | No | Yes | Yes | No | No |
+| Finance Reviewer | No | No | No | No | No |
+| Auditor / Read-only | No | No | No | No | No |
+| Requester / Employee | Yes | No | No | No | No |
+
+The account editor exposes these roles in a dropdown and applies the listed
+permissions as a starting point. Administrators can fine-tune the checkboxes
+for a specific person without changing the role label.
 
 ## Calendar ownership
 

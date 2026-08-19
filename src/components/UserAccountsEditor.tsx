@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import ActionFeedback from "@/components/ActionFeedback";
 import { useConfirmation } from "@/components/ConfirmationModal";
 import ValidationSummary, { type ValidationIssue } from "@/components/ValidationSummary";
+import { ACCESS_ROLE_OPTIONS, getAccessRolePreset } from "@/lib/access-roles";
 
 type DirectoryUser = {
   email: string;
@@ -119,6 +120,25 @@ export default function UserAccountsEditor({ currentEmail }: { currentEmail: str
     setFieldErrors((current) => ({ ...current, [String(key)]: "" }));
   }
 
+  function updateAccessRole(value: string) {
+    const preset = getAccessRolePreset(value);
+    setForm((current) => ({
+      ...current,
+      accessRole: value,
+      ...(preset ? {
+        canCreateRole: preset.canCreateRole,
+        canReviewRole: preset.canReviewRole,
+        canApproveRole: preset.canApproveRole,
+        canEditSettings: preset.canEditSettings,
+        canManageUsers: preset.canManageUsers,
+      } : {}),
+    }));
+    setError("");
+    setMessage("");
+    setSaveError("");
+    setFieldErrors((current) => ({ ...current, accessRole: "" }));
+  }
+
   function closeForm() {
     setShowForm(false);
     setError("");
@@ -224,7 +244,7 @@ export default function UserAccountsEditor({ currentEmail }: { currentEmail: str
         <form className="user-account-form" noValidate onSubmit={(event) => void save(event)}>
           <div className="field"><label htmlFor="user-full-name">Full name</label><input id="user-full-name" value={form.fullName} onChange={(event) => updateForm("fullName", event.target.value)} required aria-invalid={Boolean(fieldErrors.fullName)} />{fieldErrors.fullName && <small className="field-error">{fieldErrors.fullName}</small>}</div>
           <div className="field"><label htmlFor="user-email">Email address</label><input id="user-email" type="email" value={form.email} onChange={(event) => updateForm("email", event.target.value)} required aria-invalid={Boolean(fieldErrors.email)} />{fieldErrors.email && <small className="field-error">{fieldErrors.email}</small>}</div>
-          <div className="field"><label htmlFor="user-access-role">Access role</label><input id="user-access-role" value={form.accessRole} onChange={(event) => updateForm("accessRole", event.target.value)} placeholder="HR" required aria-invalid={Boolean(fieldErrors.accessRole)} />{fieldErrors.accessRole && <small className="field-error">{fieldErrors.accessRole}</small>}</div>
+          <div className="field"><label htmlFor="user-access-role">Access role</label><select id="user-access-role" value={form.accessRole} onChange={(event) => updateAccessRole(event.target.value)} required aria-invalid={Boolean(fieldErrors.accessRole)}>{form.accessRole && !getAccessRolePreset(form.accessRole) && <option value={form.accessRole}>{form.accessRole} (existing)</option>}{ACCESS_ROLE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>{getAccessRolePreset(form.accessRole) && <small className="field-hint">{getAccessRolePreset(form.accessRole)?.description} Selecting a role applies recommended permissions; you can adjust them below.</small>}{fieldErrors.accessRole && <small className="field-error">{fieldErrors.accessRole}</small>}</div>
           <div className="field"><label htmlFor="user-department">Department</label><input id="user-department" value={form.department} onChange={(event) => updateForm("department", event.target.value)} placeholder="AI, Finance, Operations" /></div>
           <fieldset className="user-account-permissions"><legend>Permissions</legend><label><input type="checkbox" checked={form.canCreateRole} onChange={(event) => updateForm("canCreateRole", event.target.checked)} /> Create role requests</label><label><input type="checkbox" checked={form.canReviewRole} onChange={(event) => updateForm("canReviewRole", event.target.checked)} /> Review role requests</label><label><input type="checkbox" checked={form.canApproveRole} onChange={(event) => updateForm("canApproveRole", event.target.checked)} /> Approve role requests</label><label><input type="checkbox" checked={form.canEditSettings} onChange={(event) => updateForm("canEditSettings", event.target.checked)} /> Edit settings</label><label><input type="checkbox" checked={form.canManageUsers} onChange={(event) => updateForm("canManageUsers", event.target.checked)} /> Manage user accounts and roles</label></fieldset>
           <label className="user-account-active"><input type="checkbox" checked={form.active} onChange={(event) => updateForm("active", event.target.checked)} /> Account is active</label>
