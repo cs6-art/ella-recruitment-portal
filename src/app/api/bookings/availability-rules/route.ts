@@ -12,17 +12,18 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 function cleanRule(roleId: string, raw: Partial<InterviewAvailabilityRule>): InterviewAvailabilityRule {
+  const interviewType = raw.interviewType === "Final Interview" ? "Final Interview" : "AI Voice Interview";
   return {
     ruleId: String(raw.ruleId || crypto.randomUUID()),
     roleId,
-    interviewType: raw.interviewType === "Final Interview" ? "Final Interview" : "AI Voice Interview",
+    interviewType,
     mode: raw.mode === "specific" ? "specific" : "recurring",
     startDate: String(raw.startDate || ""),
     endDate: String(raw.endDate || ""),
     weekdays: Array.isArray(raw.weekdays) ? raw.weekdays.map(Number).filter((day) => Number.isInteger(day) && day >= 0 && day <= 6) : [],
     startTime: String(raw.startTime || ""),
     endTime: String(raw.endTime || ""),
-    slotDurationMinutes: Number(raw.slotDurationMinutes || 30),
+    slotDurationMinutes: interviewType === "AI Voice Interview" ? 10 : Number(raw.slotDurationMinutes || 30),
     timezone: String(raw.timezone || "Asia/Singapore").trim(),
     specificSlots: Array.isArray(raw.specificSlots) ? raw.specificSlots as InterviewAvailabilityRule["specificSlots"] : [],
     status: "Active",

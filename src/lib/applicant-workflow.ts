@@ -4,14 +4,14 @@ import { getGoogleServiceAccountPrivateKey } from "@/lib/google-service-account"
 import { z } from "zod";
 
 import { createFinalInterviewEvent, deleteFinalInterviewEvent, checkCalendarAvailability, getCalendarBusyWindows, type CalendarAvailabilityResult } from "@/lib/google-calendar";
-import { getPortalSettings, getRoleRequestById } from "@/lib/google-sheets";
+import { getRoleRequestById } from "@/lib/google-sheets";
 import { parseHodAvailabilitySlots, slotMatchesHodAvailability } from "@/lib/hod-availability";
 import { isValidTimezone, scheduledInstant } from "@/lib/interview-time";
 import { bookingLink } from "@/lib/public-url";
 import { cachedSheetsRead, invalidateSheetsCache } from "@/lib/sheets-cache";
 import type { ResumeFileRecord } from "@/lib/resume-files";
 import { generateAutomaticVoiceInterviewSlots, type VoiceInterviewSlot } from "@/lib/voice-interview-availability";
-import { hasValidFutureTime, isBeforeTargetHiringDate, isVirtualSlotId, slotKey, virtualSlotsForRole } from "@/lib/interview-availability-rules";
+import { hasValidFutureTime, isBeforeTargetHiringDate, isStandardVoiceInterviewSlot, isVirtualSlotId, slotKey, virtualSlotsForRole } from "@/lib/interview-availability-rules";
 
 export type BookingKind = "voice" | "final";
 export type ApplicantDecisionStage = "resume" | "voice" | "final";
@@ -527,6 +527,7 @@ export async function getBookingContext(kind: BookingKind, token: string): Promi
     .filter((slot) => field(slot, "Status").toLowerCase() === "available")
     .filter((slot) => isBeforeTargetHiringDate(field(slot, "Date"), role?.targetHiringDate))
     .map(slotFrom)
+    .filter((slot) => kind !== "voice" || isStandardVoiceInterviewSlot(slot))
     .filter((slot) => {
       try {
         return scheduledInstant(slot.date, slot.startTime, slot.timezone || "Asia/Singapore").getTime() > Date.now();
@@ -795,6 +796,7 @@ async function reserveBookingInternal(kind: BookingKind, token: string, slotId: 
   if (matchingSlotIndex < 0) {
     const virtualSlot = context.slots.find((slot) => slot.slotId === cleanSlotId);
     if (!virtualSlot || !isVirtualSlotId(cleanSlotId)) throw new Error("The selected interview slot is no longer available.");
+    if (!hasValidFutureTime(virtualSlot)) throw new Error("This interview slot has already passed. Choose another time.");
     if (kind === "final") {
       const hodEmail = (role?.hodEmail || role?.requesterEmail || "").trim();
       if (hodEmail) {
@@ -829,6 +831,9 @@ async function reserveBookingInternal(kind: BookingKind, token: string, slotId: 
     virtualReservation = true;
   }
   if (!matchingSlot) throw new Error("The selected interview slot is no longer available.");
+  // Re-check at confirmation time so a page opened earlier cannot reserve a
+  // slot that has since started or passed.
+  if (!hasValidFutureTime({ date: field(matchingSlot, "Date"), startTime: field(matchingSlot, "Start_Time", "Start Time"), timezone: field(matchingSlot, "Timezone", "Time Zone") || "Asia/Singapore" })) throw new Error("This interview slot has already passed. Choose another time.");
   if (!isBeforeTargetHiringDate(field(matchingSlot, "Date"), role?.targetHiringDate)) throw new Error("This interview slot is outside the role's target hiring window. Choose another slot.");
   if ((!virtualReservation && field(matchingSlot, "Status").toLowerCase() !== "available") || field(matchingSlot, "Interview_Type", "Interview Type") !== bookingKindValue(kind) || field(matchingSlot, "Role_ID", "Role ID").toLowerCase() !== context.roleId.toLowerCase()) throw new Error("The selected interview slot is no longer available.");
 
@@ -1341,8 +1346,7 @@ export async function createInterviewSlot(input: CreateInterviewSlotInput) {
 
 export async function createConfiguredVoiceInterviewSlots({ roleId, mode, manualSlots, autoStartDate, autoEndDate, timezone }: { roleId: string; mode: "none" | "manual" | "automatic"; manualSlots: VoiceInterviewSlot[]; autoStartDate: string; autoEndDate: string; timezone: string }): Promise<{ created: number; skipped: number; slots: VoiceInterviewSlot[] }> {
   if (mode === "none") return { created: 0, skipped: 0, slots: [] };
-  const settings = await getPortalSettings();
-  const durationMinutes = Number(settings.find((setting) => setting.key === "Voice_Interview_Duration_Minutes")?.value || 30);
+  const durationMinutes = 10;
   const configuredSlots = mode === "automatic"
     ? generateAutomaticVoiceInterviewSlots({ startDate: autoStartDate, endDate: autoEndDate, timezone, durationMinutes })
     : manualSlots;

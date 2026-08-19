@@ -12,7 +12,7 @@ import UiIcon from "@/components/UiIcon";
 import type { InterviewBooking } from "@/lib/candidate-applications";
 import type { RoleRequestSummary } from "@/lib/google-sheets";
 import { scheduledInstant } from "@/lib/interview-time";
-import { isBeforeTargetHiringDate, roleAvailabilityRules, ruleToSlots, slotKey, virtualSlotsForRole, type InterviewAvailabilityRule } from "@/lib/interview-availability-rules";
+import { isBeforeTargetHiringDate, isStandardVoiceInterviewSlot, roleAvailabilityRules, ruleToSlots, slotKey, virtualSlotsForRole, type InterviewAvailabilityRule } from "@/lib/interview-availability-rules";
 
 type BookingKind = "voice" | "final";
 type InterviewType = "AI Voice Interview" | "Final Interview";
@@ -31,7 +31,7 @@ function monthLabel(value: Date) { return new Intl.DateTimeFormat(undefined, { m
 function calendarDays(month: Date) { const first = new Date(month.getFullYear(), month.getMonth(), 1); const count = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate(); return [...Array.from({ length: first.getDay() }, () => null), ...Array.from({ length: count }, (_, index) => new Date(month.getFullYear(), month.getMonth(), index + 1))]; }
 function hasStarted(booking: InterviewBooking) { try { return scheduledInstant(booking.date, booking.startTime || "00:00", booking.timezone || "Asia/Singapore").getTime() <= Date.now(); } catch { return false; } }
 function titleFor(kind: BookingKind) { return kind === "voice" ? "AI Voice Interview" : "Final Interview"; }
-function makeRule(form: RuleForm, roleId: string): Partial<InterviewAvailabilityRule> { const startDate = form.mode === "recurring" ? todayInputValue() : form.startDate; const endDate = form.mode === "recurring" ? addDays(startDate, 90) : form.endDate || form.specificDate; return { interviewType: form.interviewType, mode: form.mode, roleId, startDate, endDate, weekdays: form.mode === "recurring" ? form.weekdays : [], startTime: form.mode === "recurring" ? form.startTime : "", endTime: form.mode === "recurring" ? form.endTime : "", slotDurationMinutes: Number(form.duration), timezone: form.timezone, specificSlots: form.mode === "specific" && form.specificDate ? [{ date: form.specificDate, startTime: form.startTime, endTime: form.endTime, timezone: form.timezone }] : [] }; }
+function makeRule(form: RuleForm, roleId: string): Partial<InterviewAvailabilityRule> { const startDate = form.mode === "recurring" ? todayInputValue() : form.startDate; const endDate = form.mode === "recurring" ? addDays(startDate, 90) : form.endDate || form.specificDate; return { interviewType: form.interviewType, mode: form.mode, roleId, startDate, endDate, weekdays: form.mode === "recurring" ? form.weekdays : [], startTime: form.mode === "recurring" ? form.startTime : "", endTime: form.mode === "recurring" ? form.endTime : "", slotDurationMinutes: form.interviewType === "AI Voice Interview" ? 10 : Number(form.duration), timezone: form.timezone, specificSlots: form.mode === "specific" && form.specificDate ? [{ date: form.specificDate, startTime: form.startTime, endTime: form.endTime, timezone: form.timezone }] : [] }; }
 
 function busyWindowsForRole(role: BookingRole) {
   try { return JSON.parse(role.finalBusyWindows || "[]") as Array<{ start: string; end: string }>; } catch { return []; }
@@ -172,6 +172,7 @@ export default function BookingsList({ bookings: initialBookings, roles }: { boo
     .sort((a, b) => a.roleId.localeCompare(b.roleId)), [roles, calendarBusyWindows]);
   const allBookings = useMemo(() => {
     const legacy = bookings
+      .filter((booking) => booking.status.toLowerCase() !== "available" || !booking.interviewType.toLowerCase().includes("voice") || isStandardVoiceInterviewSlot(booking))
       .map((booking) => {
         const role = roleOptions.find((candidate) => candidate.roleId.toLowerCase() === booking.roleId.toLowerCase());
         const blocked = booking.interviewType.toLowerCase().includes("final") && booking.status.toLowerCase() === "available" && role && overlapsBusyWindow(booking, busyWindowsForRole(role));

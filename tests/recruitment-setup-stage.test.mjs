@@ -61,6 +61,16 @@ test("voice interview availability is not part of Recruitment Setup", async () =
   assert.deepEqual(slots.at(-1), { date: "2026-08-17", startTime: "16:30", endTime: "17:00", timezone: "Asia/Singapore" });
 });
 
+test("voice booking defaults to weekday ten-minute availability and creates only future slots", async () => {
+  const { generateAutomaticVoiceInterviewSlots } = await import("../src/lib/voice-interview-availability.ts");
+  const slots = generateAutomaticVoiceInterviewSlots({ startDate: "2026-08-17", endDate: "2026-08-17", timezone: "Asia/Singapore" });
+  assert.equal(slots.length, 48);
+  assert.deepEqual(slots.at(-1), { date: "2026-08-17", startTime: "16:50", endTime: "17:00", timezone: "Asia/Singapore" });
+  const availabilityRules = fs.readFileSync("src/lib/interview-availability-rules.ts", "utf8");
+  assert.match(availabilityRules, /DEFAULT-VOICE-/);
+  assert.match(availabilityRules, /slotDurationMinutes: 10/);
+});
+
 test("setup action status is synchronized for legacy and canonical n8n payload readers", () => {
   assert.match(route, /const nextRecruitmentSetupStatus = setupStatusForAction/);
   assert.match(route, /recruitmentSetupStatus: nextRecruitmentSetupStatus/);

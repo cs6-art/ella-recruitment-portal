@@ -52,7 +52,7 @@ function minutesToTime(value: number) {
   return `${Math.floor(value / 60).toString().padStart(2, "0")}:${(value % 60).toString().padStart(2, "0")}`;
 }
 
-export function generateAutomaticVoiceInterviewSlots({ startDate, endDate, timezone, durationMinutes = 30 }: { startDate: string; endDate: string; timezone: string; durationMinutes?: number }): VoiceInterviewSlot[] {
+export function generateAutomaticVoiceInterviewSlots({ startDate, endDate, timezone, durationMinutes = 10 }: { startDate: string; endDate: string; timezone: string; durationMinutes?: number }): VoiceInterviewSlot[] {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate) || startDate > endDate) {
     throw new Error("Choose a valid automatic voice interview date range.");
   }

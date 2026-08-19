@@ -215,7 +215,7 @@ export const defaultPortalSettings: PortalSetting[] = [
   { key: "Portal_Name", value: "McLink Recruitment Portal", category: "Portal Settings", description: "The name shown in the portal and candidate-facing pages.", updatedAt: "", updatedBy: "" },
   { key: "Portal_Timezone", value: "Asia/Singapore", category: "Portal Settings", description: "Default timezone used when dates or times are displayed.", updatedAt: "", updatedBy: "" },
   { key: "Booking_Default_Timezone", value: "Asia/Singapore", category: "Booking & Interview", description: "Timezone preselected when HR creates interview availability.", updatedAt: "", updatedBy: "" },
-  { key: "Voice_Interview_Duration_Minutes", value: "30", category: "Booking & Interview", description: "Expected duration for an AI Voice Interview slot.", updatedAt: "", updatedBy: "" },
+  { key: "Voice_Interview_Duration_Minutes", value: "10", category: "Booking & Interview", description: "Fixed duration for an AI Voice Interview slot.", updatedAt: "", updatedBy: "" },
   { key: "Final_Interview_Duration_Minutes", value: "60", category: "Booking & Interview", description: "Expected duration for a Final Interview slot.", updatedAt: "", updatedBy: "" },
   { key: "Booking_Link_Expiry_Days", value: "7", category: "Booking & Interview", description: "Number of days before a candidate booking link expires.", updatedAt: "", updatedBy: "" },
   { key: "Require_Resume_HR_Approval", value: "Yes", category: "Workflow Rules", description: "HR approval is required before the voice booking link is created.", updatedAt: "", updatedBy: "" },
