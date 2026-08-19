@@ -173,15 +173,50 @@ async function getAuthorizedClient(email: string) {
   return authorized?.client || null;
 }
 
-export async function getCalendarConnectionStatus(email = ""): Promise<{ connected: boolean; accountEmail: string | null; connectedAt: string | null; expectedEmail: string }> {
+/**
+ * Inspect the stored token owner for the Settings status card. This is read
+ * only: a mismatched account is shown for transparency but is never used to
+ * create or inspect final-interview events.
+ */
+async function getStoredCalendarAccountEmail(email: string): Promise<string | null> {
+  const connection = await getCalendarConnection(email);
+  if (!connection?.refreshToken) return null;
+  const client = newOAuthClient();
+  const expiresAt = connection.tokenExpiresAt ? Date.parse(connection.tokenExpiresAt) : 0;
+  if (!connection.accessToken || !expiresAt || expiresAt < Date.now() + 60_000) {
+    client.setCredentials({ refresh_token: connection.refreshToken });
+    const { credentials } = await client.refreshAccessToken();
+    client.setCredentials(credentials);
+  } else {
+    client.setCredentials({ access_token: connection.accessToken, refresh_token: connection.refreshToken });
+  }
+  const accessToken = client.credentials.access_token;
+  if (!accessToken) return null;
+  const tokenInfo = await client.getTokenInfo(accessToken);
+  let accountEmail = normalizedEmail(tokenInfo.email || "");
+  if (!accountEmail) {
+    try {
+      const userInfo = await google.oauth2({ version: "v2", auth: client }).userinfo.get();
+      accountEmail = normalizedEmail(userInfo.data.email || "");
+    } catch {
+      // Older tokens may not include a profile scope; the status card can
+      // still safely report disconnected when Google does not reveal an email.
+    }
+  }
+  return accountEmail || null;
+}
+
+export async function getCalendarConnectionStatus(email = ""): Promise<{ connected: boolean; accountEmail: string | null; connectedAt: string | null; expectedEmail: string; accountMismatch: boolean }> {
   try {
     const target = await finalInterviewCalendarTarget(email);
     const connection = await getCalendarConnection(target.email);
-    const authorized = await getAuthorizedClientWithIdentity(target.email);
-    return { connected: Boolean(authorized), accountEmail: authorized?.accountEmail || null, connectedAt: connection?.connectedAt || null, expectedEmail: target.email };
+    const accountEmail = await getStoredCalendarAccountEmail(target.email);
+    const accountMismatch = Boolean(accountEmail && accountEmail !== target.email);
+    const authorized = accountMismatch ? null : await getAuthorizedClientWithIdentity(target.email);
+    return { connected: Boolean(authorized), accountEmail, connectedAt: connection?.connectedAt || null, expectedEmail: target.email, accountMismatch };
   } catch (error) {
     console.warn("[Google Calendar] Connection identity check failed:", error);
-    return { connected: false, accountEmail: null, connectedAt: null, expectedEmail: normalizedEmail(email) };
+    return { connected: false, accountEmail: null, connectedAt: null, expectedEmail: normalizedEmail(email), accountMismatch: false };
   }
 }
 

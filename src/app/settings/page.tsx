@@ -11,6 +11,10 @@ export const dynamic = "force-dynamic";
 export default async function SettingsPage() {
   const user = verifySessionToken((await cookies()).get(COOKIE_NAME)?.value);
   if (!user) redirect("/");
-  if (!user.canEditSettings) redirect("/dashboard");
-  return <AppShell user={user}><GoogleCalendarConnect /><SettingsEditor /></AppShell>;
+  const canManage = user.canEditSettings === true;
+  return <AppShell user={user}>
+    {!canManage && <main className="container page settings-page settings-readonly-page"><header className="hero-row settings-header"><div><span className="eyebrow-dark">PORTAL CONFIGURATION</span><h1>Settings</h1><p>View shared portal connections and calendar status.</p></div></header></main>}
+    <GoogleCalendarConnect canManage={canManage} />
+    {canManage ? <SettingsEditor /> : <section className="card settings-readonly-note"><strong>Read-only access</strong><span>Only settings administrators can change portal defaults or reconnect the shared calendar.</span></section>}
+  </AppShell>;
 }

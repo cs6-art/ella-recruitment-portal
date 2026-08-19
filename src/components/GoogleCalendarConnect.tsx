@@ -5,14 +5,13 @@ import { useRouter } from "next/navigation";
 
 import ActionFeedback from "@/components/ActionFeedback";
 
-type Status = "loading" | "connected" | "not_connected" | "error";
+type Status = "loading" | "connected" | "mismatch" | "not_connected" | "error";
 type NoticeKind = "success" | "warning" | "error";
 
-export default function GoogleCalendarConnect() {
+export default function GoogleCalendarConnect({ canManage = false }: { canManage?: boolean }) {
   const router = useRouter();
   const [status, setStatus] = useState<Status>("loading");
   const [connectedAccountEmail, setConnectedAccountEmail] = useState("");
-  const [expectedAccountEmail, setExpectedAccountEmail] = useState("");
   const [disconnecting, setDisconnecting] = useState(false);
   const [notice, setNotice] = useState("");
   const [noticeKind, setNoticeKind] = useState<NoticeKind>("success");
@@ -37,8 +36,7 @@ export default function GoogleCalendarConnect() {
       .then((res) => res.json())
       .then((data) => {
         setConnectedAccountEmail(typeof data.accountEmail === "string" ? data.accountEmail : "");
-        setExpectedAccountEmail(typeof data.expectedEmail === "string" ? data.expectedEmail : "");
-        setStatus(data.success && data.connected ? "connected" : "not_connected");
+        setStatus(data.success && data.connected ? "connected" : data.success && data.accountMismatch ? "mismatch" : "not_connected");
       })
       .catch(() => { setStatus("error"); setNotice("Unable to check Google Calendar connection status."); setNoticeKind("error"); });
   }, []);
@@ -60,7 +58,7 @@ export default function GoogleCalendarConnect() {
     <section className="card calendar-connect-card">
       <div className="card-header">
         <h2>Shared HR Google Calendar</h2>
-        {status === "connected" ? <span className="calendar-status-pill calendar-status-connected">Connected</span> : null}
+        {status === "connected" ? <span className="calendar-status-pill calendar-status-connected">Connected</span> : status === "mismatch" ? <span className="calendar-status-pill calendar-status-warning">Account mismatch</span> : null}
       </div>
       <div className="calendar-connect-body">
         {notice ? <ActionFeedback kind={noticeKind} className="calendar-connect-notice">{notice}</ActionFeedback> : null}
@@ -68,17 +66,20 @@ export default function GoogleCalendarConnect() {
           <>
             <p>Connected account: <strong>{connectedAccountEmail}</strong></p>
             <p>All final-interview availability and booking events use this shared HR calendar.</p>
-            <button type="button" className="btn btn-secondary" onClick={handleDisconnect} disabled={disconnecting}>
+            {canManage && <button type="button" className="btn btn-secondary" onClick={handleDisconnect} disabled={disconnecting}>
               {disconnecting ? "Disconnecting…" : "Disconnect"}
-            </button>
+            </button>}
+          </>
+        ) : status === "mismatch" ? (
+          <>
+            <p>Connected account: <strong>{connectedAccountEmail}</strong></p>
+            <p className="calendar-connect-warning">This account is not being used for final-interview bookings because it does not match the shared HR calendar configuration.</p>
+            {canManage && <a className="btn btn-primary" href="/api/auth/google-calendar/connect">Reconnect Google Calendar</a>}
           </>
         ) : (
           <>
-            <p>Connect the configured HR account so final-interview availability and booking events use the shared HR calendar.</p>
-            {expectedAccountEmail && <p>Expected Google account: <strong>{expectedAccountEmail}</strong></p>}
-            <a className="btn btn-primary" href="/api/auth/google-calendar/connect">
-              Connect Google Calendar
-            </a>
+            <p>The shared HR Google Calendar is not connected yet.</p>
+            {canManage ? <a className="btn btn-primary" href="/api/auth/google-calendar/connect">Connect Google Calendar</a> : <p>A settings administrator must connect it before final-interview availability can be checked.</p>}
           </>
         )}
       </div>

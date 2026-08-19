@@ -20,6 +20,6 @@ The portal currently exposes five boolean permissions in `User_Directory`:
 
 ## Calendar ownership
 
-Final interviews use the shared calendar configured by `Final_Interview_Calendar_Email` and `Final_Interview_Calendar_ID` in Settings. Only Admin (or a specifically trusted HR operations administrator) should connect that Google account. Other users should receive access through Google Calendar sharing rather than connecting personal calendars to the portal.
+Final interviews use the shared calendar configured by `Final_Interview_Calendar_Email` and `Final_Interview_Calendar_ID` in Settings. The current connected Google account is visible read-only to every signed-in user; only Admin (or a specifically trusted HR operations administrator) can connect, disconnect, or change that Google account. Other users should receive access through Google Calendar sharing rather than connecting personal calendars to the portal.
 
 If the organization later needs a separate calendar per interviewer, replace the shared setting with an explicit role-to-interviewer assignment and require each assigned interviewer to connect their own account. Do not infer calendar ownership from the person who created the role.

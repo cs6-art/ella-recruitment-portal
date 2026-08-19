@@ -66,6 +66,10 @@ test("creator dashboard and role creation remain responsive", async ({ page }) =
   await page.goto("/roles/new");
   await expect(page.getByRole("heading", { name: "Create role request" })).toBeVisible();
   await expectNoHorizontalOverflow(page);
+  await page.goto("/settings");
+  await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
+  await expect(page.getByText("Read-only access")).toBeVisible();
+  await expectNoHorizontalOverflow(page);
 });
 
 test("unauthenticated protected pages redirect safely", async ({ page }) => {

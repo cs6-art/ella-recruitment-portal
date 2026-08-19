@@ -158,10 +158,14 @@ a { color: inherit; text-decoration: none; }
 .calendar-connect-notice { color: var(--navy) !important; font-weight: 600; }
 .calendar-status-pill { display: inline-flex; align-items: center; padding: 5px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; }
 .calendar-status-connected { background: #e5f6ec; color: #1a7f4e; }
+.calendar-status-warning { background: #fff2dd; color: #8d5422; }
+.calendar-connect-warning { color: #8d5422 !important; }
 
 /* Keep the full-width calendar connection section visually separate from
    the workflow and access panels below it. */
 .calendar-connect-card + .dashboard-grid { margin-top: 36px; }
+.settings-readonly-note { display: flex; flex-direction: column; gap: 5px; padding: 18px 24px; color: var(--muted); }
+.settings-readonly-note strong { color: var(--navy); }
 
 .form-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 22px; align-items: start; }
 .form-card { background: white; border: 1px solid var(--line); border-radius: 18px; overflow: hidden; box-shadow: 0 10px 28px rgba(14,68,113,.06); }

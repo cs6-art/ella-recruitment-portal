@@ -24,6 +24,10 @@ test("Calendar status exposes the verified connected account", () => {
   assert.match(status, /getCalendarConnectionStatus/);
   assert.match(status, /accountEmail/);
   assert.match(connect, /Connected account:/);
+  assert.match(connect, /canManage/);
+  assert.doesNotMatch(connect, /Expected Google account/);
+  assert.match(status, /accountMismatch/);
+  assert.doesNotMatch(status, /Settings permission required/);
 });
 
 test("final interviews use the shared calendar configured in Settings", () => {
