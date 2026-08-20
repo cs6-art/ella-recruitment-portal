@@ -43,7 +43,7 @@ export async function POST(request: Request) {
     if (!role || !canViewRole(user, role)) return NextResponse.json({ success: false, error: "Role request not found." }, { status: 404 });
     if (!["Approved", "Recruitment Setup", "Job Posted"].includes(role.status)) return NextResponse.json({ success: false, error: "Availability can only be added for an approved or published role." }, { status: 409 });
     if (body.rule.interviewType === "Final Interview") {
-      return NextResponse.json({ success: false, error: "Final-interview availability is managed automatically through the connected HR Google Calendar." }, { status: 409 });
+      return NextResponse.json({ success: false, error: "HR interview availability is managed automatically through the connected HR Google Calendar." }, { status: 409 });
     }
     if (!canEditRecruitmentSetup(user)) return NextResponse.json({ success: false, error: "You do not have permission to update this interview availability." }, { status: 403 });
     const rule = cleanRule(role.roleId, body.rule);

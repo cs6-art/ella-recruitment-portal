@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import ActionFeedback from "@/components/ActionFeedback";
 import UiIcon from "@/components/UiIcon";
 import ValidationSummary from "@/components/ValidationSummary";
+import { DEPARTMENT_OPTIONS, isKnownDepartment } from "@/lib/department-options";
 import { roleRequestSchema } from "@/lib/role-schema";
 import type { RoleAiDraft } from "@/lib/role-ai-draft-schema";
 
@@ -45,7 +46,7 @@ type FormState = {
 
 export type RoleRequestFormValues = FormState;
 
-// All final interviews are owned by the shared HR calendar account.
+// All HR interviews are owned by the shared HR calendar account.
 const HR_INTERVIEW_EMAIL = "hrsg@mclinkgroup.com";
 
 const initial: FormState = {
@@ -136,7 +137,7 @@ export default function RoleRequestForm({ user, roleId, initialValues }: RoleReq
   function availabilityPayload() {
     return {
       hodEmail: HR_INTERVIEW_EMAIL,
-      // Legacy sheet fields stay empty. Final-interview times now come from
+      // Legacy sheet fields stay empty. HR interview times now come from
       // the connected HR Google Calendar rather than manually entered windows.
       hodAvailabilitySlots: [],
       hodAvailabilityDates: "",
@@ -145,8 +146,8 @@ export default function RoleRequestForm({ user, roleId, initialValues }: RoleReq
   }
 
   async function populateFromJobDescription() {
-    if (!jobDescriptionFile) {
-      setParseError("Choose a PDF, DOC, or DOCX job description first.");
+    if (!jobDescriptionFile && form.jobDescription.trim().length < 20) {
+      setParseError("Enter at least 20 characters in the job description or attach a PDF, DOC, or DOCX file.");
       return;
     }
 
@@ -154,7 +155,12 @@ export default function RoleRequestForm({ user, roleId, initialValues }: RoleReq
     setParseError("");
     try {
       const body = new FormData();
-      body.append("jobDescriptionFile", jobDescriptionFile);
+      if (jobDescriptionFile) body.append("jobDescriptionFile", jobDescriptionFile);
+      else {
+        body.append("jobDescriptionText", form.jobDescription.trim());
+        body.append("jobTitle", form.jobTitle.trim());
+        body.append("department", form.department.trim());
+      }
       const response = await fetch("/api/roles/parse-description", {
         method: "POST",
         body,
@@ -174,6 +180,10 @@ export default function RoleRequestForm({ user, roleId, initialValues }: RoleReq
       setForm((current) => ({
         ...current,
         ...result.draft?.role,
+        // Keep values HR already entered when the AI draft cannot infer them.
+        jobTitle: result.draft?.role.jobTitle || current.jobTitle,
+        department: result.draft?.role.department || current.department,
+        jobDescription: result.draft?.role.jobDescription || current.jobDescription,
         aiGeneratedScreeningQuestions: questions,
         recruitmentSetupDraft: result.draft?.recruitmentSetup || current.recruitmentSetupDraft,
       }));
@@ -294,27 +304,27 @@ export default function RoleRequestForm({ user, roleId, initialValues }: RoleReq
             <span className="section-number">1</span>
           <h2>{isEditing ? "Edit role request" : "Role request"}</h2>
           </div>
-          <p className="section-intro">Provide the information HR and Ella need to understand the vacancy. <strong className="required-mark">*</strong> Required fields.</p>
+          <p className="section-intro">Provide the information HR and Ella need to understand the vacancy.</p>
 
           <div className="grid-2">
             <div className="field full">
-              <label htmlFor="jobDescription">Job Description <strong className="required-mark">*</strong></label>
-              <textarea id="jobDescription" {...fieldErrorProps("jobDescription")} required value={form.jobDescription} onChange={(event) => update("jobDescription", event.target.value)} placeholder="Describe the purpose and main scope of this role." />
               <div className="ai-draft-panel">
                 <div>
                   <strong>Populate from a job description</strong>
-                  <small className="field-help">Upload a PDF, DOC, or DOCX and Ella will prepare the role details, screening criteria, and interview questions for your review.</small>
+                  <small className="field-help">Upload a PDF, DOC, or DOCX, or use the job description below. Ella will prepare role details, screening criteria, and interview questions for HR to review.</small>
                 </div>
                 <div className="ai-draft-controls">
                   {/* Keep the picker aligned with the server document extractor. */}
                   <input id="jobDescriptionFile" type="file" accept="application/pdf,.pdf,application/msword,.doc,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx" onChange={(event) => { setJobDescriptionFile(event.target.files?.[0] || null); setParseError(""); }} />
-                  <button type="button" className="btn btn-secondary" onClick={populateFromJobDescription} disabled={parsing}>
-                    {parsing ? "Generating draft…" : "Generate draft"}
+                  <button type="button" className="btn btn-secondary" onClick={populateFromJobDescription} disabled={parsing || (!jobDescriptionFile && form.jobDescription.trim().length < 20)}>
+                    {parsing ? "Generating AI guidance…" : jobDescriptionFile ? "Generate draft" : "Generate AI questions"}
                   </button>
                 </div>
                 {jobDescriptionFile && <small className="field-help">Selected: {jobDescriptionFile.name}</small>}
                 {parseError && <div className="error-box message-box" role="alert"><span className="message-box-icon" aria-hidden="true"><UiIcon name="alert" size={17} /></span><span>{parseError}</span></div>}
               </div>
+              <label htmlFor="jobDescription">Job Description <strong className="required-mark">*</strong></label>
+              <textarea id="jobDescription" {...fieldErrorProps("jobDescription")} required value={form.jobDescription} onChange={(event) => update("jobDescription", event.target.value)} placeholder="Describe the purpose and main scope of this role." />
             </div>
 
             <div className="field">
@@ -327,7 +337,11 @@ export default function RoleRequestForm({ user, roleId, initialValues }: RoleReq
 
             <div className="field">
               <label htmlFor="department">Department <strong className="required-mark">*</strong></label>
-              <input id="department" {...fieldErrorProps("department")} required value={form.department} onChange={(event) => update("department", event.target.value)} placeholder="e.g. Inside Sales" />
+              <select id="department" {...fieldErrorProps("department")} required value={form.department} onChange={(event) => update("department", event.target.value)}>
+                {form.department && !isKnownDepartment(form.department) && <option value={form.department}>{form.department} (existing)</option>}
+                <option value="">Select a department</option>
+                {DEPARTMENT_OPTIONS.map((department) => <option key={department} value={department}>{department}</option>)}
+              </select>
             </div>
 
             <div className="field">
@@ -375,27 +389,27 @@ export default function RoleRequestForm({ user, roleId, initialValues }: RoleReq
             <span className="section-number">2</span>
             <h2>HR interview and screening</h2>
           </div>
-          <p className="section-intro">Review the HR interviewer and add up to two optional questions. Ella will generate the remaining screening questions when you click <strong>Generate draft</strong> before submitting.</p>
+          <p className="section-intro">Review the HR interviewer and add up to two optional questions. AI-generated questions appear below for HR guidance and can be refined later in Recruitment Setup.</p>
 
           <div className="grid-2">
             <div className="field full">
               <label htmlFor="hodEmail">Shared HR Calendar Account</label>
               <input id="hodEmail" type="text" value="Configured in Settings" readOnly aria-readonly="true" />
-              <small className="field-help">Final-interview availability is read from the shared account configured in Settings and its connected HR Google Calendar. This role does not choose a personal calendar.</small>
+              <small className="field-help">HR interview availability is read from the shared account configured in Settings and its connected HR Google Calendar. This role does not choose a personal calendar.</small>
             </div>
             <div className="field full">
-              <label htmlFor="customScreeningQuestion1">HOD Screening Question 1 <span className="field-optional">(optional)</span></label>
+              <label htmlFor="customScreeningQuestion1">HR Screening Question 1 <span className="field-optional">(optional)</span></label>
               <textarea id="customScreeningQuestion1" value={form.customScreeningQuestion1} onChange={(event) => update("customScreeningQuestion1", event.target.value)} placeholder="Ask something specific to this role" />
             </div>
             <div className="field full">
-              <label htmlFor="customScreeningQuestion2">HOD Screening Question 2 <span className="field-optional">(optional)</span></label>
+              <label htmlFor="customScreeningQuestion2">HR Screening Question 2 <span className="field-optional">(optional)</span></label>
               <textarea id="customScreeningQuestion2" value={form.customScreeningQuestion2} onChange={(event) => update("customScreeningQuestion2", event.target.value)} placeholder="Ask another role-specific question" />
             </div>
             {form.aiGeneratedScreeningQuestions.length > 0 && (
               <div className="field full">
                 <div className="ai-question-review">
                   <strong>AI-generated screening questions for HR review</strong>
-                  <small className="field-help">These were generated from the uploaded job description. HR can refine them later in Recruitment Setup.</small>
+                  <small className="field-help">These were generated from the role description. HR can review and refine them in Recruitment Setup before publishing.</small>
                   <ol>
                     {form.aiGeneratedScreeningQuestions.map((question, index) => <li key={`${question}-${index}`}>{question}</li>)}
                   </ol>

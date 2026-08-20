@@ -25,11 +25,21 @@ export async function POST(request: Request) {
 
     const formData = await request.formData();
     const value = formData.get("jobDescriptionFile");
-    // The shared extractor normalizes PDF, legacy DOC, and DOCX into text
-    // before the role-draft webhook receives the request.
-    if (!(value instanceof File)) return failure("Attach one PDF, DOC, or DOCX job description.", 422);
+    const inlineDescription = String(formData.get("jobDescriptionText") || "").trim();
+    const submittedJobTitle = String(formData.get("jobTitle") || "").trim();
+    const submittedDepartment = String(formData.get("department") || "").trim();
 
-    const document = await extractDocumentText(value);
+    // The shared extractor normalizes PDF, legacy DOC, and DOCX into text.
+    // HR can also generate the same draft from the description they typed
+    // directly into the role request, so a document is not required.
+    let document: { fileName: string; kind: string; text: string };
+    if (value instanceof File) {
+      document = await extractDocumentText(value);
+    } else if (inlineDescription.length >= 20) {
+      document = { fileName: "typed-job-description", kind: "text", text: inlineDescription };
+    } else {
+      return failure("Enter at least 20 characters in the job description or attach a PDF, DOC, or DOCX file.", 422);
+    }
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 45000);
     let response: Response;
@@ -43,6 +53,10 @@ export async function POST(request: Request) {
           documentName: document.fileName,
           documentKind: document.kind,
           jobDescriptionText: document.text,
+          requestedRole: {
+            jobTitle: submittedJobTitle,
+            department: submittedDepartment,
+          },
         }),
         cache: "no-store",
         signal: controller.signal,

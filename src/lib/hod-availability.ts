@@ -58,7 +58,7 @@ export function slotMatchesHodAvailability(slot: HodAvailabilitySlot, availabili
     && slot.endTime <= window.endTime);
 }
 
-/** Split each legacy HR window into bookable one-hour final-interview slots. */
+/** Split each legacy HR window into bookable one-hour HR interview slots. */
 export function expandHodAvailabilitySlots(slots: HodAvailabilitySlot[], durationMinutes = 60): HodAvailabilitySlot[] {
   if (!Number.isInteger(durationMinutes) || durationMinutes < 5) return [];
   return slots.flatMap((slot) => {
@@ -67,7 +67,9 @@ export function expandHodAvailabilitySlots(slots: HodAvailabilitySlot[], duratio
     const start = startHour * 60 + startMinute;
     const end = endHour * 60 + endMinute;
     const generated: HodAvailabilitySlot[] = [];
-    for (let cursor = start; cursor + durationMinutes <= end; cursor += durationMinutes) {
+    for (let cursor = Math.max(start, 10 * 60); cursor + durationMinutes <= Math.min(end, 16 * 60); cursor += durationMinutes) {
+      // The HR interview window excludes the 12:00–13:00 lunch break.
+      if (cursor < 13 * 60 && cursor + durationMinutes > 12 * 60) continue;
       generated.push({
         date: slot.date,
         startTime: `${Math.floor(cursor / 60).toString().padStart(2, "0")}:${(cursor % 60).toString().padStart(2, "0")}`,

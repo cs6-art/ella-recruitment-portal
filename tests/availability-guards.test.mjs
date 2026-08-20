@@ -17,12 +17,16 @@ test("availability rules reject overlapping weekday windows and deduplicate lega
   assert.match(rules, /export function withoutOverlappingAvailabilityRules/);
   assert.match(rules, /const rules = withoutOverlappingAvailabilityRules\(stored\)/);
   assert.match(rules, /new Map\(slots\.map/);
+  assert.match(rules, /date <= text\(targetHiringDate\)/);
+  assert.match(rules, /startTime: "10:00"/);
+  assert.match(rules, /endTime: "16:00"/);
+  assert.match(rules, /start === 12 \* 60/);
 });
 
 test("availability write API blocks stacked voice schedules and rejects manual final schedules", () => {
   assert.match(availabilityRoute, /availabilityRulesOverlap/);
   assert.match(availabilityRoute, /overlaps an existing active schedule/);
-  assert.match(availabilityRoute, /Final-interview availability is managed automatically through the connected HR Google Calendar/);
+  assert.match(availabilityRoute, /HR interview availability is managed automatically through the connected HR Google Calendar/);
   assert.doesNotMatch(availabilityRoute, /slotMatchesHodAvailability/);
 });
 
@@ -32,10 +36,10 @@ test("final interview setup no longer asks for manual dates or availability wind
   assert.match(roleDetails, /Managed through the shared HR Google Calendar configured in Settings/);
   assert.doesNotMatch(roleForm, /addAvailability|removeAvailability|updateAvailability/);
   assert.doesNotMatch(bookings, /<option>Final Interview<\/option>/);
-  assert.match(bookings, /Final interview availability/);
+  assert.match(bookings, /HR interview availability/);
   assert.doesNotMatch(bookings, /<strong>AI Voice Interview<\/strong>/);
   assert.match(workflow, /let slots = kind === "final" \? \[\]/);
-  assert.match(workflow, /Connect the HR Google Calendar before booking a final interview/);
+  assert.match(workflow, /Connect the HR Google Calendar before booking an HR interview/);
   assert.match(calendarBusyRoute, /calendarConnected/);
   assert.match(bookings, /finalCalendarConnected !== true/);
 });

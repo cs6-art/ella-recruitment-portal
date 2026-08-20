@@ -217,13 +217,13 @@ export const defaultPortalSettings: PortalSetting[] = [
   { key: "Portal_Name", value: "McLink Recruitment Portal", category: "Portal Settings", description: "The name shown in the portal and candidate-facing pages.", updatedAt: "", updatedBy: "" },
   { key: "Portal_Timezone", value: "Asia/Singapore", category: "Portal Settings", description: "Default timezone used when dates or times are displayed.", updatedAt: "", updatedBy: "" },
   { key: "Booking_Default_Timezone", value: "Asia/Singapore", category: "Booking & Interview", description: "Timezone preselected when HR creates interview availability.", updatedAt: "", updatedBy: "" },
-  { key: "Final_Interview_Calendar_Email", value: "hrsg@mclinkgroup.com", category: "Booking & Interview", description: "Google account used for every final-interview calendar check and booking event.", updatedAt: "", updatedBy: "" },
-  { key: "Final_Interview_Calendar_ID", value: "primary", category: "Booking & Interview", description: "Google Calendar ID used for final interviews. Use primary for the connected HR account's main calendar.", updatedAt: "", updatedBy: "" },
+  { key: "Final_Interview_Calendar_Email", value: "hrsg@mclinkgroup.com", category: "Booking & Interview", description: "Google account used for every HR interview calendar check and booking event.", updatedAt: "", updatedBy: "" },
+  { key: "Final_Interview_Calendar_ID", value: "primary", category: "Booking & Interview", description: "Google Calendar ID used for HR interviews. Use primary for the connected HR account's main calendar.", updatedAt: "", updatedBy: "" },
   { key: "Voice_Interview_Duration_Minutes", value: "10", category: "Booking & Interview", description: "Fixed duration for an AI Voice Interview slot.", updatedAt: "", updatedBy: "" },
-  { key: "Final_Interview_Duration_Minutes", value: "60", category: "Booking & Interview", description: "Expected duration for a Final Interview slot.", updatedAt: "", updatedBy: "" },
+  { key: "Final_Interview_Duration_Minutes", value: "60", category: "Booking & Interview", description: "Expected duration for an HR Interview slot.", updatedAt: "", updatedBy: "" },
   { key: "Booking_Link_Expiry_Days", value: "7", category: "Booking & Interview", description: "Number of days before a candidate booking link expires.", updatedAt: "", updatedBy: "" },
   { key: "Require_Resume_HR_Approval", value: "Yes", category: "Workflow Rules", description: "HR approval is required before the voice booking link is created.", updatedAt: "", updatedBy: "" },
-  { key: "Require_Voice_HR_Approval", value: "Yes", category: "Workflow Rules", description: "HR approval is required before the final interview booking link is created.", updatedAt: "", updatedBy: "" },
+  { key: "Require_Voice_HR_Approval", value: "Yes", category: "Workflow Rules", description: "HR approval is required before the HR interview booking link is created.", updatedAt: "", updatedBy: "" },
   { key: "Booking_Invitation_Auto_Send", value: "Yes", category: "Notifications", description: "Allow the connected automation to send candidate booking invitations.", updatedAt: "", updatedBy: "" },
 ];
 
@@ -310,8 +310,13 @@ function columnName(index: number): string {
 
 function parseStoredEvaluationFields(
   value: string,
+  explicitToggleValue = "",
 ): Pick<RoleRequestDetails, "evaluationFieldToggles" | "customEvaluationFields"> {
-  if (!value.trim()) return { evaluationFieldToggles: "", customEvaluationFields: [] };
+  const explicitToggles = explicitToggleValue
+    .split(/[\n,]/)
+    .map((field) => field.trim().toLowerCase())
+    .filter((field) => EVALUATION_FIELD_CATALOG.some((candidate) => candidate.key === field));
+  if (!value.trim()) return { evaluationFieldToggles: [...new Set(explicitToggles)].join(","), customEvaluationFields: [] };
 
   try {
     const parsed: unknown = JSON.parse(value);
@@ -327,18 +332,26 @@ function parseStoredEvaluationFields(
     ));
 
     return {
-      evaluationFieldToggles: fields.filter((field) => catalogKeys.has(field.key)).map((field) => field.key).join(","),
+      // Keep the dedicated toggle column authoritative. Older workflows may
+      // rewrite Evaluation_Fields and accidentally retain only the first
+      // selected optional field.
+      evaluationFieldToggles: explicitToggles.length > 0
+        ? [...new Set(explicitToggles)].join(",")
+        : fields.filter((field) => catalogKeys.has(field.key)).map((field) => field.key).join(","),
       customEvaluationFields: fields.filter((field) => !catalogKeys.has(field.key) && !baselineKeys.has(field.key)).slice(0, 3),
     };
   } catch {
-    return { evaluationFieldToggles: "", customEvaluationFields: [] };
+    return { evaluationFieldToggles: [...new Set(explicitToggles)].join(","), customEvaluationFields: [] };
   }
 }
 
 function mapRoleRequest(
   record: Record<string, string>,
 ): RoleRequestDetails {
-  const storedEvaluationFields = parseStoredEvaluationFields(getField(record, ["Evaluation_Fields", "Evaluation Fields"]));
+  const storedEvaluationFields = parseStoredEvaluationFields(
+    getField(record, ["Evaluation_Fields", "Evaluation Fields"]),
+    getField(record, ["Evaluation_Field_Toggles", "Evaluation Field Toggles"]),
+  );
 
   return {
     roleId: getField(record, [

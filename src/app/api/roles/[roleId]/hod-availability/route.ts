@@ -21,5 +21,5 @@ export async function POST(_request: Request, context: Context) {
   if (!canEditRecruitmentSetup(user)) return NextResponse.json({ success: false, error: "Only HR can manage interview availability." }, { status: 403 });
   // Keep this legacy endpoint explicit so older clients cannot reintroduce
   // manually entered final-interview windows after the calendar migration.
-  return NextResponse.json({ success: false, error: "Manual HR availability windows are no longer used. Final-interview availability comes from the connected HR Google Calendar." }, { status: 409 });
+  return NextResponse.json({ success: false, error: "Manual HR availability windows are no longer used. HR interview availability comes from the connected HR Google Calendar." }, { status: 409 });
 }

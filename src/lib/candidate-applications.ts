@@ -213,6 +213,11 @@ function applicationId(record: SheetRow) {
   return field(record, "Application_ID", "Application ID");
 }
 
+/** Keep legacy sheet/status keys intact while presenting the new HR-facing label. */
+function displayHrInterviewText(value: string) {
+  return value.replace(/final interview/gi, "HR Interview").replace(/final-interview/gi, "HR-interview");
+}
+
 function stageFor(record: SheetRow) {
   const stages = [
     field(record, "Final_Status"),
@@ -306,11 +311,11 @@ function applyFinalBookingState(summary: ApplicantSummary, record: SheetRow, fin
   // "Passed" before the final interview has happened.
   return {
     ...summary,
-    recommendation: "Final Interview Scheduled",
+    recommendation: "HR Interview Scheduled",
     finalInterviewStatus: "Interview Scheduled",
-    finalStatus: "Final Interview Scheduled",
-    currentStage: "Final Interview Scheduled",
-    nextAction: "Attend Final Interview",
+    finalStatus: "HR Interview Scheduled",
+    currentStage: "HR Interview Scheduled",
+    nextAction: "Attend HR Interview",
   };
 }
 
@@ -328,14 +333,14 @@ function mapApplicant(record: SheetRow): ApplicantSummary {
     department: field(record, "Department"),
     appliedAt: field(record, "Date_of_Application", "Date of Application"),
     matchScore: field(record, "Match_Score", "Match Score"),
-    recommendation: workflowRecommendationFor(record),
+    recommendation: displayHrInterviewText(workflowRecommendationFor(record)),
     cvRecommendation: field(record, "Recommendation"),
     resumeStatus: field(record, "Status (Resume Processing)"),
     voiceStatus,
-    finalInterviewStatus,
-    finalStatus,
-    currentStage: stageFor(record),
-    nextAction: nextActionFor(record),
+    finalInterviewStatus: displayHrInterviewText(finalInterviewStatus),
+    finalStatus: displayHrInterviewText(finalStatus),
+    currentStage: displayHrInterviewText(stageFor(record)),
+    nextAction: displayHrInterviewText(nextActionFor(record)),
   };
 }
 

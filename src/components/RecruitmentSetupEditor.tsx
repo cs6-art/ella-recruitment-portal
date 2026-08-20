@@ -22,6 +22,7 @@ import {
   type SetupReadinessLevel,
 } from "@/lib/recruitment-setup-readiness";
 import { parseVoiceInterviewSlots, type VoiceInterviewSlot } from "@/lib/voice-interview-availability";
+import { formatPortalDateTime } from "@/lib/portal-time";
 
 type Setup = {
   roleTitle?: string;
@@ -97,8 +98,7 @@ function normalizeChannels(value: string[] | string | undefined) {
 }
 
 function formatDate(value?: string) {
-  if (!value || Number.isNaN(Date.parse(value))) return value || "";
-  return new Date(value).toLocaleString();
+  return formatPortalDateTime(value || "", true);
 }
 
 function valueText(value: unknown) {
@@ -178,7 +178,7 @@ function suggestedQuestionItems(value: string | string[] | undefined) {
   return source
     .map((question) => question.replace(/^\s*(?:[-•*]|\d+[.)])\s*/, "").trim())
     .filter(Boolean)
-    .slice(0, 3);
+    .slice(0, 5);
 }
 
 function buildInitialValues(setup: Setup): Setup {
@@ -326,6 +326,9 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
   const generatedSample = useMemo(() => generatedSamplePrompt(values, currentPrompt), [currentPrompt, values]);
   const questions = getQuestions(values);
   const suggestedQuestions = useMemo(() => suggestedQuestionItems(values.aiGeneratedScreeningQuestions), [values.aiGeneratedScreeningQuestions]);
+  const missingRequiredQuestionIndexes = questionKeys.slice(0, 3)
+    .map((key, index) => ({ key, index }))
+    .filter(({ key }) => !valueText(values[key]));
   const draftPayload = promptPayload(values, currentPrompt, "save_draft", actionRequestId.current);
   const readinessInput = draftPayload as SetupReadinessInput;
   const draftReadiness = getSetupReadiness(readinessInput, "draft");
@@ -507,7 +510,6 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
       <div className="vapi-builder">
         <div className="vapi-section-heading">
           <div><span className="vapi-kicker">EVALUATION FIELDS</span><h3>What should Ella score or note for this role?</h3><p>Score, recommendation, strengths, and concerns are always included. Add anything extra this role needs — the same list is used for both resume screening and the voice interview.</p></div>
-          <small className="vapi-required-note"><strong>*</strong> Required fields are marked with an asterisk.</small>
         </div>
         <div className="vapi-baseline-fields">
           <span className="vapi-kicker">Always included</span>
@@ -548,6 +550,18 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
         <div className="vapi-section-heading">
           <div><span className="vapi-kicker">INTERVIEW QUESTIONS</span><h3>What should Ella ask?</h3><p>{(valueText(values.hodScreeningQuestion1) || valueText(values.hodScreeningQuestion2)) ? "HR's questions from the role request come first and can't be edited here. Add your own questions after that, in order — Ella asks all of them exactly as written." : "Write 3 to 5 questions in the order you want them asked. Ella asks them exactly as written, one at a time, and doesn't make up her own."} These questions appear directly in the script preview below.</p></div>
           <span className={`vapi-count-badge ${questions.length >= 3 ? "complete" : ""}`}>{questions.length} of {questionKeys.length} configured · 3 required</span>
+        </div>
+        <div className={`vapi-question-guidance${missingRequiredQuestionIndexes.length ? " has-missing" : ""}`} role="status">
+          <strong>{missingRequiredQuestionIndexes.length ? "Remaining questions to complete" : "Required questions ready"}</strong>
+          <p>{missingRequiredQuestionIndexes.length
+            ? `${missingRequiredQuestionIndexes.length} required question${missingRequiredQuestionIndexes.length === 1 ? "" : "s"} still need HR's wording before Recruitment Ready.`
+            : "Questions 1–3 are complete. Questions 4–5 are optional and can be added for extra role-specific coverage."}</p>
+          {missingRequiredQuestionIndexes.length > 0 && (
+            <ul>
+              {missingRequiredQuestionIndexes.map(({ index }) => <li key={questionKeys[index]}><a href={`#vapi-question-${index + 1}`}>Question {index + 1}</a></li>)}
+            </ul>
+          )}
+          {suggestedQuestions.length === 0 && <small>No AI suggestions are saved for this role yet. Generate guidance from the role description during role creation, or write the questions below manually.</small>}
         </div>
         {suggestedQuestions.length > 0 && (
           <div className="vapi-suggested-questions">
@@ -597,7 +611,7 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
       </div>
 
       <details id="vapi-publishing-checklist" className="vapi-publishing" open>
-        <summary><span><strong>Publishing checklist</strong><small>Required fields are marked *. Complete the missing items below before publishing.</small></span><span className="vapi-status-badge">{setupStatus}</span></summary>
+        <summary><span><strong>Publishing checklist</strong><small>Complete the missing items below before publishing.</small></span><span className="vapi-status-badge">{setupStatus}</span></summary>
         <div className="vapi-publishing-content">
           <fieldset id="vapi-posting-channels" className="vapi-channel-fieldset">
             <legend>Posting channels *</legend>

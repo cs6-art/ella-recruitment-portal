@@ -42,7 +42,7 @@ function isRejectedDecision(value: string) {
 }
 
 function reviewStage(props: Props): Stage {
-  if (/completed/i.test(props.finalInterviewStatus) || /final interview (passed|rejected)/i.test(props.finalStatus)) return "final";
+  if (/completed/i.test(props.finalInterviewStatus) || /(?:final|hr) interview (passed|rejected)/i.test(props.finalStatus)) return "final";
   // An incomplete voice interview still needs HR review. Treating it as an
   // unrecognized status falls back to the already-decided CV stage and hides
   // the voice approval actions.
@@ -50,8 +50,8 @@ function reviewStage(props: Props): Stage {
   return "resume";
 }
 
-function CompletedDecision({ title, decision, comments }: { title: string; decision: string; comments: string }) {
-  return <div className="applicant-completed-decision"><div className="applicant-decision-title"><strong>{title}</strong><span className={`applicant-decision-badge ${isRejectedDecision(decision) ? "is-rejected" : ""}`}>{decisionLabel(decision)}</span></div>{comments ? <div className="applicant-completed-comments"><span>Comments</span><p>{comments}</p></div> : <p className="applicant-completed-empty">No comments were recorded for this decision.</p>}</div>;
+function CompletedDecision({ title, decision, comments, link }: { title: string; decision: string; comments: string; link?: string }) {
+  return <div className="applicant-completed-decision"><div className="applicant-decision-title"><strong>{title}</strong><span className={`applicant-decision-badge ${isRejectedDecision(decision) ? "is-rejected" : ""}`}>{decisionLabel(decision)}</span></div>{link && <a className="applicant-booking-link" href={link} target="_blank" rel="noreferrer">Open HR Interview Booking Link</a>}{comments ? <div className="applicant-completed-comments"><span>Comments</span><p>{comments}</p></div> : <p className="applicant-completed-empty">No comments were recorded for this decision.</p>}</div>;
 }
 
 function DecisionRow({ stage, title, description, current, link, enabled = true, applicationId, canReview, onSaved }: {
@@ -105,7 +105,7 @@ export default function ApplicantDecisionPanel(props: Props) {
   const stage = reviewStage(props);
   return <section className="card applicant-decision-card"><div className="card-header"><div><h2>HR Decisions</h2><p>Review the applicant&apos;s current workflow stage. Comments are required for every decision.</p></div></div>{message && <ActionFeedback kind="success" className="applicant-decision-success">{message}</ActionFeedback>}<div className="applicant-decision-list">
     {stage === "resume" && (isDecided(props.resumeDecision) ? <CompletedDecision title="AI CV Analysis" decision={props.resumeDecision} comments={props.resumeComments} /> : <DecisionRow stage="resume" title="AI CV Analysis" description="Review Ella&apos;s CV analysis recommendation before moving the applicant to the voice interview." current={props.resumeDecision} applicationId={props.applicationId} canReview={props.canReview} onSaved={setMessage} />)}
-    {stage === "voice" && <><CompletedDecision title="AI CV Analysis" decision={props.resumeDecision} comments={props.resumeComments} />{isDecided(props.voiceDecision) ? <CompletedDecision title="Voice Interview Review" decision={props.voiceDecision} comments={props.voiceComments} /> : <DecisionRow stage="voice" title="Voice Interview Review" description="Review the combined screening evidence below before approving the applicant for the next stage." current={props.voiceDecision} link={props.finalBookingLink} applicationId={props.applicationId} canReview={props.canReview} onSaved={setMessage} />}</>}
-    {stage === "final" && <><CompletedDecision title="Voice Interview Review" decision={props.voiceDecision} comments={props.voiceComments} />{isDecided(props.finalStatus) ? <CompletedDecision title="Final Interview Decision" decision={props.finalStatus} comments={props.finalComments} /> : <DecisionRow stage="final" title="Final Interview Decision" description="Record the final interview outcome after the interviewer has completed the meeting." current={props.finalInterviewStatus === "Interview Completed" ? "" : props.finalInterviewStatus} enabled applicationId={props.applicationId} canReview={props.canReview} onSaved={setMessage} />}</>}
+    {stage === "voice" && <><CompletedDecision title="AI CV Analysis" decision={props.resumeDecision} comments={props.resumeComments} />{isDecided(props.voiceDecision) ? <CompletedDecision title="Voice Interview Review" decision={props.voiceDecision} comments={props.voiceComments} link={props.finalBookingLink} /> : <DecisionRow stage="voice" title="Voice Interview Review" description="Review the combined screening evidence below before approving the applicant for the next stage." current={props.voiceDecision} link={props.finalBookingLink} applicationId={props.applicationId} canReview={props.canReview} onSaved={setMessage} />}</>}
+    {stage === "final" && <><CompletedDecision title="Voice Interview Review" decision={props.voiceDecision} comments={props.voiceComments} />{isDecided(props.finalStatus) ? <CompletedDecision title="HR Interview Decision" decision={props.finalStatus} comments={props.finalComments} /> : <DecisionRow stage="final" title="HR Interview Decision" description="Record the HR interview outcome after the interviewer has completed the meeting." current={props.finalInterviewStatus === "Interview Completed" ? "" : props.finalInterviewStatus} enabled applicationId={props.applicationId} canReview={props.canReview} onSaved={setMessage} />}</>}
   </div></section>;
 }

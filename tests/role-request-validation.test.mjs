@@ -4,7 +4,9 @@ import test from "node:test";
 
 const schemaSource = fs.readFileSync("src/lib/role-schema.ts", "utf8");
 const formSource = fs.readFileSync("src/components/RoleRequestForm.tsx", "utf8");
+const departmentSource = fs.readFileSync("src/lib/department-options.ts", "utf8");
 const apiSource = fs.readFileSync("src/app/api/roles/route.ts", "utf8");
+const parseDescriptionSource = fs.readFileSync("src/app/api/roles/parse-description/route.ts", "utf8");
 
 function validate(input) {
   const email = String(input.requesterEmail || "").trim().toLowerCase();
@@ -94,15 +96,30 @@ test("role creation only renders the requisition and HR screening fields", () =>
   }
 });
 
+test("role request uses department choices and keeps required markers on fields", () => {
+  assert.match(formSource, /DEPARTMENT_OPTIONS/);
+  assert.match(formSource, /Select a department/);
+  assert.match(departmentSource, /"Other"/);
+  assert.doesNotMatch(formSource, /Required fields\./);
+});
+
 test("HR interviewer identity is explicit while final availability comes from Google Calendar", () => {
   assert.match(formSource, /id=\"hodEmail\"/);
   assert.match(formSource, /Shared HR Calendar Account/);
   assert.match(formSource, /connected HR Google Calendar/);
-  assert.match(formSource, /generate the remaining screening questions when you click/);
-  assert.match(formSource, /HOD Screening Question 1/);
-  assert.match(formSource, /HOD Screening Question 2/);
+  assert.match(formSource, /AI-generated questions appear below for HR guidance/);
+  assert.match(formSource, /Generate AI questions/);
+  assert.match(formSource, /HR Screening Question 1/);
+  assert.match(formSource, /HR Screening Question 2/);
   assert.doesNotMatch(formSource, /addAvailability|removeAvailability|updateAvailability/);
   assert.match(apiSource, /getFinalInterviewCalendarConfig/);
   assert.match(apiSource, /hodEmail: finalInterviewCalendar\.email/);
   assert.match(apiSource, /hodAvailabilitySlots: input\.hodAvailabilitySlots/);
+});
+
+test("role creation can generate AI guidance from typed job descriptions", () => {
+  assert.match(parseDescriptionSource, /jobDescriptionText/);
+  assert.match(parseDescriptionSource, /typed-job-description/);
+  assert.match(parseDescriptionSource, /requestedRole/);
+  assert.match(formSource, /Generate AI questions/);
 });

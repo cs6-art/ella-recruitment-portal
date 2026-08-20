@@ -9,6 +9,7 @@ import { useConfirmation } from "@/components/ConfirmationModal";
 import Pagination from "@/components/Pagination";
 import UiIcon from "@/components/UiIcon";
 import { canEditRoleRequest } from "@/lib/access-control";
+import { formatPortalDateTime } from "@/lib/portal-time";
 
 const statusFilters = [
   "All",
@@ -181,20 +182,7 @@ export default function RolesList({
   }
 
   function formatDate(value: string, includeTime = false) {
-    if (!value || Number.isNaN(Date.parse(value))) {
-      return value || "Not provided";
-    }
-
-    const date = new Date(
-      value.includes("T") ? value : `${value}T00:00:00`,
-    );
-
-    return includeTime
-      ? date.toLocaleString(undefined, {
-          dateStyle: "medium",
-          timeStyle: "short",
-        })
-      : date.toLocaleDateString(undefined, { dateStyle: "medium" });
+    return formatPortalDateTime(value, includeTime);
   }
 
   function openRole(roleId: string) {

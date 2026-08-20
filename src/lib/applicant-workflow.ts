@@ -728,7 +728,7 @@ export async function deleteApplicant(applicationId: string) {
     if (!hodEmail) throw new Error("The HR interviewer email is not configured, so the linked calendar event cannot be removed.");
     for (const { row } of finalBookedSlots) {
       const result = await deleteFinalInterviewEvent(hodEmail, field(row, "Google_Calendar_Event_ID"));
-      if (!result.deleted) throw new Error(result.error || "Unable to remove the linked final-interview calendar event.");
+      if (!result.deleted) throw new Error(result.error || "Unable to remove the linked HR-interview calendar event.");
     }
   }
 
@@ -810,8 +810,8 @@ async function reserveBookingInternal(kind: BookingKind, token: string, slotId: 
       const hodEmail = finalCalendarEmail;
       if (!hodEmail) throw new Error("No HR interviewer email is configured for this role.");
       const calendar = await checkCalendarAvailability({ hodEmail, date: virtualSlot.date, startTime: virtualSlot.startTime, endTime: virtualSlot.endTime, timezone: virtualSlot.timezone });
-      if (!calendar.checked) throw new Error(calendar.reason === "not_connected" ? "Connect the HR Google Calendar before booking a final interview." : "Unable to verify the HR Google Calendar. Please try again.");
-      if (!calendar.available) throw new Error("This final-interview time is now blocked by the HR Google Calendar. Choose another time.");
+      if (!calendar.checked) throw new Error(calendar.reason === "not_connected" ? "Connect the HR Google Calendar before booking an HR interview." : "Unable to verify the HR Google Calendar. Please try again.");
+      if (!calendar.available) throw new Error("This HR interview time is now blocked by the HR Google Calendar. Choose another time.");
     }
     const values = slotsData.headers.map((header) => {
       const key = normalize(header);
@@ -859,8 +859,8 @@ async function reserveBookingInternal(kind: BookingKind, token: string, slotId: 
   if (kind === "final") {
     if (!calendarHodEmail) throw new Error("No HR interviewer email is configured for this role.");
     const calendar = await checkCalendarAvailability({ hodEmail: calendarHodEmail, date: field(matchingSlot, "Date"), startTime: field(matchingSlot, "Start_Time", "Start Time"), endTime: field(matchingSlot, "End_Time", "End Time"), timezone: field(matchingSlot, "Timezone", "Time Zone") || "Asia/Singapore" });
-    if (!calendar.checked) throw new Error(calendar.reason === "not_connected" ? "Connect the HR Google Calendar before booking a final interview." : "Unable to verify the HR Google Calendar. Please try again.");
-    if (!calendar.available) throw new Error("This final-interview time is now blocked by the HR Google Calendar. Choose another time.");
+    if (!calendar.checked) throw new Error(calendar.reason === "not_connected" ? "Connect the HR Google Calendar before booking an HR interview." : "Unable to verify the HR Google Calendar. Please try again.");
+    if (!calendar.available) throw new Error("This HR interview time is now blocked by the HR Google Calendar. Choose another time.");
   }
   let oldCalendarEventCleanup: { deleted: true } | { deleted: false; reason: "not_connected" | "error"; error?: string } | null = null;
   if (kind === "final" && oldSlotIndex >= 0 && calendarHodEmail) {
@@ -999,8 +999,8 @@ async function reserveBookingInternal(kind: BookingKind, token: string, slotId: 
       if (calendarHodEmail) {
         const result = await createFinalInterviewEvent({
           hodEmail: calendarHodEmail,
-          summary: `Final Interview: ${context.candidateName} — ${context.selectedRole}`,
-          description: `Final interview for ${context.candidateName} (${context.applicationId}) applying for ${context.selectedRole}.\n\nCandidate email: ${context.email}`,
+          summary: `HR Interview: ${context.candidateName} — ${context.selectedRole}`,
+          description: `HR interview for ${context.candidateName} (${context.applicationId}) applying for ${context.selectedRole}.\n\nCandidate email: ${context.email}`,
           date: field(matchingSlot, "Date"),
           startTime: field(matchingSlot, "Start_Time", "Start Time"),
           endTime: field(matchingSlot, "End_Time", "End Time"),
@@ -1394,11 +1394,13 @@ export async function createInterviewSlot(input: CreateInterviewSlotInput) {
   const role = input.interviewType === "Final Interview" ? await getRoleRequestById(roleId) : null;
   if (input.interviewType === "Final Interview" && !role) throw new Error("Role request not found.");
   if (input.interviewType === "Final Interview" && role) {
+    if (!isStandardFinalInterviewSlot({ interviewType: input.interviewType, startTime, endTime })) throw new Error("HR interview slots must be one hour between 10:00 and 16:00, excluding 12:00–13:00.");
+    if (!isBeforeTargetHiringDate(date, role.targetHiringDate)) throw new Error("The HR interview date must be on or before the role's target hiring date.");
     const hodEmail = (await getFinalInterviewCalendarConfig()).email;
     if (!hodEmail) throw new Error("No HR interviewer email is configured for this role.");
     const calendar = await checkCalendarAvailability({ hodEmail, date, startTime, endTime, timezone });
-    if (!calendar.checked) throw new Error(calendar.reason === "not_connected" ? "Connect the assigned HR Google Calendar before adding a final-interview slot." : "Unable to verify the HR Google Calendar for this final-interview slot.");
-    if (!calendar.available) throw new Error("The HR Google Calendar is busy during this final-interview slot.");
+    if (!calendar.checked) throw new Error(calendar.reason === "not_connected" ? "Connect the assigned HR Google Calendar before adding an HR interview slot." : "Unable to verify the HR Google Calendar for this HR interview slot.");
+    if (!calendar.available) throw new Error("The HR Google Calendar is busy during this HR interview slot.");
   }
   const data = await readSheet("Interview_Slots", "X");
   const duplicate = data.rows.some((row) => field(row, "Interview_Type", "Interview Type") === input.interviewType && field(row, "Role_ID", "Role ID").toLowerCase() === roleId.toLowerCase() && field(row, "Date") === date && field(row, "Start_Time", "Start Time") === startTime);
@@ -1422,7 +1424,7 @@ export async function createInterviewSlot(input: CreateInterviewSlotInput) {
   return { slotId, interviewType: input.interviewType, roleId, date, startTime, endTime, timezone, status: "Available", applicationId: "", candidateName: "", candidateEmail: "", bookedAt: "", lastUpdated: new Date().toISOString() };
 }
 
-export async function createConfiguredVoiceInterviewSlots({ roleId, mode, manualSlots, autoStartDate, autoEndDate, timezone }: { roleId: string; mode: "none" | "manual" | "automatic"; manualSlots: VoiceInterviewSlot[]; autoStartDate: string; autoEndDate: string; timezone: string }): Promise<{ created: number; skipped: number; slots: VoiceInterviewSlot[] }> {
+export async function createConfiguredVoiceInterviewSlots({ roleId, mode, manualSlots, autoStartDate, autoEndDate, timezone, targetHiringDate }: { roleId: string; mode: "none" | "manual" | "automatic"; manualSlots: VoiceInterviewSlot[]; autoStartDate: string; autoEndDate: string; timezone: string; targetHiringDate?: string }): Promise<{ created: number; skipped: number; slots: VoiceInterviewSlot[] }> {
   if (mode === "none") return { created: 0, skipped: 0, slots: [] };
   const durationMinutes = 10;
   const configuredSlots = mode === "automatic"
@@ -1433,9 +1435,11 @@ export async function createConfiguredVoiceInterviewSlots({ roleId, mode, manual
   // Keep automatic voice availability limited to the current calendar month;
   // this prevents setup actions from creating hidden future-month rows.
   const slots = configuredSlots
+    .filter((slot) => isStandardVoiceInterviewSlot({ interviewType: "AI Voice Interview", startTime: slot.startTime, endTime: slot.endTime }))
+    .filter((slot) => isBeforeTargetHiringDate(slot.date, targetHiringDate))
     .filter((slot) => isCurrentCalendarMonth(slot.date, slot.timezone))
     .filter((slot) => scheduledInstant(slot.date, slot.startTime, slot.timezone).getTime() > Date.now());
-  if (slots.length === 0) throw new Error("All selected AI Voice Interview slots are in the past. Choose a future date or time.");
+  if (slots.length === 0) throw new Error("No AI Voice Interview slots match the current month, target hiring date, and future-time rules.");
 
   const data = await readSheet("Interview_Slots", "X");
   const existing = new Set(data.rows.map((row) => `${field(row, "Interview_Type", "Interview Type").toLowerCase()}|${field(row, "Role_ID", "Role ID").toLowerCase()}|${field(row, "Date")}|${field(row, "Start_Time", "Start Time")}`));
@@ -1664,6 +1668,10 @@ export async function recordApplicantDecision(applicationId: string, stage: Appl
       newFinalStatus = decision === "Approve" ? "Approved for Final Interview" : "Voice Interview Rejected";
       updates.push(set("Voice_HR_Decision", decision), set("Voice_HR_Comments", comments), set("Final_Status", newFinalStatus));
       if (decision === "Approve" && publicAppBaseUrl) {
+        // A prior failed poll can leave this claim flag at Processing. Reset
+        // it when HR approves so n8n retries the final-invitation email using
+        // the portal-generated link instead of waiting forever.
+        updates.push(set("Voice_Approval_Processed", ""));
         const invitation = finalBookingInvitation(found.row, publicAppBaseUrl);
         updates.push(
           set("Final_Interview_Booking_Token", invitation.token),

@@ -169,6 +169,7 @@ export async function POST(request: Request, context: Context) {
       // n8n can pass this value to VAPI as the `ella_system_prompt` dynamic
       // variable while keeping VAPI's dashboard system prompt generic.
       ella_system_prompt: setup.resolvedAiSystemPrompt || "",
+      Evaluation_Field_Toggles: setup.evaluationFieldToggles.join(","),
       Evaluation_Fields: JSON.stringify(evaluationFieldsForSetup(setup.evaluationFieldToggles, setup.customEvaluationFields)),
       Initial_Interview_Booking_Link: role.initialInterviewBookingLink || setup.initialInterviewBookingLink,
       HOD_Interview_Booking_Link: role.hodInterviewBookingLink || setup.hodInterviewBookingLink,
@@ -253,6 +254,7 @@ export async function POST(request: Request, context: Context) {
       Required_Interview_Question_4: setup.requiredInterviewQuestion4,
       Required_Interview_Question_5: setup.requiredInterviewQuestion5,
       AI_System_Prompt: setup.aiSystemPrompt,
+      Evaluation_Field_Toggles: setup.evaluationFieldToggles.join(","),
       Evaluation_Fields: JSON.stringify(evaluationFieldsForSetup(setup.evaluationFieldToggles, setup.customEvaluationFields)),
       Posting_Channels: setup.postingChannels.join(", "),
       License_or_Certificate_Required: setup.licenseOrCertificateRequired,
@@ -308,6 +310,13 @@ export async function POST(request: Request, context: Context) {
     } else {
       workflowWarning = "Changes saved. The recruitment setup workflow is not configured, so no workflow notification was sent.";
     }
+    // Re-apply the canonical optional-field selections after n8n completes.
+    // Older workflow mappings can collapse an array to its first item; the
+    // dedicated toggle column keeps every checkbox selection durable.
+    await updateRoleRequestFields(role.roleId, {
+      Evaluation_Field_Toggles: setup.evaluationFieldToggles.join(","),
+      Evaluation_Fields: JSON.stringify(evaluationFieldsForSetup(setup.evaluationFieldToggles, setup.customEvaluationFields)),
+    });
     // n8n has just written the new Status/Recruitment_Setup_Status outside
     // this process. The editor refetches the role immediately after this
     // response, so any cache entry repopulated during the request would serve
@@ -327,6 +336,7 @@ export async function POST(request: Request, context: Context) {
           autoStartDate: setup.voiceInterviewAutoStartDate,
           autoEndDate: setup.voiceInterviewAutoEndDate,
           timezone: setup.voiceInterviewTimezone,
+          targetHiringDate: role.targetHiringDate,
         });
         voiceSlotsGeneratedAt = voiceSlots.created > 0 || voiceSlots.skipped > 0 ? updatedAt : voiceSlotsGeneratedAt;
         await updateRoleRequestFields(role.roleId, { Voice_Interview_Slots_Generated_At: voiceSlotsGeneratedAt });

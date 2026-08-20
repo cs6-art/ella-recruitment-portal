@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import ActionFeedback from "@/components/ActionFeedback";
 import { countryOptions, CountrySelect } from "@/components/CountryOptions";
 import ValidationSummary from "@/components/ValidationSummary";
+import { formatPortalDateTime } from "@/lib/portal-time";
 
 type Slot = { slotId: string; date: string; startTime: string; endTime: string; timezone: string; status?: string };
 type Context = {
@@ -21,10 +22,7 @@ type Context = {
 };
 
 function displayDate(date: string) {
-  const parsed = new Date(`${date}T00:00:00`);
-  return Number.isNaN(parsed.getTime())
-    ? date
-    : new Intl.DateTimeFormat(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" }).format(parsed);
+  return formatPortalDateTime(date, false);
 }
 
 function cleanDigits(value: string) {
@@ -47,7 +45,7 @@ export default function BookingSelector({ token, initialContext }: { token: stri
   const [error, setError] = useState("");
   const [confirmationMessage, setConfirmationMessage] = useState("");
   const [saving, setSaving] = useState(false);
-  const title = context.kind === "voice" ? "AI Voice Interview Booking" : "Final Interview Booking";
+  const title = context.kind === "voice" ? "AI Voice Interview Booking" : "HR Interview Booking";
   const roleName = context.selectedRole.trim();
   const noShow = context.currentSlot?.status?.toLowerCase() === "no show" || context.bookingStatus.toLowerCase() === "no show";
   // A completed appointment must remain read-only even if its original link

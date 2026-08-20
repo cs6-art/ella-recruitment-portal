@@ -152,12 +152,12 @@ export function withoutOverlappingAvailabilityRules(rules: InterviewAvailability
 }
 
 /**
- * Availability is only useful before the role's target hiring date. Keep this
- * rule in the shared slot generator so the admin calendar and candidate link
- * always expose the same dates.
+ * Availability is only useful on or before the role's target hiring date. Keep
+ * this rule in the shared slot generator so the admin calendar and candidate
+ * link always expose the same dates, including the target date itself.
  */
 export function isBeforeTargetHiringDate(date: string, targetHiringDate?: string) {
-  return !DATE.test(text(targetHiringDate)) || date < text(targetHiringDate);
+  return !DATE.test(text(targetHiringDate)) || date <= text(targetHiringDate);
 }
 
 export function ruleToSlots(rule: InterviewAvailabilityRule, maxDays = 180): VoiceInterviewSlot[] {
@@ -170,8 +170,12 @@ export function ruleToSlots(rule: InterviewAvailabilityRule, maxDays = 180): Voi
   const isVoiceInterview = rule.interviewType === "AI Voice Interview";
   const isFinalInterview = rule.interviewType === "Final Interview";
   const duration = isVoiceInterview ? 10 : isFinalInterview ? 60 : Number.isInteger(rule.slotDurationMinutes) && rule.slotDurationMinutes >= 5 ? rule.slotDurationMinutes : 30;
-  const startTime = isVoiceInterview ? 9 * 60 : minutes(rule.startTime);
-  const endTime = isVoiceInterview ? 17 * 60 : minutes(rule.endTime);
+  // Voice screening is available 09:00–17:00 in ten-minute slots. HR
+  // interviews use 10:00–16:00 one-hour slots, with 12:00–13:00 reserved for
+  // lunch. Keep these windows centralized so every role follows the same
+  // booking policy, including legacy rules.
+  const startTime = isVoiceInterview ? 9 * 60 : isFinalInterview ? 10 * 60 : minutes(rule.startTime);
+  const endTime = isVoiceInterview ? 17 * 60 : isFinalInterview ? 16 * 60 : minutes(rule.endTime);
   const weekdays = isVoiceInterview ? [1, 2, 3, 4, 5] : rule.weekdays;
   const result: VoiceInterviewSlot[] = [];
   const end = addDays(rule.startDate, Math.min(maxDays, 180));
@@ -183,6 +187,7 @@ export function ruleToSlots(rule: InterviewAvailabilityRule, maxDays = 180): Voi
   for (let date = firstDate; date <= lastDate; date = addDays(date, 1)) {
     if (!weekdays.includes(weekday(date))) continue;
     for (let start = startTime; start + duration <= endTime; start += duration) {
+      if (isFinalInterview && start === 12 * 60) continue;
       result.push({ date, startTime: time(start), endTime: time(start + duration), timezone: rule.timezone });
     }
   }
@@ -209,7 +214,9 @@ export function roleAvailabilityRules(role: { roleId: string; targetHiringDate?:
   }
   const finalTimezone = "Asia/Singapore";
   const today = todayInTimezone(finalTimezone);
-  rules.push({ ruleId: `CALENDAR-FINAL-${role.roleId}`, roleId: role.roleId, interviewType: "Final Interview", mode: "recurring", startDate: monthStart(today), endDate: monthEnd(today), weekdays: [1, 2, 3, 4, 5], startTime: "13:00", endTime: "17:00", slotDurationMinutes: 60, timezone: finalTimezone, specificSlots: [], status: "Active" });
+  // Existing roles receive a full current-month HR interview schedule while
+  // targetHiringDate still limits candidate-visible slots to the hiring plan.
+  rules.push({ ruleId: `CALENDAR-FINAL-${role.roleId}`, roleId: role.roleId, interviewType: "Final Interview", mode: "recurring", startDate: monthStart(today), endDate: monthEnd(today), weekdays: [1, 2, 3, 4, 5], startTime: "10:00", endTime: "16:00", slotDurationMinutes: 60, timezone: finalTimezone, specificSlots: [], status: "Active" });
   return rules;
 }
 
@@ -232,6 +239,8 @@ export function isStandardVoiceInterviewSlot(slot: { interviewType: string; star
 }
 export function isStandardFinalInterviewSlot(slot: { interviewType: string; startTime: string; endTime: string }) {
   if (!slot.interviewType.toLowerCase().includes("final")) return true;
-  return minutes(slot.endTime) - minutes(slot.startTime) === 60;
+  const start = minutes(slot.startTime);
+  const end = minutes(slot.endTime);
+  return start >= 10 * 60 && end <= 16 * 60 && end - start === 60 && !(start < 13 * 60 && end > 12 * 60);
 }
 export function hasValidFutureTime(slot: { date: string; startTime: string; timezone: string }) { try { return scheduledInstant(slot.date, slot.startTime, slot.timezone || "Asia/Singapore").getTime() > Date.now(); } catch { return false; } }

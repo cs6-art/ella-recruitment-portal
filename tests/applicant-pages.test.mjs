@@ -4,6 +4,12 @@ import fs from "node:fs";
 
 const read = (path) => fs.readFileSync(path, "utf8");
 
+test("portal timestamps use the shared Singapore/Manila timezone", () => {
+  const time = read("src/lib/portal-time.ts");
+  assert.match(time, /PORTAL_TIME_ZONE = "Asia\/Singapore"/);
+  assert.match(time, /timeZone: PORTAL_TIME_ZONE/);
+});
+
 test("applicant data reader uses the shared candidate workbook tabs", () => {
   const source = read("src/lib/candidate-applications.ts");
   assert.match(source, /High_Match_Profile/);
@@ -24,7 +30,7 @@ test("dashboard includes candidate pipeline metrics without exposing them to cre
   assert.match(dashboard, /Awaiting Voice Booking Invitation/);
   assert.match(dashboard, /Awaiting Final Booking Invitation/);
   assert.match(dashboard, /Rejected Candidates/);
-  assert.match(dashboard, /Passed Final Interview/);
+  assert.match(dashboard, /Passed HR Interview/);
   assert.match(dashboard, /Role Request Actions/);
   assert.match(dashboard, /Pending HR Review/);
   assert.match(dashboard, /Pending Approval/);
@@ -45,12 +51,16 @@ test("applicant routes are protected and render populated sheet data", () => {
   assert.doesNotMatch(screening, /BulkResumeScreeningPanel/);
   assert.match(screening, /Upload from Google Drive/);
   assert.match(screening, /GOOGLE_BULK_RESUME_DRIVE_URL/);
+  assert.match(screening, /sort\(\(left, right\) => left\.label\.localeCompare\(right\.label/);
   assert.match(detail, /verifySessionToken/);
   assert.match(detail, /getApplicantById/);
   assert.match(detail, /getCandidateStatusHistory/);
   assert.match(detail, /latestDecisionComment/);
   assert.match(detail, /const resumeComments = applicant\.resumeComments \|\|/);
   assert.match(detail, /Candidate Status History/);
+  // Applicant timestamps are rendered in the shared HR operating timezone so
+  // UTC values from Sheets never appear shifted in the reviewer UI.
+  assert.match(detail, /formatPortalDateTime/);
 });
 
 test("applicants are reachable from the reviewer shell and role detail", () => {
@@ -83,6 +93,7 @@ test("user account edits update the original directory row", () => {
 
 test("candidate intake forms and decisions expose the required fields", () => {
   const form = read("src/components/CandidateApplicationForm.tsx");
+  const screening = read("src/app/resume-screening/page.tsx");
   const countryOptions = read("src/components/CountryOptions.tsx");
   const editor = read("src/components/RecruitmentSetupEditor.tsx");
   const decisionPanel = read("src/components/ApplicantDecisionPanel.tsx");
@@ -96,7 +107,7 @@ test("candidate intake forms and decisions expose the required fields", () => {
   const downloadRoute = read("src/app/api/uploads/resumes/[fileId]/route.ts");
   const scoreFormat = read("src/lib/score-format.ts");
 
-  assert.match(form, /Start a resume screening/);
+  assert.match(screening, /title="CV Analysis"/);
   assert.match(form, /countryCode/);
   assert.match(form, /localContactNumber/);
   assert.match(form, /Contact Number/);
@@ -123,6 +134,8 @@ test("candidate intake forms and decisions expose the required fields", () => {
   assert.match(decisionPanel, /<h2>HR Decisions<\/h2>/);
   assert.match(decisionPanel, /reviewStage/);
   assert.match(decisionPanel, /CompletedDecision/);
+  assert.match(decisionPanel, /Open HR Interview Booking Link/);
+  assert.match(decisionPanel, /link=\{props\.finalBookingLink\}/);
   // Decisions reload the server-backed detail page so every summary and
   // workflow control reflects the saved state together.
   assert.match(decisionPanel, /window\.location\.reload\(\)/);
@@ -136,6 +149,10 @@ test("candidate intake forms and decisions expose the required fields", () => {
   assert.match(route, /role\.recruitmentSetupStatus !== "Published"/);
   assert.match(publicRoute, /buildCandidateApplicationPayload/);
   assert.match(workflow, /evaluationFields/);
+  // A stale n8n claim must be released when HR approves so final invitations
+  // can be retried instead of remaining indefinitely in Processing.
+  assert.match(workflow, /Voice_Approval_Processed/,);
+  assert.match(workflow, /updates\.push\(set\("Voice_Approval_Processed", ""\)\)/);
   assert.match(workflow, /preferredMobile/);
   assert.match(workflow, /jobTitle/);
   assert.match(route, /jobTitle: role\.jobTitle/);

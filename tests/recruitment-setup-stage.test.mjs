@@ -74,16 +74,19 @@ test("voice booking defaults to weekday ten-minute availability and creates only
   assert.match(availabilityRules, /CALENDAR-FINAL-/);
   assert.match(availabilityRules, /connected HR Google/);
   assert.match(availabilityRules, /interviewType !== "Final Interview"/);
-  assert.match(availabilityRules, /startTime: "13:00"/);
+  assert.match(availabilityRules, /startTime: "10:00"/);
+  assert.match(availabilityRules, /start === 12 \* 60/);
   assert.match(availabilityRules, /slotDurationMinutes: 60/);
   const workflow = fs.readFileSync("src/lib/applicant-workflow.ts", "utf8");
   assert.match(workflow, /hidden future-month rows/);
   assert.match(workflow, /Unable to verify the HR Google Calendar/);
   const { expandHodAvailabilitySlots } = await import("../src/lib/hod-availability.ts");
-  const finalSlots = expandHodAvailabilitySlots([{ date: "2026-08-20", startTime: "13:00", endTime: "17:00", timezone: "Asia/Singapore" }]);
-  assert.equal(finalSlots.length, 4);
-  assert.deepEqual(finalSlots[0], { date: "2026-08-20", startTime: "13:00", endTime: "14:00", timezone: "Asia/Singapore" });
-  assert.deepEqual(finalSlots.at(-1), { date: "2026-08-20", startTime: "16:00", endTime: "17:00", timezone: "Asia/Singapore" });
+  const finalSlots = expandHodAvailabilitySlots([{ date: "2026-08-20", startTime: "10:00", endTime: "16:00", timezone: "Asia/Singapore" }]);
+  assert.equal(finalSlots.length, 5);
+  assert.deepEqual(finalSlots[0], { date: "2026-08-20", startTime: "10:00", endTime: "11:00", timezone: "Asia/Singapore" });
+  assert.deepEqual(finalSlots[1], { date: "2026-08-20", startTime: "11:00", endTime: "12:00", timezone: "Asia/Singapore" });
+  assert.deepEqual(finalSlots[2], { date: "2026-08-20", startTime: "13:00", endTime: "14:00", timezone: "Asia/Singapore" });
+  assert.deepEqual(finalSlots.at(-1), { date: "2026-08-20", startTime: "15:00", endTime: "16:00", timezone: "Asia/Singapore" });
 });
 
 test("setup action status is synchronized for legacy and canonical n8n payload readers", () => {
@@ -153,7 +156,12 @@ test("evaluation field catalog is shared between the schema, editor, and n8n pay
   assert.match(editor, /Always included/);
 
   assert.match(route, /Evaluation_Fields: JSON\.stringify/);
+  assert.match(route, /Evaluation_Field_Toggles: setup\.evaluationFieldToggles\.join/);
   assert.match(route, /evaluationFieldsForSetup/);
+
+  const sheetsSource = fs.readFileSync("src/lib/google-sheets.ts", "utf8");
+  assert.match(sheetsSource, /Evaluation_Field_Toggles/);
+  assert.match(sheetsSource, /dedicated toggle column authoritative/);
 
   const { recruitmentSetupSchema } = await import("../src/lib/recruitment-setup-schema.ts");
   const base = {

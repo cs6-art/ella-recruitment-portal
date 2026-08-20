@@ -6,6 +6,7 @@ import { useConfirmation } from "@/components/ConfirmationModal";
 import ValidationSummary from "@/components/ValidationSummary";
 import { STATUS_ACTION_LABELS } from "@/lib/status-actions";
 import { notificationPresentation } from "@/lib/notification-status";
+import { formatPortalDateTime } from "@/lib/portal-time";
 
 export type RoleStatusHistoryEntry = {
   timestamp: string;
@@ -53,10 +54,7 @@ function actionPrompt(action: string) {
 }
 
 function formatDate(value: string) {
-  const parsed = Date.parse(value);
-  return Number.isNaN(parsed)
-    ? value || "Not provided"
-    : new Date(parsed).toLocaleString();
+  return formatPortalDateTime(value, true);
 }
 
 function latestHold(history: RoleStatusHistoryEntry[]) {

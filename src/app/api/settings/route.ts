@@ -51,10 +51,10 @@ export async function PUT(request: Request) {
     const input = settingsSchema.parse(await request.json());
     for (const setting of input.settings) {
       if (setting.key === "Final_Interview_Calendar_Email" && !z.string().email().safeParse(setting.value.trim()).success) {
-        return NextResponse.json({ success: false, error: "Final interview calendar email must be a valid email address." }, { status: 400 });
+        return NextResponse.json({ success: false, error: "HR interview calendar email must be a valid email address." }, { status: 400 });
       }
       if (setting.key === "Final_Interview_Calendar_ID" && !/^[A-Za-z0-9._@-]+$/.test(setting.value.trim())) {
-        return NextResponse.json({ success: false, error: "Final interview calendar ID contains invalid characters." }, { status: 400 });
+        return NextResponse.json({ success: false, error: "HR interview calendar ID contains invalid characters." }, { status: 400 });
       }
     }
     const existing = await getPortalSettings();

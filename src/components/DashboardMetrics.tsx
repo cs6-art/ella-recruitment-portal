@@ -4,16 +4,14 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import InfoTip from "@/components/InfoTip";
+import { formatPortalDateTime } from "@/lib/portal-time";
 
 type RecentRequest = { roleId: string; jobTitle: string; department: string; status: string; createdAt: string; targetHiringDate: string };
 type ApplicantMetrics = { total: number; today: number; screened: number; interviewed: number; resumeApproved: number; voiceBookingPending: number; voiceScheduled: number; voiceReviewPending: number; approvedForFinal: number; finalScheduled: number; finalDecisionPending: number; rejected: number; passedFinalInterview: number };
 type Metrics = { pendingHrDiscussion: number; pendingManagementApproval: number; approved: number; rejected: number; openPositions: number; openPositionsAssumption?: string; recentRequests?: RecentRequest[]; applicantMetrics?: ApplicantMetrics };
 
 function formatDate(value: string, includeTime = true) {
-  if (!value) return "Not provided";
-  const parsed = new Date(includeTime || value.includes("T") ? value : `${value}T00:00:00`);
-  if (Number.isNaN(parsed.getTime())) return "Not provided";
-  return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric", ...(includeTime ? { hour: "numeric", minute: "2-digit" } : {}) }).format(parsed);
+  return formatPortalDateTime(value, includeTime);
 }
 
 function statusClass(status: string) { return `status-badge status-${status.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`; }
@@ -43,8 +41,8 @@ export default function DashboardMetrics({ scope = "organization" }: { scope?: "
     { label: "Resume Approved", value: applicantMetrics.resumeApproved, tone: "blue" },
     { label: "Voice Booking Pending", value: applicantMetrics.voiceBookingPending, tone: "purple" },
     { label: "Voice HR Review", value: applicantMetrics.voiceReviewPending, tone: "green" },
-    { label: "Approved for Final Interview", value: applicantMetrics.approvedForFinal, tone: "teal" },
-    { label: "Final Interview Scheduled", value: applicantMetrics.finalScheduled, tone: "orange" },
+    { label: "Approved for HR Interview", value: applicantMetrics.approvedForFinal, tone: "teal" },
+    { label: "HR Interview Scheduled", value: applicantMetrics.finalScheduled, tone: "orange" },
   ] : [];
 
   return <>
@@ -70,10 +68,10 @@ export default function DashboardMetrics({ scope = "organization" }: { scope?: "
           <div className="dashboard-candidate-section-heading"><div><h3 className="dashboard-stat-title-with-info">Decision Snapshot<InfoTip label="What is the Decision Snapshot?">These totals show decisions already recorded and the applicants still waiting for HR action.</InfoTip></h3><p>Actions HR can take next.</p></div></div>
           <div className="dashboard-candidate-outcome-row dashboard-candidate-outcome-positive"><span className="dashboard-candidate-outcome-dot" aria-hidden="true" /><div><strong>Awaiting Voice Booking Invitation</strong><small>Resume approved; automation should send the voice booking link</small></div><b>{applicantMetrics.voiceBookingPending}</b></div>
           <div className="dashboard-candidate-outcome-row dashboard-candidate-outcome-negative"><span className="dashboard-candidate-outcome-dot" aria-hidden="true" /><div><strong>Rejected Candidates</strong><small>Explicit rejection recorded</small></div><b>{applicantMetrics.rejected}</b></div>
-          <div className="dashboard-candidate-outcome-row dashboard-candidate-outcome-final"><span className="dashboard-candidate-outcome-dot" aria-hidden="true" /><div><strong>Passed Final Interview</strong><small>Explicit final outcome recorded</small></div><b>{applicantMetrics.passedFinalInterview}</b></div>
+          <div className="dashboard-candidate-outcome-row dashboard-candidate-outcome-final"><span className="dashboard-candidate-outcome-dot" aria-hidden="true" /><div><strong>Passed HR Interview</strong><small>Explicit HR interview outcome recorded</small></div><b>{applicantMetrics.passedFinalInterview}</b></div>
           <div className="dashboard-candidate-outcome-row"><span className="dashboard-candidate-outcome-dot" aria-hidden="true" /><div><strong>Voice HR Review</strong><small>Review Ella's summary and approve for final booking or reject</small></div><b>{applicantMetrics.voiceReviewPending}</b></div>
           <div className="dashboard-candidate-outcome-row"><span className="dashboard-candidate-outcome-dot" aria-hidden="true" /><div><strong>Awaiting Final Booking Invitation</strong><small>Voice interview approved; automation manages the final booking link</small></div><b>{applicantMetrics.approvedForFinal}</b></div>
-          <div className="dashboard-candidate-outcome-row"><span className="dashboard-candidate-outcome-dot" aria-hidden="true" /><div><strong>Final Decision Pending</strong><small>Final interview completed; HR must approve or reject</small></div><b>{applicantMetrics.finalDecisionPending}</b></div>
+          <div className="dashboard-candidate-outcome-row"><span className="dashboard-candidate-outcome-dot" aria-hidden="true" /><div><strong>HR Decision Pending</strong><small>HR interview completed; HR must approve or reject</small></div><b>{applicantMetrics.finalDecisionPending}</b></div>
         </div>
       </div>
     </section>}

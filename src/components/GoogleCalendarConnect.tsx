@@ -65,7 +65,7 @@ export default function GoogleCalendarConnect({ canManage = false }: { canManage
         {status === "connected" ? (
           <>
             <p>Connected account: <strong>{connectedAccountEmail}</strong></p>
-            <p>All final-interview availability and booking events use this shared HR calendar.</p>
+            <p>All HR interview availability and booking events use this shared HR calendar.</p>
             {canManage && <button type="button" className="btn btn-secondary" onClick={handleDisconnect} disabled={disconnecting}>
               {disconnecting ? "Disconnecting…" : "Disconnect"}
             </button>}
@@ -73,13 +73,13 @@ export default function GoogleCalendarConnect({ canManage = false }: { canManage
         ) : status === "mismatch" ? (
           <>
             <p>Connected account: <strong>{connectedAccountEmail}</strong></p>
-            <p className="calendar-connect-warning">This account is not being used for final-interview bookings because it does not match the shared HR calendar configuration.</p>
+            <p className="calendar-connect-warning">This account is not being used for HR interview bookings because it does not match the shared HR calendar configuration.</p>
             {canManage && <a className="btn btn-primary" href="/api/auth/google-calendar/connect">Reconnect Google Calendar</a>}
           </>
         ) : (
           <>
             <p>The shared HR Google Calendar is not connected yet.</p>
-            {canManage ? <a className="btn btn-primary" href="/api/auth/google-calendar/connect">Connect Google Calendar</a> : <p>A settings administrator must connect it before final-interview availability can be checked.</p>}
+            {canManage ? <a className="btn btn-primary" href="/api/auth/google-calendar/connect">Connect Google Calendar</a> : <p>A settings administrator must connect it before HR interview availability can be checked.</p>}
           </>
         )}
       </div>
