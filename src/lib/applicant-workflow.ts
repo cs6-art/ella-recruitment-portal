@@ -608,7 +608,17 @@ export async function getBookingContext(kind: BookingKind, token: string): Promi
     scheduledDate,
     scheduledTime,
     timezone,
-    appliedAt: field(row, "Applied_At", "Applied At", "Created_At", "Created At", "Submitted_At", "Submitted At"),
+    appliedAt: field(
+      row,
+      "Date of Application",
+      "Date_of_Application",
+      "Applied_At",
+      "Applied At",
+      "Created_At",
+      "Created At",
+      "Submitted_At",
+      "Submitted At",
+    ),
     currentSlot: currentSlot?.slot,
     slots,
   };

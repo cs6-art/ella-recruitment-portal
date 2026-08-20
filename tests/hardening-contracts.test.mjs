@@ -34,6 +34,7 @@ test("demo mode keeps history synthetic while allowing new internal workflow rec
   assert.match(candidateApplicationsSource, /Guards destructive profile edits/);
   assert.match(applicantWorkflowSource, /Demo mode accepts new applicants/);
   assert.match(applicantWorkflowSource, /isDemoSideEffectAllowed\(context\.appliedAt\)/);
+  assert.match(applicantWorkflowSource, /appliedAt: field\([\s\S]*"Date of Application"/);
   assert.match(calendarSource, /reason: "demo_mode"/);
   assert.match(demoDataSource, /function nextWeekday/);
   assert.match(demoDataSource, /return random\(\) < 0\.08 \? "No Show" : "Completed"/);
