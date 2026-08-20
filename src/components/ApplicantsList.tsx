@@ -86,7 +86,6 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
 
-  const publishedRoleKeys = useMemo(() => new Set((publishedRoles || []).flatMap((role) => [role.roleId, role.label])), [publishedRoles]);
   const hasPublishedRoleScope = publishedRoles !== undefined;
   const roleOptions = useMemo<RoleOption[]>(() => {
     if (hasPublishedRoleScope) {
@@ -123,12 +122,17 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
       return (!query || searchable.includes(query)) &&
         // Generated history is intentionally read-only, so it can still be
         // inspected from a dashboard stage filter even when its synthetic role
-        // is not present in the live published-role directory.
-        (!hasPublishedRoleScope || applicant.isHistoricalDemo || publishedRoleKeys.has(applicantRole) || publishedRoleKeys.has(applicant.roleId)) &&
+        // is not present in the live published-role directory. Operational
+        // applicants are always shown: a row written by the screening workflow
+        // must remain reviewable even when the role's publication evidence is
+        // still being reconciled (for example, a stale Posting_Confirmed flag).
+        // Public intake remains gated by isPublishedRoleForIntake; this list is
+        // an internal audit view and should not hide a successfully processed
+        // applicant merely because the role metadata is behind it.
         (roleFilter === "All Roles" || applicant.roleId === selectedRole?.roleId || applicantRole === roleFilter || applicant.selectedRole === selectedRole?.label) &&
         (stageFilter === "All Stages" || dashboardStageLabel(applicant.currentStage) === stageFilter || applicant.currentStage === stageFilter);
     });
-  }, [activeApplicants, hasPublishedRoleScope, publishedRoleKeys, roleFilter, roleOptions, search, stageFilter]);
+  }, [activeApplicants, roleFilter, roleOptions, search, stageFilter]);
 
   const totalPages = Math.max(1, Math.ceil(visibleApplicants.length / pageSize));
   const pagedApplicants = visibleApplicants.slice((page - 1) * pageSize, page * pageSize);
