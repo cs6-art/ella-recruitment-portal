@@ -209,7 +209,7 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
                     <td data-label="Role"><strong>{applicant.selectedRole || "Role not provided"}</strong><span className="applicant-subtext">{applicant.roleId}</span></td>
                     <td data-label="Applied">{formatDate(applicant.appliedAt)}</td>
                     <td data-label="Match"><strong className="applicant-score">{scoreValue(applicant.matchScore)}</strong>{applicant.recommendation && <span className="applicant-subtext">{applicant.recommendation}</span>}</td>
-                    <td data-label="Current stage"><span className={stageClass(applicant.currentStage)}>{applicant.currentStage || "Submitted"}</span></td>
+                    <td data-label="Current stage"><span className={stageClass(applicant.currentStage)}>{applicant.currentStage || "Pending HR Review"}</span></td>
                     <td data-label="Next action">{applicant.nextAction}</td>
                     <td data-label="Action"><div className="applicant-table-actions"><Link href={`/applicants/${encodeURIComponent(applicant.applicationId)}`}>View</Link>{canManageApplicants && <><Link href={`/applicants/${encodeURIComponent(applicant.applicationId)}/edit`}>Edit</Link><button type="button" className="table-danger-action" disabled={deletingIds.has(applicant.applicationId) || deletingId === "bulk"} onClick={() => void deleteApplicants([applicant])}>{deletingIds.has(applicant.applicationId) ? "Deleting..." : "Delete"}</button></>}</div></td>
                   </tr>

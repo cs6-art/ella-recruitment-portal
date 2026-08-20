@@ -32,6 +32,7 @@ test("dashboard includes candidate pipeline metrics without exposing them to cre
   assert.match(dashboard, /stageCounts/);
   assert.match(applicantMetrics, /Resume HR Review/);
   assert.match(applicantMetrics, /label: "Rejected"/);
+  assert.doesNotMatch(applicantMetrics, /label: "Submitted"/);
   assert.match(applicantMetrics, /Passed HR Interview/);
   assert.match(applicantMetrics, /currentApplicantStage/);
   assert.match(dashboard, /Role Request Actions/);

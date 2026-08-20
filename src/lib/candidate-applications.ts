@@ -236,7 +236,9 @@ function stageFor(record: SheetRow) {
   ];
   // New rows carry Pending placeholders for later interview stages. Do not
   // let those defaults hide the completed resume handoff from HR.
-  const stage = stages.find((value) => !["", "pending", "not started", "submitted"].includes(value.trim().toLowerCase())) || "Submitted";
+  // New or unprocessed applications are waiting for the first HR review; do
+  // not expose a separate "Submitted" bucket in the applicant pipeline.
+  const stage = stages.find((value) => !["", "pending", "not started", "submitted"].includes(value.trim().toLowerCase())) || "Pending HR Review";
   return ["processed", "for hr review"].includes(stage.trim().toLowerCase()) ? "Pending HR Review" : stage;
 }
 
@@ -323,7 +325,6 @@ const applicantStageDefinitions: Omit<ApplicantStageCount, "value">[] = [
   { key: "final_decision_pending", label: "HR Decision Pending", tone: "orange" },
   { key: "passed_final", label: "Passed HR Interview", tone: "green" },
   { key: "rejected", label: "Rejected", tone: "red" },
-  { key: "submitted", label: "Submitted", tone: "gray" },
 ];
 
 function currentApplicantStage(record: SheetRow) {
@@ -354,7 +355,9 @@ function currentApplicantStage(record: SheetRow) {
   if (resumeDecision.includes("reject") || finalStatus.includes("resume rejected")) return "rejected";
   if (resumeDecision === "approve") return "resume_approved";
   if (["processed", "for hr review", "pending hr review"].includes(resumeStatus) || finalStatus.includes("pending hr review")) return "resume_review";
-  return "submitted";
+  // Keep new rows in the reconciled pipeline without introducing a separate
+  // Submitted stage that would duplicate the initial HR review queue.
+  return "resume_review";
 }
 
 function applyFinalBookingState(summary: ApplicantSummary, record: SheetRow, finalSlot?: SheetRow) {

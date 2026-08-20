@@ -196,35 +196,44 @@ function outcomeFields(outcome: Outcome): Record<string, string> {
 function outcomeFor(random: () => number, ageDays: number): Outcome {
   const roll = random();
   if (ageDays > 45) {
-    if (roll < 0.62) return "resume_rejected";
-    if (roll < 0.82) return "voice_rejected";
-    if (roll < 0.91) return "final_rejected";
-    return "hired";
-  }
-  if (ageDays > 21) {
-    if (roll < 0.5) return "resume_rejected";
-    if (roll < 0.66) return "voice_rejected";
-    if (roll < 0.74) return "final_rejected";
-    if (roll < 0.83) return "hired";
-    if (roll < 0.9) return "final_decision_pending";
-    if (roll < 0.96) return "final_scheduled";
+    // Older cohorts are mostly settled, but a healthy funnel should retain
+    // meaningful progression instead of turning nearly every record into a
+    // rejection.
+    if (roll < 0.38) return "resume_rejected";
+    if (roll < 0.50) return "voice_rejected";
+    if (roll < 0.58) return "final_rejected";
+    if (roll < 0.72) return "hired";
+    if (roll < 0.82) return "final_decision_pending";
+    if (roll < 0.92) return "final_scheduled";
     return "approved_for_final";
   }
-  if (ageDays > 7) {
-    if (roll < 0.34) return "resume_rejected";
-    if (roll < 0.46) return "voice_rejected";
+  if (ageDays > 21) {
+    if (roll < 0.30) return "resume_rejected";
+    if (roll < 0.40) return "voice_rejected";
+    if (roll < 0.46) return "final_rejected";
     if (roll < 0.54) return "hired";
-    if (roll < 0.64) return "final_scheduled";
-    if (roll < 0.74) return "approved_for_final";
-    if (roll < 0.85) return "voice_review_pending";
-    if (roll < 0.94) return "voice_scheduled";
+    if (roll < 0.64) return "final_decision_pending";
+    if (roll < 0.76) return "final_scheduled";
+    if (roll < 0.86) return "approved_for_final";
+    if (roll < 0.93) return "voice_review_pending";
+    if (roll < 0.98) return "voice_scheduled";
     return "voice_booking_pending";
   }
-  if (roll < 0.34) return "pending_hr_review";
+  if (ageDays > 7) {
+    if (roll < 0.22) return "resume_rejected";
+    if (roll < 0.30) return "voice_rejected";
+    if (roll < 0.36) return "hired";
+    if (roll < 0.48) return "final_scheduled";
+    if (roll < 0.60) return "approved_for_final";
+    if (roll < 0.76) return "voice_review_pending";
+    if (roll < 0.90) return "voice_scheduled";
+    return "voice_booking_pending";
+  }
+  if (roll < 0.30) return "pending_hr_review";
   if (roll < 0.55) return "voice_booking_pending";
-  if (roll < 0.72) return "voice_scheduled";
-  if (roll < 0.85) return "voice_review_pending";
-  if (roll < 0.94) return "resume_rejected";
+  if (roll < 0.75) return "voice_scheduled";
+  if (roll < 0.90) return "voice_review_pending";
+  if (roll < 0.95) return "resume_rejected";
   return "approved_for_final";
 }
 
