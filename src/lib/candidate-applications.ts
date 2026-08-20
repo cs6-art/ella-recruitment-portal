@@ -2,7 +2,7 @@ import { google } from "googleapis";
 import { getGoogleServiceAccountPrivateKey } from "@/lib/google-service-account";
 import { cachedSheetsRead } from "@/lib/sheets-cache";
 import { demoActiveBookingLinkRoleIds, demoApplicantRows, demoInterviewBookings } from "@/lib/demo-data";
-import { isDemoMode } from "@/lib/demo-mode";
+import { isDemoMode, isDemoWindowRecord } from "@/lib/demo-mode";
 import { getRoleRequestById, type RoleRequestDetails } from "@/lib/google-sheets";
 import { evaluationFieldsForSetup, type EvaluationField } from "@/lib/recruitment-setup-schema";
 
@@ -383,11 +383,56 @@ export function calculateApplicantMetrics(rows: SheetRow[], now = new Date(), ti
   }, { total: 0, today: 0, screened: 0, interviewed: 0, resumeApproved: 0, voiceBookingPending: 0, voiceScheduled: 0, voiceReviewPending: 0, approvedForFinal: 0, finalScheduled: 0, finalDecisionPending: 0, rejected: 0, passedFinalInterview: 0 });
 }
 
+/**
+ * In demo mode, list the synthetic history alongside anything created since the
+ * demo cutoff, so a workflow driven live during a presentation shows up next to
+ * it. The real back catalogue stays hidden, so a presenter never sees a genuine
+ * candidate and cannot act on one.
+ */
+function withDemoHistory(rows: SheetRow[]): SheetRow[] {
+  if (!isDemoMode()) return rows;
+  const recent = rows.filter((record) => isDemoWindowRecord(field(record, "Date_of_Application", "Date of Application")));
+  return [...demoApplicantRows(), ...recent];
+}
+
+function withDemoBookings(bookings: InterviewBooking[]): InterviewBooking[] {
+  if (!isDemoMode()) return bookings;
+  const recent = bookings.filter((booking) => isDemoWindowRecord(booking.bookedAt) || isDemoWindowRecord(booking.lastUpdated));
+  return [...demoInterviewBookings(), ...recent]
+    .sort((left, right) => `${left.date} ${left.startTime}`.localeCompare(`${right.date} ${right.startTime}`));
+}
+
+/**
+ * Guards actions that can reach a candidate while demo mode is on.
+ *
+ * Returns a human-readable reason when the record must not be actioned, or
+ * null when it is safe. Two cases are refused:
+ *
+ *  - Synthetic history rows, which have no live record at all.
+ *  - Real applicants from before the demo cutoff, who must never be emailed or
+ *    phoned because someone clicked around during a presentation.
+ *
+ * Records created during the demo window pass, so the full workflow can be
+ * driven live end to end.
+ */
+export async function demoActionBlockReason(targetApplicationId: string): Promise<string | null> {
+  if (!isDemoMode()) return null;
+  const { rows } = await readTab("High_Match_Profile", "BH");
+  const record = rows.find((row) => applicationId(row) === targetApplicationId);
+  if (!record) {
+    return "This applicant is part of the demo history and cannot be actioned. Use a record created during this demo instead.";
+  }
+  if (!isDemoWindowRecord(field(record, "Date_of_Application", "Date of Application"))) {
+    return "Demo mode protects applicants who existed before the demo started, so no email or call can be sent to this candidate.";
+  }
+  return null;
+}
+
 export async function getApplicants(): Promise<ApplicantSummary[]> {
   // No-show maintenance runs in the background. Keep the Applicants page
   // focused on reading the data it needs to render.
-  const rows = isDemoMode() ? demoApplicantRows() : (await readTab("High_Match_Profile", "BH")).rows;
-  return rows
+  const live = (await readTab("High_Match_Profile", "BH")).rows;
+  return withDemoHistory(live)
     .map(mapApplicant)
     .filter((applicant) => applicant.applicationId !== "")
     .sort((left, right) => Date.parse(right.appliedAt) - Date.parse(left.appliedAt));
@@ -396,7 +441,7 @@ export async function getApplicants(): Promise<ApplicantSummary[]> {
 export async function getApplicantMetrics(): Promise<ApplicantMetrics> {
   // The scheduled interview maintenance handles past no-show updates. Keep
   // dashboard metrics read-only so the dashboard does not wait on that work.
-  const rows = isDemoMode() ? demoApplicantRows() : (await readTab("High_Match_Profile", "BH")).rows;
+  const rows = withDemoHistory((await readTab("High_Match_Profile", "BH")).rows);
   return calculateApplicantMetrics(rows.filter((record) => applicationId(record) !== ""));
 }
 
@@ -404,9 +449,8 @@ export async function getInterviewBookings(): Promise<InterviewBooking[]> {
   // Maintenance runs from the server background task. Keep this read-only so
   // the Bookings page is not blocked by several reconciliation sheet reads
   // and writes before it can render.
-  if (isDemoMode()) return demoInterviewBookings();
   const { rows } = await readTab("Interview_Slots", "X");
-  return rows.map((record) => ({
+  const live = rows.map((record) => ({
     slotId: field(record, "Slot_ID", "Slot ID"),
     interviewType: field(record, "Interview_Type", "Interview Type"),
     roleId: field(record, "Role_ID", "Role ID"),
@@ -425,6 +469,7 @@ export async function getInterviewBookings(): Promise<InterviewBooking[]> {
     calendarEventStatus: field(record, "Google_Calendar_Event_Status"),
     calendarEventError: field(record, "Google_Calendar_Event_Error"),
   })).filter((booking) => booking.slotId).sort((left, right) => `${left.date} ${left.startTime}`.localeCompare(`${right.date} ${right.startTime}`));
+  return withDemoBookings(live);
 }
 
 function hasActiveBookingLink(record: SheetRow, kind: "voice" | "final") {
@@ -449,10 +494,6 @@ function hasActiveBookingLink(record: SheetRow, kind: "voice" | "final") {
  * completed appointments remain visible even when a link has expired.
  */
 export async function getActiveBookingLinkRoleIds() {
-  if (isDemoMode()) {
-    const roleIds = demoActiveBookingLinkRoleIds().map((roleId) => roleId.toLowerCase());
-    return { voice: roleIds, final: roleIds };
-  }
   const { rows } = await readTab("High_Match_Profile", "BH");
   const voice = new Set<string>();
   const final = new Set<string>();
@@ -462,6 +503,10 @@ export async function getActiveBookingLinkRoleIds() {
     if (hasActiveBookingLink(record, "voice")) voice.add(roleId);
     if (hasActiveBookingLink(record, "final")) final.add(roleId);
   });
+  if (isDemoMode()) {
+    const demoIds = demoActiveBookingLinkRoleIds().map((roleId) => roleId.toLowerCase());
+    return { voice: [...new Set([...demoIds, ...voice])], final: [...new Set([...demoIds, ...final])] };
+  }
   return { voice: [...voice], final: [...final] };
 }
 

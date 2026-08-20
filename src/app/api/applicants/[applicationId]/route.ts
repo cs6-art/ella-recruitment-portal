@@ -1,5 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+
+import { demoActionBlockReason } from "@/lib/candidate-applications";
 import { z } from "zod";
 
 import { canDeleteApplicant, canEditApplicant } from "@/lib/access-control";
@@ -30,6 +32,9 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (!canEditApplicant(user)) return NextResponse.json({ success: false, error: "You do not have permission to edit applicants." }, { status: 403 });
     const { applicationId } = await context.params;
     const input = applicantUpdateSchema.parse(await request.json());
+    // Demo mode: protect real applicant records from presentation clicks.
+    const blocked = await demoActionBlockReason(applicationId);
+    if (blocked) return NextResponse.json({ success: false, error: blocked }, { status: 503 });
     const result = await updateApplicantProfile(applicationId, input);
     return NextResponse.json({ success: true, applicant: result, message: "Applicant details updated successfully." });
   } catch (error) {
@@ -43,6 +48,9 @@ export async function DELETE(_request: Request, context: RouteContext) {
     if (!user) return NextResponse.json({ success: false, error: "Authentication required." }, { status: 401 });
     if (!canDeleteApplicant(user)) return NextResponse.json({ success: false, error: "You do not have permission to delete applicants." }, { status: 403 });
     const { applicationId } = await context.params;
+    // Demo mode: protect real applicant records from presentation clicks.
+    const blocked = await demoActionBlockReason(applicationId);
+    if (blocked) return NextResponse.json({ success: false, error: blocked }, { status: 503 });
     const result = await deleteApplicant(applicationId);
     return NextResponse.json({ success: true, applicant: result, message: "Applicant and linked records deleted successfully." });
   } catch (error) {
