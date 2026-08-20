@@ -712,7 +712,19 @@ export async function deleteApplicant(applicationId: string) {
     const hodEmail = (await getFinalInterviewCalendarConfig()).email;
     if (!hodEmail) throw new Error("The HR interviewer email is not configured, so the linked calendar event cannot be removed.");
     for (const { row } of finalBookedSlots) {
-      const result = await deleteFinalInterviewEvent(hodEmail, field(row, "Google_Calendar_Event_ID"));
+      const result = await deleteFinalInterviewEvent(hodEmail, field(row, "Google_Calendar_Event_ID"), {
+        allowDemoSideEffect: isDemoSideEffectAllowed(field(
+          found.row,
+          "Date of Application",
+          "Date_of_Application",
+          "Applied_At",
+          "Applied At",
+          "Created_At",
+          "Created At",
+          "Submitted_At",
+          "Submitted At",
+        )),
+      });
       if (!result.deleted) throw new Error(result.error || "Unable to remove the linked HR-interview calendar event.");
     }
   }
@@ -853,7 +865,9 @@ async function reserveBookingInternal(kind: BookingKind, token: string, slotId: 
   let oldCalendarEventCleanup: { deleted: true } | { deleted: false; reason: "not_connected" | "error" | "demo_mode"; error?: string } | null = null;
   if (kind === "final" && oldSlotIndex >= 0 && calendarHodEmail) {
     const oldEventId = field(slotsData.rows[oldSlotIndex], "Google_Calendar_Event_ID");
-    if (oldEventId) oldCalendarEventCleanup = await deleteFinalInterviewEvent(calendarHodEmail, oldEventId);
+    if (oldEventId) oldCalendarEventCleanup = await deleteFinalInterviewEvent(calendarHodEmail, oldEventId, {
+      allowDemoSideEffect: isDemoSideEffectAllowed(context.appliedAt),
+    });
   }
   const updates: CellUpdate[] = [
     { tab: "Interview_Slots", row: slotRow, header: "Status", value: "Booked" },
@@ -1207,6 +1221,17 @@ export async function syncPastBookedInterviewsNoShow() {
       const applicantIndex = applicantsData.rows.findIndex((row) => field(row, "Application_ID", "Application ID").toLowerCase() === applicationId.toLowerCase());
       const isVoice = field(slot, "Interview_Type", "Interview Type").toLowerCase().includes("voice");
       const applicant = applicantIndex >= 0 ? applicantsData.rows[applicantIndex] : undefined;
+      if (!isDemoSideEffectAllowed(field(
+        applicant || {},
+        "Date of Application",
+        "Date_of_Application",
+        "Applied_At",
+        "Applied At",
+        "Created_At",
+        "Created At",
+        "Submitted_At",
+        "Submitted At",
+      ))) return;
       const interviewStatus = field(applicant || {}, isVoice ? "Status 2 (Voice Interview)" : "Status 3 (Final Interview)").toLowerCase();
       const resultRows = isVoice
         ? [...(voiceResultsData?.rows ?? []), ...(callLogsData?.rows ?? [])]
@@ -1355,7 +1380,9 @@ export async function syncPastAvailableInterviewSlots() {
       if (field(slot, "Status").toLowerCase() !== "available") return;
       const timezone = field(slot, "Timezone", "Time Zone") || "Asia/Singapore";
       try {
-        if (scheduledInstant(field(slot, "Date"), field(slot, "Start_Time", "Start Time"), timezone).getTime() > now) return;
+        const scheduledAt = scheduledInstant(field(slot, "Date"), field(slot, "Start_Time", "Start Time"), timezone);
+        if (!isDemoSideEffectAllowed(scheduledAt.toISOString())) return;
+        if (scheduledAt.getTime() > now) return;
       } catch {
         return;
       }

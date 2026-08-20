@@ -26,15 +26,20 @@ test("authentication and logout use secure HTTP-only cookie settings", () => {
 
 test("demo mode keeps history synthetic while allowing new internal workflow records", () => {
   assert.match(demoModeSource, /allowing new test roles and applicants/);
+  assert.match(demoModeSource, /2026-08-20T00:00:00\+08:00/);
+  assert.doesNotMatch(demoModeSource, /Intl\.DateTimeFormat/);
   assert.match(candidateApplicationsSource, /\[\.\.\.demoApplicantRows\(\), \.\.\.recentLive\]/);
   assert.match(candidateApplicationsSource, /"Date_of_Application"/);
   assert.match(candidateApplicationsSource, /\[\.\.\.demoInterviewBookings\(\), \.\.\.recentLive\]/);
   assert.match(hrApplicantRouteSource, /invalidateSheetsCache\("High_Match_Profile"\)/);
   assert.match(publicApplicantRouteSource, /invalidateSheetsCache\("High_Match_Profile"\)/);
   assert.match(candidateApplicationsSource, /Guards destructive profile edits/);
+  assert.match(candidateApplicationsSource, /Records from August 20, 2026 onward can be edited normally/);
+  assert.match(candidateApplicationsSource, /new Set\(\[\.\.\.demoIds, \.\.\.voice\]\)/);
   assert.match(applicantWorkflowSource, /Demo mode accepts new applicants/);
   assert.match(applicantWorkflowSource, /isDemoSideEffectAllowed\(context\.appliedAt\)/);
   assert.match(applicantWorkflowSource, /appliedAt: field\([\s\S]*"Date of Application"/);
+  assert.match(applicantWorkflowSource, /scheduledAt[\s\S]*isDemoSideEffectAllowed\(scheduledAt\.toISOString\(\)\)/);
   assert.match(calendarSource, /reason: "demo_mode"/);
   assert.match(demoDataSource, /function nextWeekday/);
   assert.match(demoDataSource, /return random\(\) < 0\.08 \? "No Show" : "Completed"/);

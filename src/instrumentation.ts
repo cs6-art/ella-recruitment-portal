@@ -4,26 +4,24 @@ const INTERVIEW_MAINTENANCE_INTERVAL_MS = 5 * 60 * 1000;
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
-  // Demo mode must never touch live data. The interview maintenance below
-  // writes "No Show" rows back to Google Sheets, which the n8n pollers would
-  // observe and act on — exactly the emails and calls a demo must not send.
+  // Keep scheduled Drive cleanup away from protected historical files while
+  // demo safety is enabled. New uploads still retain their normal expiry.
   const { isDemoMode } = await import("./lib/demo-mode");
-  if (isDemoMode()) {
-    console.info("[Demo Mode] Background maintenance disabled; no data will be written.");
-    return;
+  if (!isDemoMode()) {
+    const { cleanupExpiredResumeFiles } = await import("./lib/resume-files");
+    const runCleanup = () => {
+      void cleanupExpiredResumeFiles().catch((error) => {
+        console.warn("[Resume Cleanup] Scheduled cleanup failed:", error);
+      });
+    };
+
+    runCleanup();
+    const timer = setInterval(runCleanup, RESUME_CLEANUP_INTERVAL_MS);
+    timer.unref?.();
   }
 
-  const { cleanupExpiredResumeFiles } = await import("./lib/resume-files");
-  const runCleanup = () => {
-    void cleanupExpiredResumeFiles().catch((error) => {
-      console.warn("[Resume Cleanup] Scheduled cleanup failed:", error);
-    });
-  };
-
-  runCleanup();
-  const timer = setInterval(runCleanup, RESUME_CLEANUP_INTERVAL_MS);
-  timer.unref?.();
-
+  // Interview maintenance is safe in demo mode because each writer enforces
+  // the fixed August 20 cutoff and skips protected historical records.
   const { syncPastBookedInterviewsNoShow, syncPastAvailableInterviewSlots } = await import("./lib/applicant-workflow");
   const runInterviewMaintenance = () => {
     void (async () => {

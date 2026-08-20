@@ -20,6 +20,14 @@ test("applicant data reader uses the shared candidate workbook tabs", () => {
   assert.doesNotMatch(source, /Finance_Resume/);
 });
 
+test("every generated applicant shown in demo mode has a viewable profile", () => {
+  const source = read("src/lib/candidate-applications.ts");
+  assert.match(source, /const demoRecord = isDemoMode\(\)/);
+  assert.match(source, /const record = liveRecord \|\| demoRecord/);
+  assert.match(source, /demoInterviewBookings\(\)/);
+  assert.match(source, /Historical demonstration record/);
+});
+
 test("dashboard includes candidate pipeline metrics without exposing them to creator-only users", () => {
   const api = read("src/app/api/dashboard/metrics/route.ts");
   const dashboard = read("src/components/DashboardMetrics.tsx");

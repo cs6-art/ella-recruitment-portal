@@ -15,17 +15,17 @@ export function isDemoMode() {
 }
 
 /**
- * Records at or after this instant are demo data; anything older is the
- * protected real history.
+ * Records at or after this instant are active workflow data; anything older
+ * is protected historical data.
  *
  * Set `DEMO_CUTOFF` (any parseable timestamp, e.g. "2026-08-20T09:00:00+08:00")
  * to pin it to the moment the demo starts. That is the safest option, because
  * it narrows the window in which a genuine applicant could be mistaken for a
  * test record.
  *
- * Without it, the cutoff defaults to midnight today in the portal timezone.
- * Every serverless instance derives the same value from the calendar date, so
- * the boundary stays stable across cold starts and redeploys.
+ * Without it, use the fixed production baseline below. Never derive this from
+ * "today": a moving daily cutoff would make yesterday's valid applicants
+ * historical after midnight and break follow-up workflows.
  */
 export function demoCutoffMs(): number {
   const configured = process.env.DEMO_CUTOFF?.trim();
@@ -34,12 +34,9 @@ export function demoCutoffMs(): number {
     if (Number.isFinite(parsed)) return parsed;
   }
 
-  // Asia/Singapore (the portal default) is a fixed +08:00 with no DST, so the
-  // date in that zone plus a fixed offset is an exact instant.
-  const timeZone = process.env.PORTAL_TIMEZONE || "Asia/Singapore";
-  const today = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
-  const midnight = Date.parse(`${today}T00:00:00+08:00`);
-  return Number.isFinite(midnight) ? midnight : Date.now();
+  // August 20, 2026 is intentionally inclusive. Applications and roles from
+  // this instant onward remain valid on every future day and deployment.
+  return Date.parse("2026-08-20T00:00:00+08:00");
 }
 
 /** True when a record's timestamp is on or after the optional demo cutoff. */

@@ -396,9 +396,9 @@ export async function getCalendarBusyWindows(input: { hodEmail: string; start: D
   }
 }
 
-export async function deleteFinalInterviewEvent(hodEmail: string, eventId: string): Promise<{ deleted: true } | { deleted: false; reason: "not_connected" | "error" | "demo_mode"; error?: string }> {
+export async function deleteFinalInterviewEvent(hodEmail: string, eventId: string, options: { allowDemoSideEffect?: boolean } = {}): Promise<{ deleted: true } | { deleted: false; reason: "not_connected" | "error" | "demo_mode"; error?: string }> {
   if (!eventId) return { deleted: true };
-  if (isDemoMode()) return { deleted: false, reason: "demo_mode" };
+  if (isDemoMode() && !options.allowDemoSideEffect) return { deleted: false, reason: "demo_mode" };
   try {
     const target = await finalInterviewCalendarTarget(hodEmail);
     const client = await getAuthorizedClient(target.email);

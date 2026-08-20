@@ -37,7 +37,8 @@ This document records the production path verified during the client-demo prepar
 
 ## Demo safety boundary
 
-- Applicant-facing email, calls, bookings, and calendar writes are allowed only for eligible non-synthetic applications created on or after the August 20, 2026 Singapore-time cutoff used for the demo.
+- August 20, 2026 at 00:00 Asia/Singapore is the fixed, inclusive production-data baseline. It does not move at midnight: applications and roles from August 20 and every later date remain valid on future days and deployments.
+- Applicant-facing email, calls, bookings, calendar writes, profile edits, and status maintenance are allowed for eligible non-synthetic applications at or after that baseline.
 - Historical applications and records identified as dummy, synthetic, demo, test, or `example.com` data remain blocked from outbound side effects.
 - Queue locks, sent flags, used booking tokens, and provider call IDs prevent duplicate email sends, duplicate reservations, and repeated calls.
 

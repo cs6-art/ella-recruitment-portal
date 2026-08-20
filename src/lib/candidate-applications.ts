@@ -470,8 +470,24 @@ function withDemoBookings(bookings: InterviewBooking[]): InterviewBooking[] {
  */
 export async function demoActionBlockReason(targetApplicationId: string): Promise<string | null> {
   if (!isDemoMode()) return null;
-  void targetApplicationId;
-  return "Demo mode is read-only: applicant emails, calls, bookings, and calendar changes are disabled.";
+  const normalizedId = text(targetApplicationId).toLowerCase();
+  const { rows } = await readTab("High_Match_Profile", "BH");
+  const applicant = rows.find((row) => applicationId(row).toLowerCase() === normalizedId);
+  if (!applicant) return "Applicant record was not found.";
+  const appliedAt = field(
+    applicant,
+    "Date_of_Application",
+    "Date of Application",
+    "Applied_At",
+    "Applied At",
+    "Created_At",
+    "Created At",
+    "Submitted_At",
+    "Submitted At",
+  );
+  return isDemoWindowRecord(appliedAt)
+    ? null
+    : "This historical applicant is read-only. Records from August 20, 2026 onward can be edited normally.";
 }
 
 export async function getApplicants(): Promise<ApplicantSummary[]> {
@@ -544,6 +560,17 @@ export async function getActiveBookingLinkRoleIds() {
   const voice = new Set<string>();
   const final = new Set<string>();
   rows.forEach((record) => {
+    if (isDemoMode() && !isDemoWindowRecord(field(
+      record,
+      "Date_of_Application",
+      "Date of Application",
+      "Applied_At",
+      "Applied At",
+      "Created_At",
+      "Created At",
+      "Submitted_At",
+      "Submitted At",
+    ))) return;
     const roleId = field(record, "Role_ID", "Role ID").trim().toLowerCase();
     if (!roleId) return;
     if (hasActiveBookingLink(record, "voice")) voice.add(roleId);
@@ -551,9 +578,10 @@ export async function getActiveBookingLinkRoleIds() {
   });
   if (isDemoMode()) {
     const demoIds = demoActiveBookingLinkRoleIds().map((roleId) => roleId.toLowerCase());
-    void voice;
-    void final;
-    return { voice: demoIds, final: demoIds };
+    return {
+      voice: [...new Set([...demoIds, ...voice])],
+      final: [...new Set([...demoIds, ...final])],
+    };
   }
   return { voice: [...voice], final: [...final] };
 }
@@ -607,8 +635,17 @@ export async function getApplicantById(id: string): Promise<ApplicantDetails | n
     readTab("Interview_Slots", "X"),
   ]);
   const normalizedId = text(id).toLowerCase();
-  const record = applicantRows.find((row) => applicationId(row).toLowerCase() === normalizedId);
+  const liveRecord = applicantRows.find((row) => applicationId(row).toLowerCase() === normalizedId);
+  // The Applicants list deliberately mixes persisted applications with the
+  // generated historical demo cohort. Resolve the same generated row here so
+  // every visible View link has a matching, read-only profile instead of
+  // falling through to "Applicant Not Found".
+  const demoRecord = isDemoMode()
+    ? demoApplicantRows().find((row) => applicationId(row).toLowerCase() === normalizedId)
+    : undefined;
+  const record = liveRecord || demoRecord;
   if (!record) return null;
+  const isGeneratedDemoRecord = !liveRecord && Boolean(demoRecord);
 
   const summary = mapApplicant(record);
   // A retry creates a new result/log row for the same applicant. Always use
@@ -628,12 +665,36 @@ export async function getApplicantById(id: string): Promise<ApplicantDetails | n
   const voiceResult = latestRelated(voiceResults, ["Result_Received_At", "Call_Completed_At", "Last_Updated", "Created_At"]);
   const callLog = latestRelated(callLogs, ["Result_Received_At", "Call_Completed_At", "Last_Updated", "Date"]);
   const finalInterview = latestRelated(finalInterviews, ["Last_Updated", "Booked_At", "Created_At"]);
-  const applicantSlots = slots.filter((row) => applicationId(row).toLowerCase() === normalizedId);
+  const generatedDemoSlots: SheetRow[] = isGeneratedDemoRecord
+    ? demoInterviewBookings()
+      .filter((booking) => booking.applicationId.toLowerCase() === normalizedId)
+      .map((booking) => ({
+        slot_id: booking.slotId,
+        interview_type: booking.interviewType,
+        role_id: booking.roleId,
+        date: booking.date,
+        start_time: booking.startTime,
+        end_time: booking.endTime,
+        timezone: booking.timezone,
+        status: booking.status,
+        application_id: booking.applicationId,
+        candidate_name: booking.candidateName,
+        candidate_email: booking.candidateEmail,
+        booked_at: booking.bookedAt,
+        last_updated: booking.lastUpdated,
+        google_calendar_event_id: booking.calendarEventId,
+        google_calendar_event_link: booking.calendarEventLink,
+        google_calendar_event_status: booking.calendarEventStatus,
+        google_calendar_event_error: booking.calendarEventError,
+      }))
+    : [];
+  const applicantSlots = (isGeneratedDemoRecord ? generatedDemoSlots : slots)
+    .filter((row) => applicationId(row).toLowerCase() === normalizedId);
   const voiceInterviewSlot = applicantSlots.find((row) => field(row, "Interview_Type", "Interview Type").toLowerCase().includes("voice"));
   const finalInterviewSlot = applicantSlots.find((row) => field(row, "Interview_Type", "Interview Type").toLowerCase().includes("final"));
   const interviewSlot = voiceInterviewSlot || applicantSlots[0];
   const displaySummary = applyFinalBookingState(summary, record, finalInterviewSlot);
-  const role = field(record, "Voice_HR_Decision").toLowerCase() === "approve" || voiceResult || callLog
+  const role = !isGeneratedDemoRecord && (field(record, "Voice_HR_Decision").toLowerCase() === "approve" || voiceResult || callLog)
     ? await getRoleRequestById(summary.roleId)
     : null;
   const configuredEvaluationFields = evaluationFieldsForSetup(role?.evaluationFieldToggles, role?.customEvaluationFields);
@@ -641,15 +702,18 @@ export async function getApplicantById(id: string): Promise<ApplicantDetails | n
   return {
     ...displaySummary,
     roleDetails: role || undefined,
-    aiAnalysisSummary: field(record, "AI_Analysis_Summary", "AI Analysis Summary"),
-    interviewQuestions: field(record, "Interview_Questions", "Interview Questions"),
-    resumeText: field(record, "Resume_Text", "Resume_CV", "Resume/CV", "Resume Text"),
+    aiAnalysisSummary: field(record, "AI_Analysis_Summary", "AI Analysis Summary")
+      || (isGeneratedDemoRecord ? `The CV was reviewed against the ${summary.selectedRole} requirements. The match score and recommendation shown above summarize the historical screening result.` : ""),
+    interviewQuestions: field(record, "Interview_Questions", "Interview Questions")
+      || (isGeneratedDemoRecord ? `Describe the experience most relevant to the ${summary.selectedRole} role.\nHow would you approach the role's main responsibilities during your first 90 days?\nWhat strengths would you bring to the team?` : ""),
+    resumeText: field(record, "Resume_Text", "Resume_CV", "Resume/CV", "Resume Text")
+      || (isGeneratedDemoRecord ? "Historical demonstration record. The original CV file is not stored for generated applicants." : ""),
     resumeFileId: field(record, "Resume_File_Id"),
     resumeFileName: field(record, "Resume_File_Name"),
     resumeFileMimeType: field(record, "Resume_File_Mime_Type"),
     resumeFileExpiresAt: field(record, "Resume_File_Expires_At"),
-    strengths: field(record, "Strengths"),
-    gaps: field(record, "Gaps"),
+    strengths: field(record, "Strengths") || (isGeneratedDemoRecord ? "Relevant transferable experience and role-aligned capabilities." : ""),
+    gaps: field(record, "Gaps") || (isGeneratedDemoRecord ? "Specific examples and technical depth should be confirmed during the interview." : ""),
     resumeDecision: field(record, "Resume_HR_Decision"),
     resumeDecisionDate: field(record, "Resume_HR_Decision_Date"),
     resumeReviewer: field(record, "Resume_HR_Reviewer"),
@@ -660,11 +724,16 @@ export async function getApplicantById(id: string): Promise<ApplicantDetails | n
     // Voice_Interview_Results is canonical. The call log is a safe fallback
     // while the result workflow is retrying or when a provider webhook only
     // updated the audit log.
-    voiceScore: field(voiceResult ?? {}, "Voice_Score", "Voice Score") || field(callLog ?? {}, "Voice_Score", "Voice Score"),
-    voiceRecommendation: field(voiceResult ?? {}, "Voice_Recommendation", "Voice Recommendation") || field(callLog ?? {}, "Voice_Recommendation", "Voice Recommendation"),
-    voiceSummary: field(voiceResult ?? {}, "AI_Voice_Summary", "AI Voice Summary") || field(callLog ?? {}, "AI_Voice_Summary", "AI Voice Summary"),
-    voiceStrengths: field(voiceResult ?? {}, "Voice_Strengths", "Voice Strengths") || field(callLog ?? {}, "Voice_Strengths", "Voice Strengths"),
-    voiceConcerns: field(voiceResult ?? {}, "Voice_Concerns", "Voice Concerns") || field(callLog ?? {}, "Voice_Concerns", "Voice Concerns"),
+    voiceScore: field(voiceResult ?? {}, "Voice_Score", "Voice Score") || field(callLog ?? {}, "Voice_Score", "Voice Score")
+      || (isGeneratedDemoRecord && summary.voiceStatus ? summary.matchScore : ""),
+    voiceRecommendation: field(voiceResult ?? {}, "Voice_Recommendation", "Voice Recommendation") || field(callLog ?? {}, "Voice_Recommendation", "Voice Recommendation")
+      || (isGeneratedDemoRecord && summary.voiceStatus ? summary.recommendation : ""),
+    voiceSummary: field(voiceResult ?? {}, "AI_Voice_Summary", "AI Voice Summary") || field(callLog ?? {}, "AI_Voice_Summary", "AI Voice Summary")
+      || (isGeneratedDemoRecord && summary.voiceStatus ? "Historical voice interview activity is represented by the status and outcome recorded for this demonstration applicant." : ""),
+    voiceStrengths: field(voiceResult ?? {}, "Voice_Strengths", "Voice Strengths") || field(callLog ?? {}, "Voice_Strengths", "Voice Strengths")
+      || (isGeneratedDemoRecord && summary.voiceStatus ? "Clear responses and relevant examples." : ""),
+    voiceConcerns: field(voiceResult ?? {}, "Voice_Concerns", "Voice Concerns") || field(callLog ?? {}, "Voice_Concerns", "Voice Concerns")
+      || (isGeneratedDemoRecord && summary.voiceStatus ? "Role-specific details should be validated by HR." : ""),
     voiceCommunicationQuality: field(voiceResult ?? {}, "Communication_Quality", "Communication Quality") || field(callLog ?? {}, "Communication_Quality", "Communication Quality"),
     voiceAnswerCompleteness: field(voiceResult ?? {}, "Answer_Completeness", "Answer Completeness") || field(callLog ?? {}, "Answer_Completeness", "Answer Completeness"),
     voiceFollowUpQuestions: field(voiceResult ?? {}, "Recommended_Follow_Up_Questions", "Recommended Follow Up Questions") || field(callLog ?? {}, "Recommended_Follow_Up_Questions", "Recommended Follow Up Questions"),
@@ -683,7 +752,7 @@ export async function getApplicantById(id: string): Promise<ApplicantDetails | n
     finalBookingLink: field(record, "Final_Interview_Booking_Link"),
     finalBookingTokenExpiresAt: field(record, "Final_Interview_Booking_Token_Expires_At"),
     finalComments: field(record, "Final_Interview_Comments", "Final Interview Comments"),
-    lastUpdated: field(record, "Last_Updated"),
+    lastUpdated: field(record, "Last_Updated") || finalInterviewSlot?.last_updated || voiceInterviewSlot?.last_updated || summary.appliedAt,
     voiceInterviewResult: voiceResult,
     voiceCallLog: callLog,
     finalInterview,
