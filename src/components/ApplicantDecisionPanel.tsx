@@ -85,6 +85,11 @@ function DecisionRow({ stage, title, description, current, link, enabled = true,
       // summary cards, timeline, and available decisions stay in sync without
       // losing the reviewer's current page position.
       router.refresh();
+      // A same-route refresh can leave an already-rendered client boundary
+      // unchanged when the page was restored from browser history. Replace
+      // the detail URL as well so the approved/rejected state is guaranteed to
+      // be fetched and displayed immediately after the decision succeeds.
+      router.replace(`/applicants/${encodeURIComponent(applicationId)}?decisionSaved=${Date.now()}`);
       return;
     } catch (decisionError) { setError(decisionError instanceof Error ? decisionError.message : "Unable to save decision."); }
     finally { setBusy(false); }
