@@ -294,10 +294,9 @@ function Field({
 }
 
 export default function RecruitmentSetupEditor({ roleId, status, setup, editable: canReview, updatedAt, updatedBy, updatedByEmail, onSaved }: Props) {
-  // Saving is server-side restricted to Approved / Recruitment Setup roles, so
-  // HR can continue correcting Ella's script and publishing metadata after a
-  // role is posted. Publishing itself remains a one-way workflow action below.
-  const editable = canReview && (status === "Approved" || status === "Recruitment Setup" || status === "Job Posted");
+  // Published roles are a viewing surface. Keep the setup controls disabled
+  // there so opening a role does not expose a misleading Save action.
+  const editable = canReview && (status === "Approved" || status === "Recruitment Setup");
   const canAdvanceWorkflow = status !== "Job Posted";
   const router = useRouter();
   const setupKey = JSON.stringify(setup);
@@ -615,7 +614,7 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
         <div className="vapi-publishing-content">
           <fieldset id="vapi-posting-channels" className="vapi-channel-fieldset">
             <legend>Posting channels *</legend>
-            <small className="vapi-required-help">Choose at least one place to publish this role.</small>
+            {normalizeChannels(values.postingChannels).length === 0 && <small className="vapi-required-help">Choose at least one place to publish this role.</small>}
             <div className="vapi-channel-options">
               {channels.map((channel) => (
                 <label key={channel} className="vapi-channel-option">

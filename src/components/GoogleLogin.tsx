@@ -21,7 +21,12 @@ declare global {
   }
 }
 
-export default function GoogleLogin() {
+type GoogleLoginProps = {
+  /** Destination preserved from an unauthenticated role-request link. */
+  redirectTo?: string;
+};
+
+export default function GoogleLogin({ redirectTo = "/dashboard" }: GoogleLoginProps) {
   const buttonRef = useRef<HTMLDivElement>(null);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
@@ -49,7 +54,8 @@ export default function GoogleLogin() {
           setError(result.error || "Sign-in failed.");
           return;
         }
-        window.location.href = "/dashboard";
+        // Complete login at the role request that originally required auth.
+        window.location.href = redirectTo;
       },
     });
 

@@ -1,12 +1,23 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import GoogleLogin from "@/components/GoogleLogin";
+import { safeAuthRedirect } from "@/lib/auth-redirect";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
 
-export default async function Home() {
+type HomePageProps = {
+  searchParams?: Promise<{
+    next?: string | string[];
+  }>;
+};
+
+export default async function Home({ searchParams }: HomePageProps) {
   const cookieStore = await cookies();
   const user = verifySessionToken(cookieStore.get(COOKIE_NAME)?.value);
-  if (user) redirect("/dashboard");
+  const query = searchParams ? await searchParams : undefined;
+  const nextValue = Array.isArray(query?.next) ? query.next[0] : query?.next;
+  const redirectTo = safeAuthRedirect(nextValue);
+
+  if (user) redirect(redirectTo);
 
   return (
     <main className="login-page">
@@ -24,7 +35,7 @@ export default async function Home() {
         <div className="login-panel">
           <h2>Welcome</h2>
           <p>Sign in using your McLink Group Google Workspace account to create and monitor role requests.</p>
-          <GoogleLogin />
+          <GoogleLogin redirectTo={redirectTo} />
           <div className="notice"><strong>Company access only.</strong><br />The backend verifies the Google token and only accepts accounts managed under <strong>mclinkgroup.com</strong>.</div>
         </div>
       </section>

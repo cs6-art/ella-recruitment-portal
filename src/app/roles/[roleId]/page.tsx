@@ -19,6 +19,9 @@ type RoleDetailsPageProps = {
 export default async function RoleDetailsPage({
   params,
 }: RoleDetailsPageProps) {
+  const { roleId } = await params;
+  const decodedRoleId = decodeURIComponent(roleId);
+  const rolePath = `/roles/${encodeURIComponent(decodedRoleId)}`;
   const cookieStore = await cookies();
 
   const user = verifySessionToken(
@@ -26,7 +29,9 @@ export default async function RoleDetailsPage({
   );
 
   if (!user) {
-    redirect("/");
+    // Preserve the exact role link through Google sign-in instead of sending
+    // users who arrived from an email notification to the dashboard.
+    redirect(`/?next=${encodeURIComponent(rolePath)}`);
   }
 
   if (
@@ -37,12 +42,10 @@ export default async function RoleDetailsPage({
     redirect("/dashboard");
   }
 
-  const { roleId } = await params;
-
   return (
     <AppShell user={user}>
       <RoleDetails
-        roleId={decodeURIComponent(roleId)}
+        roleId={decodedRoleId}
         userEmail={user.email}
         canReviewRole={user.canReviewRole === true}
         canApproveRole={user.canApproveRole === true}
