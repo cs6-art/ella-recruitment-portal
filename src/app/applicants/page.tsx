@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 
 import AppShell from "@/components/AppShell";
 import ApplicantsList from "@/components/ApplicantsList";
-import { getApplicants } from "@/lib/candidate-applications";
+import { getApplicantMetrics, getApplicants } from "@/lib/candidate-applications";
 import { getRoleRequests, isPublishedRoleForIntake } from "@/lib/google-sheets";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
 
@@ -26,7 +26,7 @@ function ApplicantsLoading() {
 }
 
 async function ApplicantsData({ user }: { user: { canReviewRole?: boolean; canApproveRole?: boolean } }) {
-  const [applicants, roles] = await Promise.all([getApplicants(), getRoleRequests({ liveOnly: true })]);
+  const [applicants, metrics, roles] = await Promise.all([getApplicants(), getApplicantMetrics(), getRoleRequests({ liveOnly: true })]);
   const publishedRoles = roles
     .filter(isPublishedRoleForIntake)
     .map((role) => ({
@@ -35,6 +35,7 @@ async function ApplicantsData({ user }: { user: { canReviewRole?: boolean; canAp
     }));
   return <ApplicantsList
     applicants={applicants}
+    historyMetrics={metrics}
     publishedRoles={publishedRoles}
     canManageApplicants={user.canReviewRole === true || user.canApproveRole === true}
     description="Review every applicant as they move through the recruitment workflow."

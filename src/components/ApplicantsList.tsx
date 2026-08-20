@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import ActionFeedback from "@/components/ActionFeedback";
 import { useConfirmation } from "@/components/ConfirmationModal";
-import type { ApplicantSummary } from "@/lib/candidate-applications";
+import type { ApplicantMetrics, ApplicantSummary } from "@/lib/candidate-applications";
 import Pagination from "@/components/Pagination";
 import { formatMatchScore } from "@/lib/score-format";
 import { formatPortalDateTime } from "@/lib/portal-time";
@@ -18,6 +18,8 @@ type Props = {
   topContent?: ReactNode;
   publishedRoles?: { roleId: string; label: string }[];
   canManageApplicants?: boolean;
+  /** Historical demo metrics stay visible in the summary while the table is operationally filtered. */
+  historyMetrics?: ApplicantMetrics;
 };
 
 type RoleOption = { value: string; label: string; roleId?: string };
@@ -35,7 +37,7 @@ function scoreValue(value: string) {
   return formatMatchScore(value);
 }
 
-export default function ApplicantsList({ applicants, title = "Applicants", description = "Review candidates across every published role.", topContent, publishedRoles, canManageApplicants = false }: Props) {
+export default function ApplicantsList({ applicants, title = "Applicants", description = "Review candidates across every published role.", topContent, publishedRoles, canManageApplicants = false, historyMetrics }: Props) {
   const router = useRouter();
   const { confirm } = useConfirmation();
   const [page, setPage] = useState(1);
@@ -92,6 +94,10 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
 
   const voiceCount = activeApplicants.filter((applicant) => applicant.voiceStatus || applicant.finalStatus.toLowerCase().includes("voice")).length;
   const finalInterviewCount = activeApplicants.filter((applicant) => applicant.finalInterviewStatus && applicant.finalInterviewStatus.toLowerCase() !== "pending").length;
+  const summaryTotal = historyMetrics?.total ?? activeApplicants.length;
+  const summaryScreened = historyMetrics?.screened ?? activeApplicants.filter((applicant) => ["processed", "for hr review", "pending hr review"].includes(applicant.resumeStatus.trim().toLowerCase())).length;
+  const summaryVoice = historyMetrics?.voiceActivity ?? voiceCount;
+  const summaryHr = historyMetrics?.hrActivity ?? finalInterviewCount;
 
   async function deleteApplicants(applicantsToDelete: ApplicantSummary[]) {
     if (applicantsToDelete.length === 0) return;
@@ -162,7 +168,7 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
           <p>{description}</p>
         </div>
 
-        <div className="applicants-header-meta"><strong>{activeApplicants.length}</strong><span>Total applications</span></div>
+        <div className="applicants-header-meta"><strong>{summaryTotal}</strong><span>Total applications</span></div>
       </div>
 
       {actionMessage && <ActionFeedback kind="success" className="applicants-action-feedback">{actionMessage}</ActionFeedback>}
@@ -171,10 +177,10 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
       {topContent && <div className="applicants-intake-section">{topContent}</div>}
 
       <div className="applicant-stat-grid">
-        <div className="applicant-stat"><span>Applications</span><strong>{activeApplicants.length}</strong><small>All records in High_Match_Profile</small></div>
-        <div className="applicant-stat"><span>Resume Screened</span><strong>{activeApplicants.filter((applicant) => ["processed", "for hr review", "pending hr review"].includes(applicant.resumeStatus.trim().toLowerCase())).length}</strong><small>Processed applications</small></div>
-        <div className="applicant-stat"><span>Voice Interview</span><strong>{voiceCount}</strong><small>With voice workflow activity</small></div>
-        <div className="applicant-stat"><span>HR Interview</span><strong>{finalInterviewCount}</strong><small>Moved beyond voice screening</small></div>
+        <div className="applicant-stat"><span>Applications</span><strong>{summaryTotal}</strong><small>All history and live records</small></div>
+        <div className="applicant-stat"><span>Resume Screened</span><strong>{summaryScreened}</strong><small>Processed applications</small></div>
+        <div className="applicant-stat"><span>Voice Interview</span><strong>{summaryVoice}</strong><small>With voice workflow activity</small></div>
+        <div className="applicant-stat"><span>HR Interview</span><strong>{summaryHr}</strong><small>Moved beyond voice screening</small></div>
       </div>
 
       <section className="card applicants-card">

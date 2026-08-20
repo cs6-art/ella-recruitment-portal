@@ -104,6 +104,8 @@ export type ApplicantMetrics = {
   today: number;
   screened: number;
   interviewed: number;
+  voiceActivity: number;
+  hrActivity: number;
   resumeApproved: number;
   voiceBookingPending: number;
   voiceScheduled: number;
@@ -191,12 +193,15 @@ function configuredEvaluationValues(
   result: SheetRow | undefined,
   fallback: SheetRow | undefined,
 ) {
+  // Optional evaluation fields are only useful in the evidence panel when a
+  // workflow actually supplied a value. Returning placeholder strings here
+  // made every missing field look like a failed log entry.
   return fields
     .filter((configured) => !["score", "recommendation", "strengths", "concerns"].includes(configured.key))
-    .map((configured) => {
+    .flatMap((configured) => {
       const value = field(result || {}, configured.key, configured.label)
         || field(fallback || {}, configured.key, configured.label);
-      return { key: configured.key, label: configured.label, value: value || "Not provided." };
+      return value ? [{ key: configured.key, label: configured.label, value }] : [];
     });
 }
 
@@ -421,6 +426,9 @@ export function calculateApplicantMetrics(rows: SheetRow[], now = new Date(), ti
     // normalized HR-review label used by the bulk and public workflows.
     if (["processed", "for hr review", "pending hr review"].includes(resumeStatus)) result.screened += 1;
     if (voiceStatus === "interviewed" || voiceStatus === "completed") result.interviewed += 1;
+    if (voiceStatus !== "" && !["pending", "not started"].includes(voiceStatus)) result.voiceActivity += 1;
+    const finalInterviewStatus = field(record, "Status 3 (Final Interview)").toLowerCase();
+    if (finalInterviewStatus !== "" && !["pending", "not started"].includes(finalInterviewStatus)) result.hrActivity += 1;
     const stageCount = result.stageCounts.find((entry) => entry.key === stage);
     if (stageCount) stageCount.value += 1;
     if (stage === "resume_approved") result.resumeApproved += 1;
@@ -433,7 +441,7 @@ export function calculateApplicantMetrics(rows: SheetRow[], now = new Date(), ti
     if (stage === "rejected") result.rejected += 1;
     if (stage === "passed_final") result.passedFinalInterview += 1;
     return result;
-  }, { total: 0, today: 0, screened: 0, interviewed: 0, resumeApproved: 0, voiceBookingPending: 0, voiceScheduled: 0, voiceReviewPending: 0, approvedForFinal: 0, finalScheduled: 0, finalDecisionPending: 0, rejected: 0, passedFinalInterview: 0, stageCounts });
+  }, { total: 0, today: 0, screened: 0, interviewed: 0, voiceActivity: 0, hrActivity: 0, resumeApproved: 0, voiceBookingPending: 0, voiceScheduled: 0, voiceReviewPending: 0, approvedForFinal: 0, finalScheduled: 0, finalDecisionPending: 0, rejected: 0, passedFinalInterview: 0, stageCounts });
 }
 
 /**
@@ -762,7 +770,11 @@ export async function getApplicantById(id: string): Promise<ApplicantDetails | n
     voiceCommunicationQuality: field(voiceResult ?? {}, "Communication_Quality", "Communication Quality") || field(callLog ?? {}, "Communication_Quality", "Communication Quality"),
     voiceAnswerCompleteness: field(voiceResult ?? {}, "Answer_Completeness", "Answer Completeness") || field(callLog ?? {}, "Answer_Completeness", "Answer Completeness"),
     voiceFollowUpQuestions: field(voiceResult ?? {}, "Recommended_Follow_Up_Questions", "Recommended Follow Up Questions") || field(callLog ?? {}, "Recommended_Follow_Up_Questions", "Recommended Follow Up Questions"),
-    voiceEvaluationFields: configuredEvaluationValues(configuredEvaluationFields, voiceResult, callLog),
+    // Communication Quality and Answer Completeness have dedicated voice
+    // evidence rows above; do not render those same keys a second time from
+    // the role's optional evaluation-field configuration.
+    voiceEvaluationFields: configuredEvaluationValues(configuredEvaluationFields, voiceResult, callLog)
+      .filter((evaluation) => !["communication_quality", "answer_completeness"].includes(evaluation.key)),
     voiceTranscript: field(voiceResult ?? {}, "Transcript", "Voice_Transcript", "Call_Transcript") || field(callLog ?? {}, "Transcript", "Voice_Transcript", "Call_Transcript"),
     voiceScheduledDate: field(record, "Voice_Interview_Scheduled_Date"),
     voiceScheduledTime: field(record, "Voice_Interview_Scheduled_Time"),

@@ -171,6 +171,7 @@ const REQUESTERS = [
  */
 type Outcome =
   | "resume_rejected"
+  | "resume_approved"
   | "voice_rejected"
   | "final_rejected"
   | "hired"
@@ -186,6 +187,8 @@ function outcomeFields(outcome: Outcome): Record<string, string> {
   switch (outcome) {
     case "resume_rejected":
       return { "Status (Resume Processing)": "Processed", Resume_HR_Decision: "Reject", "Status 2 (Voice Interview)": "", "Status 3 (Final Interview)": "", Voice_HR_Decision: "", Final_Status: "Resume Rejected" };
+    case "resume_approved":
+      return { "Status (Resume Processing)": "Processed", Resume_HR_Decision: "Approve", "Status 2 (Voice Interview)": "", Voice_HR_Decision: "", "Status 3 (Final Interview)": "", Final_Status: "Resume Approved" };
     case "voice_rejected":
       return { "Status (Resume Processing)": "Processed", Resume_HR_Decision: "Approve", "Status 2 (Voice Interview)": "Completed", Voice_HR_Decision: "Reject", "Status 3 (Final Interview)": "", Final_Status: "Voice Interview Rejected" };
     case "final_rejected":
@@ -222,7 +225,8 @@ function outcomeFor(random: () => number, ageDays: number): Outcome {
     if (roll < 0.72) return "hired";
     if (roll < 0.82) return "final_decision_pending";
     if (roll < 0.92) return "final_scheduled";
-    return "approved_for_final";
+    if (roll < 0.97) return "approved_for_final";
+    return "resume_approved";
   }
   if (ageDays > 21) {
     if (roll < 0.30) return "resume_rejected";
@@ -232,7 +236,8 @@ function outcomeFor(random: () => number, ageDays: number): Outcome {
     if (roll < 0.64) return "final_decision_pending";
     if (roll < 0.76) return "final_scheduled";
     if (roll < 0.86) return "approved_for_final";
-    if (roll < 0.93) return "voice_review_pending";
+    if (roll < 0.90) return "resume_approved";
+    if (roll < 0.95) return "voice_review_pending";
     if (roll < 0.98) return "voice_scheduled";
     return "voice_booking_pending";
   }
@@ -242,6 +247,7 @@ function outcomeFor(random: () => number, ageDays: number): Outcome {
     if (roll < 0.36) return "hired";
     if (roll < 0.48) return "final_scheduled";
     if (roll < 0.60) return "approved_for_final";
+    if (roll < 0.66) return "resume_approved";
     if (roll < 0.76) return "voice_review_pending";
     if (roll < 0.90) return "voice_scheduled";
     return "voice_booking_pending";
@@ -251,6 +257,7 @@ function outcomeFor(random: () => number, ageDays: number): Outcome {
   if (roll < 0.75) return "voice_scheduled";
   if (roll < 0.90) return "voice_review_pending";
   if (roll < 0.95) return "resume_rejected";
+  if (roll < 0.98) return "resume_approved";
   return "approved_for_final";
 }
 
