@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -44,6 +45,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ app
       body.comments,
       getPublicAppBaseUrl(request),
     );
+
+    // Mark every server-rendered view that reflects applicant workflow totals
+    // or status as stale before the client refreshes the detail page.
+    revalidatePath(`/applicants/${encodeURIComponent(applicationId)}`);
+    revalidatePath("/applicants");
+    revalidatePath("/dashboard");
 
     return NextResponse.json({ success: true, result });
   } catch (error) {

@@ -159,9 +159,11 @@ test("candidate intake forms and decisions expose the required fields", () => {
   assert.match(decisionPanel, /CompletedDecision/);
   assert.match(decisionPanel, /Open HR Interview Booking Link/);
   assert.match(decisionPanel, /link=\{props\.finalBookingLink\}/);
-  // Decisions reload the server-backed detail page so every summary and
-  // workflow control reflects the saved state together.
-  assert.match(decisionPanel, /window\.location\.reload\(\)/);
+  // Decisions refresh the server-backed detail page so every summary and
+  // workflow control reflects the saved state without a hard browser reload.
+  assert.match(decisionPanel, /useRouter/);
+  assert.match(decisionPanel, /router\.refresh\(\)/);
+  assert.doesNotMatch(decisionPanel, /window\.location\.reload\(\)/);
   assert.match(decisionPanel, /Request Manual Review/);
   assert.match(decisionPanel, /Comments \*/);
   assert.match(decisionPanel, /disabled=\{busy \|\|/);
@@ -182,6 +184,9 @@ test("candidate intake forms and decisions expose the required fields", () => {
   assert.match(workflow, /applicationSource/);
   assert.match(decisionRoute, /Manual Review/);
   assert.match(decisionRoute, /comments/);
+  assert.match(decisionRoute, /revalidatePath\(`\/applicants\/\$\{encodeURIComponent\(applicationId\)\}`\)/);
+  assert.match(decisionRoute, /revalidatePath\("\/applicants"\)/);
+  assert.match(decisionRoute, /revalidatePath\("\/dashboard"\)/);
   assert.match(form, /type="file"/);
   assert.match(form, /\.pdf/);
   assert.match(form, /\.docx/);

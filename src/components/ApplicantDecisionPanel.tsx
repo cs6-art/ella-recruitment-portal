@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 import ActionFeedback from "@/components/ActionFeedback";
 import ValidationSummary from "@/components/ValidationSummary";
@@ -65,6 +66,7 @@ function DecisionRow({ stage, title, description, current, link, enabled = true,
   canReview: boolean;
   onSaved: (message: string) => void;
 }) {
+  const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [comments, setComments] = useState("");
   const [error, setError] = useState("");
@@ -79,10 +81,10 @@ function DecisionRow({ stage, title, description, current, link, enabled = true,
       const data = await response.json();
       if (!response.ok || !data.success) throw new Error(data.error || "Unable to save decision.");
       onSaved(decision === "Approve" ? `${title} approved.` : decision === "Reject" ? `${title} marked rejected.` : `${title} returned for review.`);
-      // Every decision changes server-backed workflow state. Reload the detail
-      // page so summary cards, next action, timeline, and decision controls
-      // all read the newly persisted applicant record together.
-      window.location.reload();
+      // Refresh the server component data after the workflow write so the
+      // summary cards, timeline, and available decisions stay in sync without
+      // losing the reviewer's current page position.
+      router.refresh();
       return;
     } catch (decisionError) { setError(decisionError instanceof Error ? decisionError.message : "Unable to save decision."); }
     finally { setBusy(false); }
