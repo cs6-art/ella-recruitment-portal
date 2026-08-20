@@ -24,6 +24,19 @@ type Props = {
 
 type RoleOption = { value: string; label: string; roleId?: string };
 
+const DASHBOARD_STAGE_LABELS = [
+  "Resume HR Review",
+  "Resume Approved",
+  "Voice Booking Pending",
+  "Voice Interview Scheduled",
+  "Voice HR Review",
+  "Approved for HR Interview",
+  "HR Interview Scheduled",
+  "HR Decision Pending",
+  "Passed HR Interview",
+  "Rejected",
+] as const;
+
 /**
  * Map operational status wording onto the reconciled stage names used by the
  * dashboard. This keeps the Applicants filter useful without changing the
@@ -89,7 +102,10 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
       .map((role) => ({ value: role, label: role }));
   }, [applicants, hasPublishedRoleScope, publishedRoles]);
   const activeApplicants = useMemo(() => applicants.filter((applicant) => !removedIds.has(applicant.applicationId)), [applicants, removedIds]);
-  const dashboardStages = useMemo(() => historyMetrics?.stageCounts.map((stage) => stage.label) ?? [], [historyMetrics]);
+  const dashboardStages = useMemo(() => {
+    const labels = historyMetrics?.stageCounts.map((stage) => stage.label) ?? [];
+    return labels.length > 0 ? labels : [...DASHBOARD_STAGE_LABELS];
+  }, [historyMetrics]);
   const stages = useMemo(() => [...new Set([
     ...dashboardStages,
     ...applicants.map((applicant) => dashboardStageLabel(applicant.currentStage)).filter(Boolean),
@@ -254,7 +270,7 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
             </table>
           </div>
         )}
-        {visibleApplicants.length > 0 && <Pagination page={page} totalPages={totalPages} totalItems={visibleApplicants.length} pageSize={pageSize} onPageChange={setPage} />}
+        {visibleApplicants.length > 0 && <Pagination page={page} totalPages={totalPages} totalItems={visibleApplicants.length} displayTotalItems={matchingApplicantCount} pageSize={pageSize} onPageChange={setPage} />}
       </section>
     </main>
   );

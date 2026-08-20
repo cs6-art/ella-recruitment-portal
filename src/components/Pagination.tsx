@@ -4,6 +4,8 @@ type PaginationProps = {
   page: number;
   totalPages: number;
   totalItems: number;
+  /** Optional history-backed total shown in the summary while paging live rows. */
+  displayTotalItems?: number;
   pageSize: number;
   onPageChange: (page: number) => void;
 };
@@ -20,7 +22,7 @@ function pageItems(page: number, totalPages: number): PageItem[] {
   return [1, "ellipsis-left", page - 1, page, page + 1, "ellipsis-right", totalPages];
 }
 
-export default function Pagination({ page, totalPages, totalItems, pageSize, onPageChange }: PaginationProps) {
+export default function Pagination({ page, totalPages, totalItems, displayTotalItems = totalItems, pageSize, onPageChange }: PaginationProps) {
   if (totalItems === 0) return null;
 
   const currentPage = Math.min(Math.max(page, 1), Math.max(totalPages, 1));
@@ -29,7 +31,7 @@ export default function Pagination({ page, totalPages, totalItems, pageSize, onP
 
   return (
     <nav className="pagination" aria-label="Pagination">
-      <span className="pagination-summary">Showing {firstItem}-{lastItem} of {totalItems}</span>
+      <span className="pagination-summary">Showing {firstItem}-{lastItem} of {displayTotalItems}</span>
       <div className="pagination-controls">
         <button type="button" className="pagination-button pagination-wide-button" disabled={currentPage === 1} onClick={() => onPageChange(1)}>First</button>
         <button type="button" className="pagination-button pagination-wide-button" disabled={currentPage === 1} onClick={() => onPageChange(currentPage - 1)}>Previous</button>
