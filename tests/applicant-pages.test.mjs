@@ -20,6 +20,13 @@ test("applicant data reader uses the shared candidate workbook tabs", () => {
   assert.doesNotMatch(source, /Finance_Resume/);
 });
 
+test("voice interview completion uses one canonical display label", () => {
+  const source = read("src/lib/candidate-applications.ts");
+  assert.match(source, /displayInterviewStageText/);
+  assert.match(source, /Voice Interview Completed - For HR Review/);
+  assert.match(source, /AI Voice Interview Completed/);
+});
+
 test("every generated applicant shown in demo mode has a viewable profile", () => {
   const source = read("src/lib/candidate-applications.ts");
   assert.match(source, /const demoRecord = isDemoMode\(\)/);

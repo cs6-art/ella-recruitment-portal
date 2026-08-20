@@ -1190,6 +1190,14 @@ function todayInTimezone(timezone: string) {
 let pastBookedNoShowSync: Promise<number> | null = null;
 let pastAvailableSlotSync: Promise<number> | null = null;
 
+function substantiveVoiceAnswerCount(transcript: string) {
+  const ignored = /^(yes|no|okay|ok|sure|thank you|thanks|bye|goodbye|hello|hi)[.!?]*$/i;
+  return text(transcript)
+    .split(/\r?\n/)
+    .map((line) => line.match(/^\s*user\s*:\s*(.+)$/i)?.[1]?.trim() || "")
+    .filter((answer) => answer.length >= 12 && !ignored.test(answer)).length;
+}
+
 function hasCompletedInterviewResult(rows: Row[] | undefined, applicationId: string, kind: BookingKind) {
   if (!rows || !applicationId) return false;
   return rows
@@ -1204,14 +1212,13 @@ function hasCompletedInterviewResult(rows: Row[] | undefined, applicationId: str
       ].join(" ").toLowerCase();
       if (/(completed|interviewed|passed|rejected|hired)/i.test(outcome)) return true;
       if (kind !== "voice") return false;
-      return [
-        field(row, "Transcript", "Voice Transcript", "Call Transcript"),
-        field(row, "AI_Voice_Summary", "AI Voice Summary"),
-        field(row, "Voice_Score", "Voice Score"),
-        field(row, "Voice_Recommendation", "Voice Recommendation"),
-        field(row, "Result_Received_At", "Result Received At"),
-        field(row, "Call_Completed_At", "Call Completed At"),
-      ].some((value) => Boolean(value));
+      const completeness = field(row, "Answer_Completeness", "Answer Completeness");
+      if (/(all|every) configured questions? (were )?answered|interview (was )?completed/i.test(completeness)) return true;
+      // A provider can label a finished call Incomplete even when the transcript
+      // contains the candidate's answers. Only treat transcript evidence as
+      // attendance when it contains several substantive answer turns; a lone
+      // greeting or a no-answer recording must remain eligible for No Show.
+      return substantiveVoiceAnswerCount(field(row, "Transcript", "Voice Transcript", "Call Transcript")) >= 3;
     });
 }
 

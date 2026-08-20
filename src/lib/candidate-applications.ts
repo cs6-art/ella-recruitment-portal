@@ -232,6 +232,13 @@ function displayHrInterviewText(value: string) {
   return value.replace(/final interview/gi, "HR Interview").replace(/final-interview/gi, "HR-interview");
 }
 
+/** Present one canonical label when older rows used the AI-prefixed wording. */
+function displayInterviewStageText(value: string) {
+  return value
+    .replace(/\bAI Voice Interview Completed\s*-\s*(?:Awaiting HR Review|For HR Review)\b/gi, "Voice Interview Completed - For HR Review")
+    .replace(/\bAI Voice Interview Completed\b/gi, "Voice Interview Completed");
+}
+
 function stageFor(record: SheetRow) {
   const stages = [
     field(record, "Final_Status"),
@@ -244,7 +251,8 @@ function stageFor(record: SheetRow) {
   // New or unprocessed applications are waiting for the first HR review; do
   // not expose a separate "Submitted" bucket in the applicant pipeline.
   const stage = stages.find((value) => !["", "pending", "not started", "submitted"].includes(value.trim().toLowerCase())) || "Pending HR Review";
-  return ["processed", "for hr review"].includes(stage.trim().toLowerCase()) ? "Pending HR Review" : stage;
+  const normalizedStage = ["processed", "for hr review"].includes(stage.trim().toLowerCase()) ? "Pending HR Review" : stage;
+  return displayInterviewStageText(normalizedStage);
 }
 
 function nextActionFor(record: SheetRow) {
@@ -395,14 +403,14 @@ function mapApplicant(record: SheetRow): ApplicantSummary {
     department: field(record, "Department"),
     appliedAt: field(record, "Date_of_Application", "Date of Application"),
     matchScore: field(record, "Match_Score", "Match Score"),
-    recommendation: displayHrInterviewText(workflowRecommendationFor(record)),
+    recommendation: displayHrInterviewText(displayInterviewStageText(workflowRecommendationFor(record))),
     cvRecommendation: field(record, "Recommendation"),
     resumeStatus: field(record, "Status (Resume Processing)"),
     voiceStatus,
-    finalInterviewStatus: displayHrInterviewText(finalInterviewStatus),
-    finalStatus: displayHrInterviewText(finalStatus),
-    currentStage: displayHrInterviewText(stageFor(record)),
-    nextAction: displayHrInterviewText(nextActionFor(record)),
+    finalInterviewStatus: displayHrInterviewText(displayInterviewStageText(finalInterviewStatus)),
+    finalStatus: displayHrInterviewText(displayInterviewStageText(finalStatus)),
+    currentStage: displayHrInterviewText(displayInterviewStageText(stageFor(record))),
+    nextAction: displayHrInterviewText(displayInterviewStageText(nextActionFor(record))),
   };
 }
 
