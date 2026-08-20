@@ -1203,6 +1203,55 @@ export async function updateRoleRequestFields(roleId: string, fields: Record<str
   }
 }
 
+/**
+ * Persists an in-progress role form without invoking the role-request
+ * workflow. Drafts are intentionally stored in Role_Requests so HR,
+ * management, and the original requester can reopen the same record later.
+ */
+export async function appendRoleRequestDraft(fields: Record<string, string>): Promise<void> {
+  const response = await sheets.spreadsheets.values.get({ spreadsheetId, range: "Role_Requests!A1:ZZ" });
+  const rows = response.data.values ?? [];
+  if (rows.length === 0 || !(rows[0] || []).length) throw new Error("Role_Requests sheet has no header row.");
+
+  const headers = [...(rows[0] ?? [])].map((header) => toText(header));
+  const missingHeaders = Object.keys(fields).filter((header) => !headers.some((existing) => normalizeHeader(existing) === normalizeHeader(header)));
+  if (missingHeaders.length > 0) {
+    const metadata = await sheets.spreadsheets.get({
+      spreadsheetId,
+      fields: "sheets(properties(sheetId,title,gridProperties(columnCount)))",
+    });
+    const sheet = metadata.data.sheets?.find((item) => item.properties?.title === "Role_Requests");
+    const sheetId = sheet?.properties?.sheetId;
+    const currentColumnCount = sheet?.properties?.gridProperties?.columnCount || 0;
+    if (sheetId === undefined) throw new Error("Role_Requests sheet metadata is unavailable.");
+    if (currentColumnCount < headers.length + missingHeaders.length) {
+      await sheets.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: {
+          requests: [{ appendDimension: { sheetId, dimension: "COLUMNS", length: headers.length + missingHeaders.length - currentColumnCount } }],
+        },
+      });
+    }
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: `'Role_Requests'!${columnName(headers.length)}1:${columnName(headers.length + missingHeaders.length - 1)}1`,
+      valueInputOption: "RAW",
+      requestBody: { values: [missingHeaders] },
+    });
+    headers.push(...missingHeaders);
+  }
+
+  const row = headers.map((header) => fields[header] ?? Object.entries(fields).find(([key]) => normalizeHeader(key) === normalizeHeader(header))?.[1] ?? "");
+  await sheets.spreadsheets.values.append({
+    spreadsheetId,
+    range: "Role_Requests!A:ZZ",
+    valueInputOption: "USER_ENTERED",
+    insertDataOption: "INSERT_ROWS",
+    requestBody: { values: [row] },
+  });
+  invalidateSheetsCache("Role_Requests");
+}
+
 export async function deleteRoleRequest(roleId: string): Promise<void> {
   const response = await sheets.spreadsheets.values.get({ spreadsheetId, range: "Role_Requests!A1:ZZ" });
   const rows = response.data.values ?? [];

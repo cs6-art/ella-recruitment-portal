@@ -32,7 +32,25 @@ export async function POST(request: Request, context: Context) {
 
   try {
     const requestBody = await request.json() as Record<string, unknown>;
-    const parsedSetup = recruitmentSetupSchema.parse(requestBody);
+    const isAutosaveRequest = requestBody.setupAction === "autosave_draft";
+    const autosaveCustomFields = Array.isArray(requestBody.customEvaluationFields)
+      ? requestBody.customEvaluationFields.filter((field) => typeof field === "object" && field !== null && typeof (field as { key?: unknown }).key === "string" && typeof (field as { label?: unknown }).label === "string" && typeof (field as { description?: unknown }).description === "string" && String((field as { key: string }).key).trim() && String((field as { label: string }).label).trim() && String((field as { description: string }).description).trim()).slice(0, 3)
+      : [];
+    const parsedSetup = recruitmentSetupSchema.parse(isAutosaveRequest
+      ? {
+          ...requestBody,
+          // Autosave accepts an incomplete editor. The stored role values keep
+          // schema parsing safe without allowing placeholders to advance a
+          // readiness stage or trigger n8n.
+          jobDescription: String(requestBody.jobDescription || role.jobDescription || "Draft in progress"),
+          screeningCriteria: String(requestBody.screeningCriteria || role.screeningCriteria || "Draft in progress"),
+          customEvaluationFields: autosaveCustomFields,
+          initialInterviewBookingLink: /^https?:\/\//i.test(String(requestBody.initialInterviewBookingLink || "")) ? requestBody.initialInterviewBookingLink : "",
+          hodInterviewBookingLink: /^https?:\/\//i.test(String(requestBody.hodInterviewBookingLink || "")) ? requestBody.hodInterviewBookingLink : "",
+          voiceInterviewAvailabilityMode: ["none", "manual", "automatic"].includes(String(requestBody.voiceInterviewAvailabilityMode)) ? requestBody.voiceInterviewAvailabilityMode : "none",
+          voiceInterviewSlots: String(requestBody.voiceInterviewAvailabilityMode) === "manual" ? requestBody.voiceInterviewSlots : [],
+        }
+      : requestBody);
     const hasField = (key: string) => Object.prototype.hasOwnProperty.call(requestBody, key);
     const hasCustomEvaluationFields = Object.prototype.hasOwnProperty.call(requestBody, "customEvaluationFields");
     // The editor normally sends the complete current setup. Keep the value
@@ -70,6 +88,7 @@ export async function POST(request: Request, context: Context) {
       hodInterviewRequired: hasField("hodInterviewRequired") ? parsedSetup.hodInterviewRequired : role.hodInterviewRequired || "",
     };
     const setupAction = setup.setupAction || "save_draft";
+    const isAutosaveDraft = setupAction === "autosave_draft";
 
     // A publish that already landed — a double click, a retried request, or a
     // second click after a slow first response — leaves the role at "Job
@@ -99,7 +118,7 @@ export async function POST(request: Request, context: Context) {
     if (!canUseRecruitmentSetup(role.status)) return NextResponse.json({ success: false, error: `Recruitment setup is unavailable while this role is \"${role.status || "Unknown"}\". Refresh the role and try again.` }, { status: 409 });
     const readinessLevel = setupAction === "mark_recruitment_ready" ? "recruitment-ready" : setupAction === "mark_ready_for_publishing" || setupAction === "publish_role" ? "ready-for-publishing" : "draft";
     const readiness = getSetupReadiness(setup, readinessLevel);
-    if (!readiness.valid) return NextResponse.json({ success: false, code: "RECRUITMENT_SETUP_INCOMPLETE", message: setupAction === "save_draft" ? "Complete the three required draft fields before saving." : "The recruitment setup is not ready for this stage.", missingFields: readiness.missingFields.map((field) => field.key), missingFieldLabels: readiness.missingFields.map((field) => field.label) }, { status: 422 });
+    if (!readiness.valid && !isAutosaveDraft) return NextResponse.json({ success: false, code: "RECRUITMENT_SETUP_INCOMPLETE", message: setupAction === "save_draft" ? "Complete the three required draft fields before saving." : "The recruitment setup is not ready for this stage.", missingFields: readiness.missingFields.map((field) => field.key), missingFieldLabels: readiness.missingFields.map((field) => field.label) }, { status: 422 });
     // The staged buttons stay available for HR who want an explicit audit
     // trail, but a setup that already satisfies every ready-for-publishing
     // requirement should not be refused just because the intermediate button
@@ -112,7 +131,7 @@ export async function POST(request: Request, context: Context) {
     const webhookUrl = process.env.N8N_RECRUITMENT_SETUP_WEBHOOK_URL || process.env.N8N_ROLE_REQUEST_WEBHOOK_URL || process.env.N8N_ROLE_WEBHOOK_URL;
     const webhookSecret = process.env.N8N_WEBHOOK_SECRET;
     const workflowConfigured = Boolean(webhookUrl && webhookSecret);
-    if (!workflowConfigured && setupAction !== "save_draft") return NextResponse.json({ success: false, error: "The recruitment setup workflow is not configured. Save can still be used, but publishing requires the workflow." }, { status: 503 });
+    if (!workflowConfigured && setupAction !== "save_draft" && !isAutosaveDraft) return NextResponse.json({ success: false, error: "The recruitment setup workflow is not configured. Save can still be used, but publishing requires the workflow." }, { status: 503 });
 
     const updatedAt = new Date().toISOString();
     const finalInterviewCalendar = await getFinalInterviewCalendarConfig();
@@ -122,7 +141,7 @@ export async function POST(request: Request, context: Context) {
     const forwardedHost = request.headers.get("x-forwarded-host") || request.headers.get("host");
       const appBaseUrl = configuredAppUrl || (forwardedHost ? `${request.headers.get("x-forwarded-proto") || "https"}://${forwardedHost}` : "");
     const applicationLink = appBaseUrl ? `${appBaseUrl}/apply/${encodeURIComponent(role.roleId)}` : `/apply/${encodeURIComponent(role.roleId)}`;
-    const nextRecruitmentSetupStatus = setupStatusForAction(setupAction, role.recruitmentSetupStatus || "Draft");
+    const nextRecruitmentSetupStatus = isAutosaveDraft ? role.recruitmentSetupStatus || "Draft" : setupStatusForAction(setupAction, role.recruitmentSetupStatus || "Draft");
     const initialInterviewQuestions = [
       setup.requiredInterviewQuestion1,
       setup.requiredInterviewQuestion2,
@@ -274,7 +293,7 @@ export async function POST(request: Request, context: Context) {
     });
     let result: Record<string, unknown> = {};
     let workflowWarning = "";
-    if (workflowConfigured) {
+    if (workflowConfigured && !isAutosaveDraft) {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), Number(process.env.N8N_RECRUITMENT_SETUP_TIMEOUT_MS || 45000));
       try {
@@ -307,7 +326,7 @@ export async function POST(request: Request, context: Context) {
       } finally {
         clearTimeout(timeout);
       }
-    } else {
+    } else if (!isAutosaveDraft) {
       workflowWarning = "Changes saved. The recruitment setup workflow is not configured, so no workflow notification was sent.";
     }
     // Re-apply the canonical optional-field selections after n8n completes.
@@ -327,7 +346,7 @@ export async function POST(request: Request, context: Context) {
 
     let voiceSlotWarning = "";
     let voiceSlotsGeneratedAt = setup.voiceInterviewSlotsGeneratedAt || "";
-    if (setup.voiceInterviewAvailabilityMode !== "none") {
+    if (!isAutosaveDraft && setup.voiceInterviewAvailabilityMode !== "none") {
       try {
         const voiceSlots = await createConfiguredVoiceInterviewSlots({
           roleId: role.roleId,
@@ -350,7 +369,7 @@ export async function POST(request: Request, context: Context) {
       roleId: role.roleId,
       status: typeof result.status === "string" ? result.status : setupAction === "publish_role" ? "Job Posted" : role.status,
       action: "recruitment_setup_updated",
-      recruitmentSetupStatus: setupStatusForAction(setupAction, role.recruitmentSetupStatus || "Draft"),
+      recruitmentSetupStatus: nextRecruitmentSetupStatus,
       updatedAt,
       actionRequestId,
       notificationStatus: typeof result.notificationStatus === "string" ? result.notificationStatus : "not_configured",

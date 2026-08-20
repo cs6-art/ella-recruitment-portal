@@ -13,6 +13,7 @@ import { formatPortalDateTime } from "@/lib/portal-time";
 
 const statusFilters = [
   "All",
+  "Draft",
   "Pending HR Discussion",
   "Pending Management Approval",
   "Returned for Revision",

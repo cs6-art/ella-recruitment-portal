@@ -21,6 +21,11 @@ export const dynamic = "force-dynamic";
 // Status transitions are handled by this dynamic API route.
 
 const transitions = {
+  submit_draft_for_hr: {
+    source: ["Draft"],
+    target: "Pending HR Discussion",
+    permission: "create",
+  },
   send_for_management_approval: {
     source: ["Pending HR Discussion"],
     target: "Pending Management Approval",
@@ -161,10 +166,11 @@ export async function POST(
     const actionRequestId = body.actionRequestId;
 
     const transition = transitions[action];
-    const permitted =
-      transition.permission === "review"
-        ? user.canReviewRole === true
-        : user.canApproveRole === true;
+    const permitted = transition.permission === "review"
+      ? user.canReviewRole === true
+      : transition.permission === "approve"
+        ? user.canApproveRole === true
+        : user.canCreateRole === true;
 
     if (!permitted) {
       return jsonError("You do not have permission to perform this action.", 403);
@@ -175,7 +181,7 @@ export async function POST(
       return jsonError("Role request not found.", 404);
     }
 
-    if (action === "send_for_management_approval") {
+    if (action === "send_for_management_approval" || action === "submit_draft_for_hr") {
       const missingFields: string[] = [];
       if (!role.jobDescription?.trim()) missingFields.push("Job_Description");
       if (!role.jobTitle?.trim()) missingFields.push("Job_Title");

@@ -134,6 +134,7 @@ export default async function EditRolePage({ params }: EditRolePageProps) {
         <RoleRequestForm
           user={{ name: String(user.name ?? ""), email: String(user.email ?? "") }}
           roleId={role.roleId}
+          status={role.status}
           initialValues={initialValues}
         />
         <RecruitmentSetupEditor

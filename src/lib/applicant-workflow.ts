@@ -1005,7 +1005,9 @@ async function reserveBookingInternal(kind: BookingKind, token: string, slotId: 
           startTime: field(matchingSlot, "Start_Time", "Start Time"),
           endTime: field(matchingSlot, "End_Time", "End Time"),
           timezone: field(matchingSlot, "Timezone", "Time Zone"),
-          attendeeEmails: [context.email],
+          // Candidate contact is disabled for this environment. Keep the
+          // HR calendar event internal so Google does not email the applicant.
+          attendeeEmails: [],
         });
         const calendarUpdates: CellUpdate[] = result.created
           ? [

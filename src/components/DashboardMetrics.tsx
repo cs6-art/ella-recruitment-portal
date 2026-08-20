@@ -7,7 +7,8 @@ import InfoTip from "@/components/InfoTip";
 import { formatPortalDateTime } from "@/lib/portal-time";
 
 type RecentRequest = { roleId: string; jobTitle: string; department: string; status: string; createdAt: string; targetHiringDate: string };
-type ApplicantMetrics = { total: number; today: number; screened: number; interviewed: number; resumeApproved: number; voiceBookingPending: number; voiceScheduled: number; voiceReviewPending: number; approvedForFinal: number; finalScheduled: number; finalDecisionPending: number; rejected: number; passedFinalInterview: number };
+type ApplicantStageCount = { key: string; label: string; tone: string; value: number };
+type ApplicantMetrics = { total: number; today: number; screened: number; interviewed: number; resumeApproved: number; voiceBookingPending: number; voiceScheduled: number; voiceReviewPending: number; approvedForFinal: number; finalScheduled: number; finalDecisionPending: number; rejected: number; passedFinalInterview: number; stageCounts: ApplicantStageCount[] };
 type Metrics = { pendingHrDiscussion: number; pendingManagementApproval: number; approved: number; rejected: number; openPositions: number; openPositionsAssumption?: string; recentRequests?: RecentRequest[]; applicantMetrics?: ApplicantMetrics };
 
 function formatDate(value: string, includeTime = true) {
@@ -37,13 +38,7 @@ export default function DashboardMetrics({ scope = "organization" }: { scope?: "
 
   const recentCount = metrics?.recentRequests?.length ?? 0;
   const applicantMetrics = metrics?.applicantMetrics;
-  const applicantBars = applicantMetrics ? [
-    { label: "Resume Approved", value: applicantMetrics.resumeApproved, tone: "blue" },
-    { label: "Voice Booking Pending", value: applicantMetrics.voiceBookingPending, tone: "purple" },
-    { label: "Voice HR Review", value: applicantMetrics.voiceReviewPending, tone: "green" },
-    { label: "Approved for HR Interview", value: applicantMetrics.approvedForFinal, tone: "teal" },
-    { label: "HR Interview Scheduled", value: applicantMetrics.finalScheduled, tone: "orange" },
-  ] : [];
+  const applicantBars = applicantMetrics?.stageCounts ?? [];
 
   return <>
     <section className="dashboard-role-actions dashboard-role-actions-overview" aria-labelledby="dashboard-role-actions-title">
@@ -61,17 +56,12 @@ export default function DashboardMetrics({ scope = "organization" }: { scope?: "
       <div className="dashboard-candidate-heading"><div><span className="dashboard-metrics-overview-label dashboard-stat-title-with-info">Applicant Workflow<InfoTip label="What is the Applicant Workflow?">These sections show where applicants are in the hiring process and which actions are waiting for HR.</InfoTip></span><h2 id="dashboard-candidate-overview-title">Candidate Pipeline</h2><p>Focus on the current workflow stage and the next HR decision.</p></div><Link className="dashboard-panel-link" href="/applicants">View Applicants <span aria-hidden="true">&rarr;</span></Link></div>
       <div className="dashboard-candidate-body">
         <div className="dashboard-candidate-progress">
-          <div className="dashboard-candidate-section-heading"><div><h3 className="dashboard-stat-title-with-info">Pipeline Progress<InfoTip label="How is Pipeline Progress counted?">An applicant is counted when the connected sheet shows that they have reached the stage.</InfoTip></h3><p>Where applicants are in the HR workflow right now.</p></div><strong>{applicantMetrics.total} Total</strong></div>
+          <div className="dashboard-candidate-section-heading"><div><h3 className="dashboard-stat-title-with-info">Pipeline Progress<InfoTip label="How is Pipeline Progress counted?">Each applicant is assigned to one current workflow stage, so these counts reconcile exactly to the total.</InfoTip></h3><p>Each applicant appears once in their latest workflow stage.</p></div><strong>{applicantMetrics.total} Total</strong></div>
           <div className="dashboard-candidate-bars">{applicantBars.map((bar) => <div className="dashboard-candidate-bar-row" key={bar.label}><div><span>{bar.label}</span><strong>{bar.value} <small>{percentage(bar.value, applicantMetrics.total)}%</small></strong></div><div className="dashboard-candidate-bar-track"><span className={`dashboard-candidate-bar-fill dashboard-candidate-bar-${bar.tone}`} style={{ width: `${percentage(bar.value, applicantMetrics.total)}%` }} /></div></div>)}</div>
         </div>
         <div className="dashboard-candidate-outcomes">
-          <div className="dashboard-candidate-section-heading"><div><h3 className="dashboard-stat-title-with-info">Decision Snapshot<InfoTip label="What is the Decision Snapshot?">These totals show decisions already recorded and the applicants still waiting for HR action.</InfoTip></h3><p>Actions HR can take next.</p></div></div>
-          <div className="dashboard-candidate-outcome-row dashboard-candidate-outcome-positive"><span className="dashboard-candidate-outcome-dot" aria-hidden="true" /><div><strong>Awaiting Voice Booking Invitation</strong><small>Resume approved; automation should send the voice booking link</small></div><b>{applicantMetrics.voiceBookingPending}</b></div>
-          <div className="dashboard-candidate-outcome-row dashboard-candidate-outcome-negative"><span className="dashboard-candidate-outcome-dot" aria-hidden="true" /><div><strong>Rejected Candidates</strong><small>Explicit rejection recorded</small></div><b>{applicantMetrics.rejected}</b></div>
-          <div className="dashboard-candidate-outcome-row dashboard-candidate-outcome-final"><span className="dashboard-candidate-outcome-dot" aria-hidden="true" /><div><strong>Passed HR Interview</strong><small>Explicit HR interview outcome recorded</small></div><b>{applicantMetrics.passedFinalInterview}</b></div>
-          <div className="dashboard-candidate-outcome-row"><span className="dashboard-candidate-outcome-dot" aria-hidden="true" /><div><strong>Voice HR Review</strong><small>Review Ella's summary and approve for final booking or reject</small></div><b>{applicantMetrics.voiceReviewPending}</b></div>
-          <div className="dashboard-candidate-outcome-row"><span className="dashboard-candidate-outcome-dot" aria-hidden="true" /><div><strong>Awaiting Final Booking Invitation</strong><small>Voice interview approved; automation manages the final booking link</small></div><b>{applicantMetrics.approvedForFinal}</b></div>
-          <div className="dashboard-candidate-outcome-row"><span className="dashboard-candidate-outcome-dot" aria-hidden="true" /><div><strong>HR Decision Pending</strong><small>HR interview completed; HR must approve or reject</small></div><b>{applicantMetrics.finalDecisionPending}</b></div>
+          <div className="dashboard-candidate-section-heading"><div><h3 className="dashboard-stat-title-with-info">Decision Snapshot<InfoTip label="What is the Decision Snapshot?">This is the same reconciled current-stage distribution, shown as decision-ready counts.</InfoTip></h3><p>Every applicant is represented exactly once.</p></div><strong>{applicantMetrics.total} Total</strong></div>
+          {applicantBars.map((stage) => <div className="dashboard-candidate-outcome-row" key={stage.key}><span className={`dashboard-candidate-outcome-dot dashboard-candidate-outcome-dot-${stage.tone}`} aria-hidden="true" /><div><strong>{stage.label}</strong><small>Current workflow stage</small></div><b>{stage.value}</b></div>)}
         </div>
       </div>
     </section>}

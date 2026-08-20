@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { getFinalInterviewCalendarConfig, getRoleRequests } from "@/lib/google-sheets";
+import { appendRoleRequestDraft, getFinalInterviewCalendarConfig, getRoleRequestById, getRoleRequests, updateRoleRequestFields } from "@/lib/google-sheets";
 import { invalidateSheetsCache } from "@/lib/sheets-cache";
 import { filterVisibleRoles } from "@/lib/access-control";
 import { roleRequestSchema } from "@/lib/role-schema";
@@ -13,6 +13,79 @@ import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+function draftText(value: unknown, maxLength = 20000) {
+  return String(value ?? "").trim().slice(0, maxLength);
+}
+
+function draftList(value: unknown, maxItems = 5) {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => draftText(item, 1000)).filter(Boolean).slice(0, maxItems);
+}
+
+function roleDraftFields(input: Record<string, unknown>, roleId: string, now: string, user: { name: string; email: string; accessRole?: string; department?: string }, hodEmail: string) {
+  const setup = input.recruitmentSetupDraft && typeof input.recruitmentSetupDraft === "object"
+    ? input.recruitmentSetupDraft as Record<string, unknown>
+    : {};
+  const questions = draftList(input.aiGeneratedScreeningQuestions);
+  const setupQuestions = [1, 2, 3, 4, 5].map((index) => draftText(setup[`requiredInterviewQuestion${index}`], 1000)).filter(Boolean);
+  const setupEvaluationFields = Array.isArray(setup.customEvaluationFields) ? setup.customEvaluationFields.slice(0, 3) : [];
+  return {
+    Role_ID: roleId,
+    Submission_ID: roleId,
+    Created_At: now,
+    Status: "Draft",
+    Request_Type: draftText(input.requestType, 50) || "Staff Addition",
+    Department: draftText(input.department, 100),
+    Job_Title: draftText(input.jobTitle, 150),
+    Number_Of_Vacancies: draftText(input.numberOfVacancies, 10) || "1",
+    Reason_For_Request: draftText(input.reasonForRequest, 2000),
+    Job_Description: draftText(input.jobDescription),
+    Replacement_Employee: draftText(input.requestType === "Staff Replacement" ? input.replacementEmployee : "", 150),
+    Target_Hiring_Date: draftText(input.targetHiringDate, 30),
+    Employment_Type: draftText(input.employmentType, 50) || "Full-Time",
+    HOD_Email: hodEmail,
+    HOD_Availability_Dates: "",
+    HOD_Availability_Times: "",
+    HOD_Availability_Slots: "[]",
+    Custom_Screening_Question_1: draftText(input.customScreeningQuestion1, 1000),
+    Custom_Screening_Question_2: draftText(input.customScreeningQuestion2, 1000),
+    AI_Screening_Questions: questions.join("\n"),
+    Screening_Criteria: draftText(setup.screeningCriteria, 10000),
+    Initial_Interview_Questions: setupQuestions.join("\n"),
+    Required_Interview_Question_1: setupQuestions[0] || "",
+    Required_Interview_Question_2: setupQuestions[1] || "",
+    Required_Interview_Question_3: setupQuestions[2] || "",
+    Required_Interview_Question_4: setupQuestions[3] || "",
+    Required_Interview_Question_5: setupQuestions[4] || "",
+    AI_System_Prompt: draftText(setup.aiSystemPrompt, 30000),
+    Evaluation_Field_Toggles: draftList(setup.evaluationFieldToggles, 20).join(","),
+    Evaluation_Fields: JSON.stringify(setupEvaluationFields),
+    Posting_Channels: draftList(setup.postingChannels, 10).join(", "),
+    License_or_Certificate_Required: draftText(setup.licenseOrCertificateRequired, 1000),
+    Keywords_to_Look_For: draftText(setup.keywordsToLookFor, 2000),
+    Minimum_Years_of_Experience: draftText(setup.minimumYearsOfExperience, 100),
+    Transferable_Skills_Accepted: draftText(setup.transferableSkillsAccepted, 3000),
+    Salary_or_Budget_Range: draftText(setup.salaryOrBudgetRange, 500),
+    Earliest_Availability_Rule: draftText(setup.earliestAvailabilityRule, 1000),
+    Recruitment_Setup_Status: "Draft",
+    Requester_Name: user.name,
+    Requester_Email: user.email,
+    Requester_Type: "HR or Management",
+    Submitted_By_Name: user.name,
+    Submitted_By_Email: user.email,
+    Access_Role: user.accessRole || "",
+    Submitted_By_Department: user.department || "",
+    Last_Updated_At: now,
+    Last_Updated_By_Name: user.name,
+    Last_Updated_By_Email: user.email,
+    Latest_Comments: "Draft autosaved",
+    Source: "Role Creation Website",
+    Notification_Status: "not_configured",
+    Notification_Error: "",
+    Posting_Confirmed: "FALSE",
+  };
+}
 
 export async function GET(request: Request) {
   console.log("[API Roles] GET started");
@@ -148,6 +221,24 @@ export async function POST(request: Request) {
 
     const clientInput = await request.json();
     const finalInterviewCalendar = await getFinalInterviewCalendarConfig();
+
+    // Autosave is deliberately a direct sheet write. It must never call the
+    // role-request webhook, because incomplete drafts are not ready for HR
+    // review and must not trigger notification or approval automation.
+    if (clientInput && typeof clientInput === "object" && clientInput.draft === true) {
+      const requestedDraftId = draftText((clientInput as Record<string, unknown>).draftId, 80).replace(/[^a-zA-Z0-9-]/g, "");
+      const roleId = `DRAFT-${requestedDraftId || crypto.randomUUID()}`;
+      const now = new Date().toISOString();
+      const fields = roleDraftFields(clientInput as Record<string, unknown>, roleId, now, {
+        name: user.name,
+        email: sessionEmail,
+        accessRole: user.accessRole,
+        department: user.department,
+      }, finalInterviewCalendar.email);
+      if (await getRoleRequestById(roleId)) await updateRoleRequestFields(roleId, fields);
+      else await appendRoleRequestDraft(fields);
+      return NextResponse.json({ success: true, draft: true, roleId, status: "Draft", message: "Draft saved." }, { status: 201 });
+    }
     const input = roleRequestSchema.parse({
       ...clientInput,
       requesterName: user.name,

@@ -113,6 +113,15 @@ export type ApplicantMetrics = {
   finalDecisionPending: number;
   rejected: number;
   passedFinalInterview: number;
+  /** One current stage per applicant; these values always reconcile to total. */
+  stageCounts: ApplicantStageCount[];
+};
+
+export type ApplicantStageCount = {
+  key: string;
+  label: string;
+  tone: "blue" | "purple" | "green" | "teal" | "orange" | "red" | "gray";
+  value: number;
 };
 
 export type InterviewBooking = {
@@ -303,6 +312,51 @@ function hasFinalInterviewOutcome(record: SheetRow) {
   );
 }
 
+const applicantStageDefinitions: Omit<ApplicantStageCount, "value">[] = [
+  { key: "resume_review", label: "Resume HR Review", tone: "blue" },
+  { key: "resume_approved", label: "Resume Approved", tone: "blue" },
+  { key: "voice_booking_pending", label: "Voice Booking Pending", tone: "purple" },
+  { key: "voice_scheduled", label: "Voice Interview Scheduled", tone: "purple" },
+  { key: "voice_review_pending", label: "Voice HR Review", tone: "green" },
+  { key: "approved_for_final", label: "Approved for HR Interview", tone: "teal" },
+  { key: "final_scheduled", label: "HR Interview Scheduled", tone: "orange" },
+  { key: "final_decision_pending", label: "HR Decision Pending", tone: "orange" },
+  { key: "passed_final", label: "Passed HR Interview", tone: "green" },
+  { key: "rejected", label: "Rejected", tone: "red" },
+  { key: "submitted", label: "Submitted", tone: "gray" },
+];
+
+function currentApplicantStage(record: SheetRow) {
+  const finalStatus = field(record, "Final_Status").toLowerCase();
+  const resumeStatus = field(record, "Status (Resume Processing)").toLowerCase();
+  const resumeDecision = field(record, "Resume_HR_Decision").toLowerCase();
+  const voiceStatus = field(record, "Status 2 (Voice Interview)").toLowerCase();
+  const voiceDecision = field(record, "Voice_HR_Decision").toLowerCase();
+  const finalInterviewStatus = field(record, "Status 3 (Final Interview)").toLowerCase();
+
+  // Resolve the latest workflow stage first so stale earlier decisions cannot
+  // make one applicant appear in multiple terminal buckets.
+  if (finalStatus.includes("passed final") || finalStatus.includes("hired") || finalInterviewStatus.includes("passed final") || finalInterviewStatus === "passed") return "passed_final";
+  // A few legacy rows used the short `Rejected` value instead of a
+  // stage-qualified status. Check this after a passed outcome so a stale
+  // rejection cannot override the later HR decision.
+  if (finalStatus === "rejected" || finalInterviewStatus === "rejected" || finalStatus.includes("final interview rejected") || finalInterviewStatus.includes("final interview rejected")) return "rejected";
+  if (finalInterviewStatus === "interview completed" || finalStatus.includes("final interview completed")) return "final_decision_pending";
+  if (finalInterviewStatus.includes("scheduled") || finalStatus.includes("final interview scheduled")) return "final_scheduled";
+  if (finalStatus.includes("approved for final") || finalStatus.includes("final interview booking link sent") || finalInterviewStatus.includes("awaiting schedule")) return "approved_for_final";
+  if (voiceDecision.includes("reject") || finalStatus.includes("voice interview rejected")) return "rejected";
+  if (voiceStatus === "interviewed" || voiceStatus === "completed") {
+    if (voiceDecision === "approve") return "approved_for_final";
+    if (voiceDecision === "pending" || voiceDecision === "") return "voice_review_pending";
+  }
+  if (voiceStatus === "scheduled" || finalStatus.includes("voice interview scheduled")) return "voice_scheduled";
+  if (finalStatus.includes("approved for ai voice") || voiceStatus === "awaiting schedule") return "voice_booking_pending";
+  if (resumeDecision.includes("reject") || finalStatus.includes("resume rejected")) return "rejected";
+  if (resumeDecision === "approve") return "resume_approved";
+  if (["processed", "for hr review", "pending hr review"].includes(resumeStatus) || finalStatus.includes("pending hr review")) return "resume_review";
+  return "submitted";
+}
+
 function applyFinalBookingState(summary: ApplicantSummary, record: SheetRow, finalSlot?: SheetRow) {
   if (field(finalSlot ?? {}, "Status").toLowerCase() !== "booked" || hasFinalInterviewOutcome(record)) return summary;
 
@@ -352,22 +406,11 @@ function calendarDate(value: string, timeZone: string) {
 
 export function calculateApplicantMetrics(rows: SheetRow[], now = new Date(), timeZone = process.env.PORTAL_TIMEZONE || "Asia/Singapore"): ApplicantMetrics {
   const today = calendarDate(now.toISOString(), timeZone);
+  const stageCounts = applicantStageDefinitions.map((stage) => ({ ...stage, value: 0 }));
   return rows.reduce<ApplicantMetrics>((result, record) => {
-    const finalStatus = field(record, "Final_Status").toLowerCase();
     const resumeStatus = field(record, "Status (Resume Processing)").toLowerCase();
-    const resumeDecision = field(record, "Resume_HR_Decision").toLowerCase();
     const voiceStatus = field(record, "Status 2 (Voice Interview)").toLowerCase();
-    const voiceDecision = field(record, "Voice_HR_Decision").toLowerCase();
-    const finalInterviewStatus = field(record, "Status 3 (Final Interview)").toLowerCase();
-    const rejected = [finalStatus, resumeDecision, voiceDecision].some((value) => value.includes("reject"));
-    const resumeApproved = resumeDecision === "approve";
-    const voiceBookingPending = finalStatus.includes("approved for ai voice") && voiceStatus === "awaiting schedule";
-    const voiceScheduled = voiceStatus === "scheduled";
-    const voiceReviewPending = (voiceStatus === "interviewed" || voiceStatus === "completed") && (voiceDecision === "pending" || voiceDecision === "");
-    const approvedForFinal = finalStatus.includes("approved for final") || finalStatus.includes("final interview booking link sent");
-    const finalScheduled = finalInterviewStatus.includes("scheduled");
-    const passedFinalInterview = [finalStatus, finalInterviewStatus].some((value) => value.includes("passed final") || value.includes("final interview passed") || value === "passed" || value.includes("hired"));
-    const finalDecisionPending = finalInterviewStatus === "interview completed" && !passedFinalInterview && !rejected;
+    const stage = currentApplicantStage(record);
 
     result.total += 1;
     if (calendarDate(field(record, "Date_of_Application", "Date of Application"), timeZone) === today) result.today += 1;
@@ -375,17 +418,19 @@ export function calculateApplicantMetrics(rows: SheetRow[], now = new Date(), ti
     // normalized HR-review label used by the bulk and public workflows.
     if (["processed", "for hr review", "pending hr review"].includes(resumeStatus)) result.screened += 1;
     if (voiceStatus === "interviewed" || voiceStatus === "completed") result.interviewed += 1;
-    if (resumeApproved) result.resumeApproved += 1;
-    if (voiceBookingPending) result.voiceBookingPending += 1;
-    if (voiceScheduled) result.voiceScheduled += 1;
-    if (voiceReviewPending) result.voiceReviewPending += 1;
-    if (approvedForFinal) result.approvedForFinal += 1;
-    if (finalScheduled) result.finalScheduled += 1;
-    if (finalDecisionPending) result.finalDecisionPending += 1;
-    if (rejected) result.rejected += 1;
-    if (passedFinalInterview) result.passedFinalInterview += 1;
+    const stageCount = result.stageCounts.find((entry) => entry.key === stage);
+    if (stageCount) stageCount.value += 1;
+    if (stage === "resume_approved") result.resumeApproved += 1;
+    if (stage === "voice_booking_pending") result.voiceBookingPending += 1;
+    if (stage === "voice_scheduled") result.voiceScheduled += 1;
+    if (stage === "voice_review_pending") result.voiceReviewPending += 1;
+    if (stage === "approved_for_final") result.approvedForFinal += 1;
+    if (stage === "final_scheduled") result.finalScheduled += 1;
+    if (stage === "final_decision_pending") result.finalDecisionPending += 1;
+    if (stage === "rejected") result.rejected += 1;
+    if (stage === "passed_final") result.passedFinalInterview += 1;
     return result;
-  }, { total: 0, today: 0, screened: 0, interviewed: 0, resumeApproved: 0, voiceBookingPending: 0, voiceScheduled: 0, voiceReviewPending: 0, approvedForFinal: 0, finalScheduled: 0, finalDecisionPending: 0, rejected: 0, passedFinalInterview: 0 });
+  }, { total: 0, today: 0, screened: 0, interviewed: 0, resumeApproved: 0, voiceBookingPending: 0, voiceScheduled: 0, voiceReviewPending: 0, approvedForFinal: 0, finalScheduled: 0, finalDecisionPending: 0, rejected: 0, passedFinalInterview: 0, stageCounts });
 }
 
 /**

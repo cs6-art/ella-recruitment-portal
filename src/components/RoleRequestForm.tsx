@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";
 
@@ -17,6 +17,7 @@ type RoleRequestFormProps = {
     email: string;
   };
   roleId?: string;
+  status?: string;
   initialValues?: Partial<FormState>;
 };
 
@@ -97,8 +98,7 @@ const fieldLabels: Record<string, string> = {
   customScreeningQuestion2: "Custom Screening Question 2",
 };
 
-export default function RoleRequestForm({ user, roleId, initialValues }: RoleRequestFormProps) {
-  const isEditing = Boolean(roleId);
+export default function RoleRequestForm({ user, roleId, status = "", initialValues }: RoleRequestFormProps) {
   const router = useRouter();
   const initialForm = useMemo<FormState>(() => ({
     ...initial,
@@ -106,7 +106,15 @@ export default function RoleRequestForm({ user, roleId, initialValues }: RoleReq
     hodEmail: HR_INTERVIEW_EMAIL,
   }), [initialValues]);
   const [form, setForm] = useState<FormState>(() => initialForm);
+  const [draftRoleId, setDraftRoleId] = useState(roleId || "");
+  const effectiveRoleId = roleId || draftRoleId;
+  const isEditing = Boolean(effectiveRoleId);
+  const isAutoDraft = !roleId && Boolean(draftRoleId);
+  const isDraftRole = isAutoDraft || status === "Draft";
   const [loading, setLoading] = useState(false);
+  const [draftSaving, setDraftSaving] = useState(false);
+  const [draftSavedAt, setDraftSavedAt] = useState("");
+  const [draftError, setDraftError] = useState("");
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [success, setSuccess] = useState<{ roleId: string; status: string } | null>(null);
@@ -114,8 +122,15 @@ export default function RoleRequestForm({ user, roleId, initialValues }: RoleReq
   const [parsing, setParsing] = useState(false);
   const [parseError, setParseError] = useState("");
   const errorSummaryRef = useRef<HTMLDivElement>(null);
+  const draftSaveInFlight = useRef<Promise<void> | null>(null);
+  const draftClientId = useRef(globalThis.crypto.randomUUID());
   const initialFormKey = useMemo(() => JSON.stringify(initialForm), [initialForm]);
-  const hasChanges = JSON.stringify(form) !== initialFormKey;
+  const [savedFormKey, setSavedFormKey] = useState(initialFormKey);
+  const hasChanges = JSON.stringify(form) !== savedFormKey;
+
+  useEffect(() => {
+    setSavedFormKey(initialFormKey);
+  }, [initialFormKey]);
 
   function scrollToErrorSummary() {
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -144,6 +159,53 @@ export default function RoleRequestForm({ user, roleId, initialValues }: RoleReq
       hodAvailabilityTimes: "",
     };
   }
+
+  async function autosaveDraft() {
+    if (!hasChanges || loading || parsing || draftSaveInFlight.current) return;
+    const snapshot = form;
+    const request = (async () => {
+      setDraftSaving(true);
+      setDraftError("");
+      try {
+        const endpoint = effectiveRoleId ? `/api/roles/${encodeURIComponent(effectiveRoleId)}` : "/api/roles";
+        const response = await fetch(endpoint, {
+          method: effectiveRoleId ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({
+            ...snapshot,
+            ...availabilityPayload(),
+            requesterName: user.name,
+            requesterEmail: user.email,
+            replacementEmployee: snapshot.requestType === "Staff Replacement" ? snapshot.replacementEmployee : "",
+            draft: true,
+            draftId: draftClientId.current,
+          }),
+        });
+        const result = await response.json() as RoleSubmissionResult;
+        if (!response.ok || result.success !== true || !result.roleId) throw new Error(result.error || "Unable to autosave this draft.");
+        if (!effectiveRoleId) {
+          setDraftRoleId(result.roleId);
+          window.history.replaceState(null, "", `/roles/${encodeURIComponent(result.roleId)}/edit`);
+        }
+        setSavedFormKey(JSON.stringify(snapshot));
+        setDraftSavedAt(new Date().toISOString());
+      } catch (caught) {
+        setDraftError(caught instanceof Error ? caught.message : "Unable to autosave this draft.");
+      } finally {
+        setDraftSaving(false);
+        draftSaveInFlight.current = null;
+      }
+    })();
+    draftSaveInFlight.current = request;
+    await request;
+  }
+
+  useEffect(() => {
+    if (!hasChanges) return;
+    const timer = window.setTimeout(() => void autosaveDraft(), 850);
+    return () => window.clearTimeout(timer);
+  }, [form, hasChanges, effectiveRoleId, loading, parsing]);
 
   async function populateFromJobDescription() {
     if (!jobDescriptionFile && form.jobDescription.trim().length < 20) {
@@ -242,25 +304,52 @@ export default function RoleRequestForm({ user, roleId, initialValues }: RoleReq
     setSuccess(null);
 
     try {
-      const response = await fetch(isEditing ? `/api/roles/${encodeURIComponent(roleId || "")}` : "/api/roles", {
-        method: isEditing ? "PATCH" : "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({
-          ...form,
-          ...availabilityPayload(),
-          requesterName: user.name,
-          requesterEmail: user.email,
-          replacementEmployee: form.requestType === "Staff Replacement" ? form.replacementEmployee : "",
-        }),
-      });
+      let response: Response;
+      if (isDraftRole) {
+        // Save the final form snapshot first, then use the audited status
+        // transition so submitting a draft cannot create a duplicate role.
+        response = await fetch(`/api/roles/${encodeURIComponent(effectiveRoleId)}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({
+            ...form,
+            ...availabilityPayload(),
+            requesterName: user.name,
+            requesterEmail: user.email,
+            replacementEmployee: form.requestType === "Staff Replacement" ? form.replacementEmployee : "",
+            draft: true,
+          }),
+        });
+        const savedDraft = await response.json() as RoleSubmissionResult;
+        if (!response.ok || savedDraft.success !== true) throw new Error(savedDraft.error || "Unable to save this draft.");
+        response = await fetch(`/api/roles/${encodeURIComponent(effectiveRoleId)}/status`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ action: "submit_draft_for_hr", comments: "Draft completed and submitted for HR discussion.", actionRequestId: globalThis.crypto.randomUUID() }),
+        });
+      } else {
+        response = await fetch(isEditing ? `/api/roles/${encodeURIComponent(effectiveRoleId)}` : "/api/roles", {
+          method: isEditing ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({
+            ...form,
+            ...availabilityPayload(),
+            requesterName: user.name,
+            requesterEmail: user.email,
+            replacementEmployee: form.requestType === "Staff Replacement" ? form.replacementEmployee : "",
+          }),
+        });
+      }
       const result = (await response.json()) as RoleSubmissionResult;
 
       if (!response.ok || result.success !== true) {
         throw new Error(result.error || "Unable to submit role request.");
       }
 
-      const savedRoleId = result.roleId || roleId || "";
+      const savedRoleId = result.roleId || effectiveRoleId || "";
       setSuccess({
         roleId: savedRoleId || "Not provided",
         status: result.status || "Pending HR Discussion",
@@ -298,6 +387,7 @@ export default function RoleRequestForm({ user, roleId, initialValues }: RoleReq
         )}
 
         {error && <div className="section"><ValidationSummary error={error} issues={Object.entries(fieldErrors).map(([field, message]) => { const formatted = formatFieldError(field, message); return { field, label: formatted.label, message: formatted.message, href: `#${field}` }; })} summaryRef={errorSummaryRef} /></div>}
+        {(isDraftRole || draftSaving || draftSavedAt || draftError) && <div className="draft-autosave-status" role="status"><strong>Draft</strong>{draftSaving ? " · Saving automatically..." : draftError ? ` · ${draftError}` : draftSavedAt ? ` · Saved ${new Date(draftSavedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : " · Changes will be saved automatically"}</div>}
 
         <section className="section">
           <div className="section-title">
@@ -419,11 +509,11 @@ export default function RoleRequestForm({ user, roleId, initialValues }: RoleReq
           </div>
         </section>
 
-        {(!isEditing || hasChanges) && (
+        {(!isEditing || hasChanges || isDraftRole) && (
           <div className="form-actions">
             <a className="btn btn-secondary" href="/roles">Cancel</a>
             <button type="submit" className="btn btn-primary" disabled={loading}>
-              {loading ? (isEditing ? "Saving…" : "Submitting…") : (isEditing ? "Save role request" : "Submit for HR discussion")}
+              {loading ? "Submitting…" : (isDraftRole ? "Submit for HR discussion" : isEditing ? "Save role request" : "Submit for HR discussion")}
             </button>
           </div>
         )}

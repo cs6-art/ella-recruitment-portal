@@ -37,6 +37,24 @@ test("role creation uses the canonical n8n event", () => {
   assert.match(source, /\/roles\/\$\{encodeURIComponent\(roleId\)\}/);
 });
 
+test("role forms autosave drafts without invoking the creation workflow", () => {
+  const route = fs.readFileSync("src/app/api/roles/route.ts", "utf8");
+  const detailsRoute = fs.readFileSync("src/app/api/roles/[roleId]/route.ts", "utf8");
+  const form = fs.readFileSync("src/components/RoleRequestForm.tsx", "utf8");
+  assert.match(route, /clientInput\.draft === true/);
+  assert.match(route, /appendRoleRequestDraft/);
+  assert.match(detailsRoute, /body\.draft === true/);
+  assert.match(form, /autosaveDraft/);
+  assert.match(form, /draft: true/);
+});
+
+test("draft submission has an audited transition into HR review", () => {
+  const source = fs.readFileSync("src/app/api/roles/[roleId]/status/route.ts", "utf8");
+  assert.match(source, /submit_draft_for_hr/);
+  assert.match(source, /target: "Pending HR Discussion"/);
+  assert.match(source, /user\.canCreateRole === true/);
+});
+
 test("recruitment template reads use valid open-ended A1 ranges", () => {
   const source = fs.readFileSync("src/lib/google-sheets.ts", "utf8");
   assert.doesNotMatch(source, /Recruitment_Templates!A1:G["`]/);

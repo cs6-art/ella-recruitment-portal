@@ -2,11 +2,12 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 import {
-  deleteRoleRequest,
   getFinalInterviewCalendarConfig,
+  deleteRoleRequest,
   getRoleRequestById,
   getRoleStatusHistory,
   updateRoleRequestFields,
+  type RoleRequestDetails,
 } from "@/lib/google-sheets";
 import { canDeleteRoleRequest, canEditRoleRequest, canViewRole } from "@/lib/access-control";
 import { roleRequestSchema } from "@/lib/role-schema";
@@ -23,6 +24,59 @@ type RouteContext = {
     roleId: string;
   }>;
 };
+
+function patchText(value: unknown, fallback: string, maxLength = 20000) {
+  return value === undefined || value === null ? fallback : String(value).trim().slice(0, maxLength);
+}
+
+function patchList(value: unknown, fallback: string, maxItems = 5) {
+  if (value === undefined || value === null) return fallback;
+  const items = Array.isArray(value) ? value : String(value).split(/[\n,]/);
+  return items.map(String).map((item) => item.trim()).filter(Boolean).slice(0, maxItems).join("\n");
+}
+
+function roleDraftFieldsForPatch(body: Record<string, unknown>, role: RoleRequestDetails, user: { name: string; email: string }, hodEmail: string, now: string) {
+  const setup = body.recruitmentSetupDraft && typeof body.recruitmentSetupDraft === "object"
+    ? body.recruitmentSetupDraft as Record<string, unknown>
+    : {};
+  const setupQuestions = [1, 2, 3, 4, 5].map((index) => patchText(setup[`requiredInterviewQuestion${index}`], role[`requiredInterviewQuestion${index}` as keyof RoleRequestDetails] as string || "", 1000));
+  return {
+    Request_Type: patchText(body.requestType, role.requestType, 50),
+    Department: patchText(body.department, role.department, 100),
+    Job_Title: patchText(body.jobTitle, role.jobTitle, 150),
+    Number_Of_Vacancies: patchText(body.numberOfVacancies, String(role.numberOfVacancies || 1), 10),
+    Reason_For_Request: patchText(body.reasonForRequest, role.reasonForRequest, 2000),
+    Job_Description: patchText(body.jobDescription, role.jobDescription),
+    Replacement_Employee: patchText(body.requestType === "Staff Replacement" ? body.replacementEmployee : "", role.replacementEmployee, 150),
+    Target_Hiring_Date: patchText(body.targetHiringDate, role.targetHiringDate, 30),
+    Employment_Type: patchText(body.employmentType, role.employmentType || "Full-Time", 50),
+    HOD_Email: hodEmail,
+    Custom_Screening_Question_1: patchText(body.customScreeningQuestion1, role.customScreeningQuestion1, 1000),
+    Custom_Screening_Question_2: patchText(body.customScreeningQuestion2, role.customScreeningQuestion2, 1000),
+    AI_Screening_Questions: patchList(body.aiGeneratedScreeningQuestions, role.aiGeneratedScreeningQuestions, 5),
+    Screening_Criteria: patchText(setup.screeningCriteria, role.screeningCriteria, 10000),
+    Initial_Interview_Questions: setupQuestions.filter(Boolean).join("\n"),
+    Required_Interview_Question_1: setupQuestions[0],
+    Required_Interview_Question_2: setupQuestions[1],
+    Required_Interview_Question_3: setupQuestions[2],
+    Required_Interview_Question_4: setupQuestions[3],
+    Required_Interview_Question_5: setupQuestions[4],
+    AI_System_Prompt: patchText(setup.aiSystemPrompt, role.aiSystemPrompt, 30000),
+    Evaluation_Field_Toggles: patchList(setup.evaluationFieldToggles, role.evaluationFieldToggles || "", 20).replace(/\n/g, ","),
+    Evaluation_Fields: JSON.stringify(Array.isArray(setup.customEvaluationFields) ? setup.customEvaluationFields.slice(0, 3) : role.customEvaluationFields || []),
+    Posting_Channels: patchList(setup.postingChannels, role.postingChannels, 10).replace(/\n/g, ", "),
+    License_or_Certificate_Required: patchText(setup.licenseOrCertificateRequired, role.licenseOrCertificateRequired || "", 1000),
+    Keywords_to_Look_For: patchText(setup.keywordsToLookFor, role.keywordsToLookFor || "", 2000),
+    Minimum_Years_of_Experience: patchText(setup.minimumYearsOfExperience, role.minimumYearsOfExperience || "", 100),
+    Transferable_Skills_Accepted: patchText(setup.transferableSkillsAccepted, role.transferableSkillsAccepted || "", 3000),
+    Salary_or_Budget_Range: patchText(setup.salaryOrBudgetRange, role.salaryOrBudgetRange || "", 500),
+    Earliest_Availability_Rule: patchText(setup.earliestAvailabilityRule, role.earliestAvailabilityRule || "", 1000),
+    Last_Updated_At: now,
+    Last_Updated_By_Name: user.name,
+    Last_Updated_By_Email: user.email.trim().toLowerCase(),
+    Latest_Comments: "Draft autosaved",
+  };
+}
 
 export async function GET(
   _request: Request,
@@ -134,6 +188,15 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     const body = await request.json() as Record<string, unknown>;
     const finalInterviewCalendar = await getFinalInterviewCalendarConfig();
+
+    // Draft autosaves deliberately bypass the strict submission schema. They
+    // update the existing row only and never advance its workflow status.
+    if (body.draft === true) {
+      const now = new Date().toISOString();
+      const fields = roleDraftFieldsForPatch(body, access.role, access.user, finalInterviewCalendar.email, now);
+      await updateRoleRequestFields(access.role.roleId, fields);
+      return NextResponse.json({ success: true, draft: true, roleId: access.role.roleId, status: access.role.status, message: "Draft saved." });
+    }
     const input = roleRequestSchema.parse({
       ...body,
       requesterName: access.role.requesterName || access.user.name,

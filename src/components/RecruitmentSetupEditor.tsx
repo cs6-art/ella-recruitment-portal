@@ -310,6 +310,8 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
   const [error, setError] = useState("");
   const [validationIssues, setValidationIssues] = useState<ValidationIssue[]>([]);
   const actionRequestId = useRef(globalThis.crypto.randomUUID());
+  const autosaveInFlight = useRef(false);
+  const saveRef = useRef<((action: string) => Promise<void>) | null>(null);
   const errorSummaryRef = useRef<HTMLDivElement>(null);
   const initialSetupKey = useMemo(() => JSON.stringify(initialValues), [initialValues]);
   const [savedSetupKey, setSavedSetupKey] = useState(initialSetupKey);
@@ -336,6 +338,12 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
   const setupStatus = values.recruitmentSetupStatus || setup.recruitmentSetupStatus || "Draft";
 
   const setupHasChanges = JSON.stringify(values) !== savedSetupKey;
+
+  useEffect(() => {
+    if (!editable || !setupHasChanges || saving || autosaveInFlight.current) return;
+    const timer = window.setTimeout(() => void saveRef.current?.("autosave_draft"), 1000);
+    return () => window.clearTimeout(timer);
+  }, [values, setupHasChanges, editable, saving]);
 
   if (!(status === "Approved" || status === "Recruitment Setup" || status === "Job Posted")) return null;
 
@@ -404,7 +412,7 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
 
     const payload = promptPayload(values, currentPrompt, action, actionRequestId.current);
     const parsed = recruitmentSetupSchema.safeParse(payload);
-    if (!parsed.success) {
+    if (!parsed.success && action !== "autosave_draft") {
       const issues = parsed.error.issues.map((issue) => {
         const field = String(issue.path[0] || "setup");
         return { field, label: setupFieldLabel(field), message: issue.message, href: setupFieldAnchors[field] };
@@ -423,8 +431,8 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
       : action === "mark_ready_for_publishing" || action === "publish_role"
         ? "ready-for-publishing"
         : "draft";
-    const readiness = getSetupReadiness(parsed.data as SetupReadinessInput, level);
-    if (!readiness.valid) {
+    const readiness = getSetupReadiness((parsed.success ? parsed.data : payload) as SetupReadinessInput, level);
+    if (!readiness.valid && action !== "autosave_draft") {
       setValidationIssues(readiness.missingFields.map((field) => ({ field: field.key, label: field.label, message: "Complete this item before continuing.", href: setupFieldAnchors[field.key] })));
       setError("Please complete the highlighted setup fields before continuing.");
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -435,6 +443,7 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
     }
 
     try {
+      autosaveInFlight.current = action === "autosave_draft";
       const response = await fetch(`/api/roles/${encodeURIComponent(roleId)}/recruitment-setup`, {
         method: "POST",
         credentials: "same-origin",
@@ -446,6 +455,7 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
       const notification = notificationPresentation(result.notificationStatus || "not_configured", result.notificationError);
       const confirmationMessages: Record<string, string> = {
         save_draft: "Changes saved successfully.",
+        autosave_draft: "Draft saved automatically.",
         mark_recruitment_ready: "Recruitment setup marked as ready.",
         mark_ready_for_publishing: "Recruitment setup is ready for publishing.",
         publish_role: "Role published successfully.",
@@ -457,7 +467,7 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
       // Keep the local draft mounted after a normal Save. Reloading the parent
       // immediately can race the workflow's sheet write and make selected
       // checkboxes appear to clear even though the draft was accepted.
-      if (action !== "save_draft") onSaved?.(typeof result.status === "string" ? result.status : undefined);
+      if (action !== "save_draft" && action !== "autosave_draft") onSaved?.(typeof result.status === "string" ? result.status : undefined);
       if (action === "publish_role") {
         router.push("/roles");
       }
@@ -470,8 +480,11 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
     } finally {
       setSaving(false);
       setSavingAction("");
+      autosaveInFlight.current = false;
     }
   }
+
+  saveRef.current = save;
 
   const actionLabel = (action: string, idle: string) => savingAction === action ? action === "publish_role" ? "Publishing…" : "Saving…" : idle;
 

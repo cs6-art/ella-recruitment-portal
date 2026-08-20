@@ -23,17 +23,25 @@ test("applicant data reader uses the shared candidate workbook tabs", () => {
 test("dashboard includes candidate pipeline metrics without exposing them to creator-only users", () => {
   const api = read("src/app/api/dashboard/metrics/route.ts");
   const dashboard = read("src/components/DashboardMetrics.tsx");
+  const applicantMetrics = read("src/lib/candidate-applications.ts");
   assert.match(api, /getApplicantMetrics/);
   assert.match(api, /canReviewRole === true \|\| user\.canApproveRole === true/);
   assert.match(dashboard, /Pipeline Progress/);
   assert.match(dashboard, /Decision Snapshot/);
-  assert.match(dashboard, /Awaiting Voice Booking Invitation/);
-  assert.match(dashboard, /Awaiting Final Booking Invitation/);
-  assert.match(dashboard, /Rejected Candidates/);
-  assert.match(dashboard, /Passed HR Interview/);
+  assert.match(dashboard, /Each applicant appears once/);
+  assert.match(dashboard, /stageCounts/);
+  assert.match(applicantMetrics, /Resume HR Review/);
+  assert.match(applicantMetrics, /label: "Rejected"/);
+  assert.match(applicantMetrics, /Passed HR Interview/);
+  assert.match(applicantMetrics, /currentApplicantStage/);
   assert.match(dashboard, /Role Request Actions/);
   assert.match(dashboard, /Pending HR Review/);
   assert.match(dashboard, /Pending Approval/);
+});
+
+test("candidate contact side effects stay disabled while workflow processing remains wired", () => {
+  const workflow = read("src/lib/applicant-workflow.ts");
+  assert.match(workflow, /attendeeEmails: \[\]/);
 });
 
 test("applicant routes are protected and render populated sheet data", () => {

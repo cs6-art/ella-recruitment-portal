@@ -90,9 +90,16 @@ test("voice booking defaults to weekday ten-minute availability and creates only
 });
 
 test("setup action status is synchronized for legacy and canonical n8n payload readers", () => {
-  assert.match(route, /const nextRecruitmentSetupStatus = setupStatusForAction/);
+  assert.match(route, /const nextRecruitmentSetupStatus = isAutosaveDraft \? role\.recruitmentSetupStatus/);
   assert.match(route, /recruitmentSetupStatus: nextRecruitmentSetupStatus/);
   assert.match(route, /Recruitment_Setup_Status: setupStatusForAction/);
+});
+
+test("setup edits autosave incomplete drafts without invoking workflow automation", () => {
+  assert.match(editor, /autosave_draft/);
+  assert.match(route, /isAutosaveDraft/);
+  assert.match(route, /workflowConfigured && !isAutosaveDraft/);
+  assert.match(route, /!isAutosaveDraft && setup\.voiceInterviewAvailabilityMode/);
 });
 
 test("setup payload keeps the five canonical questions compatible with n8n", () => {
