@@ -43,13 +43,6 @@ export type CandidateApplicationInput = {
   resumeFile?: ResumeFileRecord;
 };
 
-export type CandidateApplicationDuplicate = {
-  applicationId: string;
-  roleId: string;
-  email: string;
-  finalStatus: string;
-};
-
 export type CandidateApplicationWebhookPayload = {
   eventType: "candidate_application_submitted";
   applicationId: string;
@@ -321,30 +314,6 @@ function slotFrom(row: Row): BookingSlot {
 }
 
 function slotSort(left: BookingSlot, right: BookingSlot) { return `${left.date} ${left.startTime}`.localeCompare(`${right.date} ${right.startTime}`); }
-
-export async function findDuplicateCandidateApplication(roleId: string, email: string): Promise<CandidateApplicationDuplicate | null> {
-  const normalizedRoleId = text(roleId).toLowerCase();
-  const normalizedEmailAddress = normalizeEmail(email);
-  if (!normalizedRoleId || !normalizedEmailAddress) return null;
-
-  const { rows } = await readSheet("High_Match_Profile", "BH");
-  const match = rows.find((row) => {
-    const sameRole = field(row, "Role_ID", "Role ID").toLowerCase() === normalizedRoleId;
-    const sameEmail = normalizeEmail(field(row, "Email", "Candidate_Email")) === normalizedEmailAddress;
-    const finalStatus = field(row, "Final_Status").toLowerCase();
-    const rejected = finalStatus.includes("reject");
-    return sameRole && sameEmail && !rejected;
-  });
-
-  if (!match) return null;
-
-  return {
-    applicationId: field(match, "Application_ID", "Application ID"),
-    roleId: field(match, "Role_ID", "Role ID"),
-    email: field(match, "Email", "Candidate_Email"),
-    finalStatus: field(match, "Final_Status"),
-  };
-}
 
 export function buildCandidateApplicationPayload(input: {
   applicationId: string;

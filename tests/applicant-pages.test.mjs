@@ -167,7 +167,7 @@ test("candidate intake forms and decisions expose the required fields", () => {
   assert.match(decisionPanel, /Request Manual Review/);
   assert.match(decisionPanel, /Comments \*/);
   assert.match(decisionPanel, /disabled=\{busy \|\|/);
-  assert.match(route, /findDuplicateCandidateApplication/);
+  assert.doesNotMatch(route, /findDuplicateCandidateApplication|DUPLICATE_APPLICATION/);
   assert.match(route, /canReviewRole !== true/);
   assert.match(route, /source: "HR Manual Intake"/);
   assert.match(route, /isPublishedRoleForIntake/);

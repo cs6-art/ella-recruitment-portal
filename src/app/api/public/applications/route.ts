@@ -4,7 +4,6 @@ import { NextResponse } from "next/server";
 import {
   buildCandidateApplicationPayload,
   candidateApplicationSubmissionSchema,
-  findDuplicateCandidateApplication,
   isPreferredMobileValid,
   normalizePreferredMobile,
   sendCandidateApplicationWebhook,
@@ -54,20 +53,14 @@ export async function POST(request: Request) {
       return responseError("This role is not accepting applications.", 404);
     }
 
-    const duplicate = await findDuplicateCandidateApplication(roleId, parsed.data.email);
-    if (duplicate) {
-      return responseError("A candidate application already exists for this role.", 409, {
-        code: "DUPLICATE_APPLICATION",
-        applicationId: duplicate.applicationId,
-      });
-    }
-
     const webhookUrl = process.env.N8N_CANDIDATE_APPLICATION_WEBHOOK_URL;
     const webhookSecret = process.env.N8N_WEBHOOK_SECRET;
     if (!webhookUrl || !webhookSecret) {
       return responseError("The candidate application workflow is not configured.", 503);
     }
 
+    // Reapplications are independent records by policy, even when the email
+    // and role match an earlier submission.
     const applicationId = `APP-${crypto.randomUUID()}`;
     const submittedAt = new Date().toISOString();
     if (intake.resumeFile) storedResume = await storeResumeFile(intake.resumeFile);

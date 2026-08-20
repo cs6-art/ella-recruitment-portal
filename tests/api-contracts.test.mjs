@@ -84,16 +84,16 @@ test("saved recruitment templates stay isolated from role request rows", () => {
   assert.doesNotMatch(editor, /Load standard script/);
 });
 
-test("candidate duplicate prevention is shared by public and HR routes", () => {
+test("candidate intake allows repeated email and role applications with new identities", () => {
   const workflow = fs.readFileSync("src/lib/applicant-workflow.ts", "utf8");
   const publicRoute = fs.readFileSync("src/app/api/public/applications/route.ts", "utf8");
   const hrRoute = fs.readFileSync("src/app/api/applicants/route.ts", "utf8");
-  assert.match(workflow, /findDuplicateCandidateApplication/);
   assert.match(workflow, /normalizePreferredMobile/);
-  assert.match(publicRoute, /findDuplicateCandidateApplication/);
-  assert.match(hrRoute, /findDuplicateCandidateApplication/);
-  assert.match(publicRoute, /DUPLICATE_APPLICATION/);
-  assert.match(hrRoute, /DUPLICATE_APPLICATION/);
+  assert.doesNotMatch(workflow, /findDuplicateCandidateApplication/);
+  assert.doesNotMatch(publicRoute, /findDuplicateCandidateApplication|DUPLICATE_APPLICATION/);
+  assert.doesNotMatch(hrRoute, /findDuplicateCandidateApplication|DUPLICATE_APPLICATION/);
+  assert.match(publicRoute, /`APP-\$\{crypto\.randomUUID\(\)\}`/);
+  assert.match(hrRoute, /`APP-\$\{crypto\.randomUUID\(\)\}`/);
 });
 
 test("history identity fields are server-owned and normalized", () => {
