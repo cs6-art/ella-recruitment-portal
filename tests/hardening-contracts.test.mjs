@@ -24,13 +24,17 @@ test("authentication and logout use secure HTTP-only cookie settings", () => {
   assert.match(logoutSource, /sameSite: "lax"/);
 });
 
-test("demo mode shows persisted test and bulk applicants while protecting historical actions", () => {
+test("demo mode hides synthetic applicants but restores historical metrics", () => {
   assert.match(demoModeSource, /allowing new test roles and applicants/);
   assert.match(demoModeSource, /2026-08-20T00:00:00\+08:00/);
   assert.doesNotMatch(demoModeSource, /Intl\.DateTimeFormat/);
   assert.match(candidateApplicationsSource, /\^APP-BULK-/);
   assert.match(candidateApplicationsSource, /return isDemoWindowRecord\(field\(/);
-  assert.doesNotMatch(candidateApplicationsSource, /\[\.\.\.demoApplicantRows\(\), \.\.\.recentLive\]/);
+  assert.match(candidateApplicationsSource, /function withDemoHistory\(rows: SheetRow\[\]\)/);
+  assert.match(candidateApplicationsSource, /\[\.\.\.demoApplicantRows\(\), \.\.\.recentLive\]/);
+  assert.match(candidateApplicationsSource, /function withDemoApplicantList\(rows: SheetRow\[\]\)/);
+  assert.match(candidateApplicationsSource, /return withDemoApplicantList\(live\)/);
+  assert.match(candidateApplicationsSource, /const rows = withDemoHistory\(\(await readTab\("High_Match_Profile", "CZ"\)\)\.rows\)/);
   assert.match(candidateApplicationsSource, /"Date_of_Application"/);
   assert.match(candidateApplicationsSource, /\[\.\.\.demoInterviewBookings\(\), \.\.\.recentLive\]/);
   assert.match(hrApplicantRouteSource, /invalidateSheetsCache\("High_Match_Profile"\)/);

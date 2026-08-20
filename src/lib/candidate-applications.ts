@@ -437,13 +437,34 @@ export function calculateApplicantMetrics(rows: SheetRow[], now = new Date(), ti
 }
 
 /**
- * Keep the client-demo Applicants page focused on records that can be opened
- * and explained end to end: real test applications from the fixed August 20
- * baseline plus persisted applications created by the bulk-upload workflow.
- * The generated historical cohort remains available to dashboard/demo helpers,
- * but is intentionally excluded from this operational list and its counters.
+ * Restore the generated historical cohort for demo metrics. The cohort is
+ * synthetic by design, but its stage distribution gives the dashboard a
+ * realistic, long-running recruitment history while live August 20+ records
+ * continue to be included in the totals.
  */
 function withDemoHistory(rows: SheetRow[]): SheetRow[] {
+  if (!isDemoMode()) return rows;
+  const recentLive = rows.filter((row) => isDemoWindowRecord(field(
+    row,
+    "Date_of_Application",
+    "Date of Application",
+    "Applied_At",
+    "Applied At",
+    "Created_At",
+    "Created At",
+    "Submitted_At",
+    "Submitted At",
+  )));
+  return [...demoApplicantRows(), ...recentLive];
+}
+
+/**
+ * Keep the client-demo Applicants page focused on actionable records: bulk
+ * uploads and live test applications from August 20, 2026 onward. Generated
+ * historical rows stay available to dashboard metrics, but remain hidden from
+ * this operational list so a demo user only sees records they can explain.
+ */
+function withDemoApplicantList(rows: SheetRow[]): SheetRow[] {
   if (!isDemoMode()) return rows;
   return rows.filter((row) => {
     if (/^APP-BULK-/i.test(applicationId(row))) return true;
@@ -498,7 +519,7 @@ export async function getApplicants(): Promise<ApplicantSummary[]> {
   // No-show maintenance runs in the background. Keep the Applicants page
   // focused on reading the data it needs to render.
   const live = (await readTab("High_Match_Profile", "CZ")).rows;
-  return withDemoHistory(live)
+  return withDemoApplicantList(live)
     .map(mapApplicant)
     .filter((applicant) => applicant.applicationId !== "")
     .sort((left, right) => Date.parse(right.appliedAt) - Date.parse(left.appliedAt));
