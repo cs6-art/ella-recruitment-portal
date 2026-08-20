@@ -101,8 +101,10 @@ test("setup action status is synchronized for legacy and canonical n8n payload r
   assert.match(route, /Recruitment_Setup_Status: setupStatusForAction/);
 });
 
-test("setup edits autosave incomplete drafts without invoking workflow automation", () => {
-  assert.match(editor, /autosave_draft/);
+test("setup edits save only explicitly or once when leaving the editor", () => {
+  assert.doesNotMatch(editor, /setTimeout\(\(\) => void saveRef\.current\?\.\("autosave_draft"/);
+  assert.match(editor, /individual keystrokes never trigger a network write/);
+  assert.match(editor, /saveRef\.current\?\.\("autosave_draft"\)/);
   assert.match(route, /isAutosaveDraft/);
   assert.match(route, /workflowConfigured && !isAutosaveDraft/);
   assert.match(route, /!isAutosaveDraft && setup\.voiceInterviewAvailabilityMode/);

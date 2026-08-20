@@ -310,7 +310,8 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
   const [error, setError] = useState("");
   const [validationIssues, setValidationIssues] = useState<ValidationIssue[]>([]);
   const actionRequestId = useRef(globalThis.crypto.randomUUID());
-  const autosaveInFlight = useRef(false);
+  const saveInFlight = useRef(false);
+  const dirtyRef = useRef(false);
   const saveRef = useRef<((action: string) => Promise<void>) | null>(null);
   const errorSummaryRef = useRef<HTMLDivElement>(null);
   const initialSetupKey = useMemo(() => JSON.stringify(initialValues), [initialValues]);
@@ -340,10 +341,17 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
   const setupHasChanges = JSON.stringify(values) !== savedSetupKey;
 
   useEffect(() => {
-    if (!editable || !setupHasChanges || saving || autosaveInFlight.current) return;
-    const timer = window.setTimeout(() => void saveRef.current?.("autosave_draft"), 1000);
-    return () => window.clearTimeout(timer);
-  }, [values, setupHasChanges, editable, saving]);
+    dirtyRef.current = setupHasChanges;
+  }, [setupHasChanges]);
+
+  // Keep edits local while HR is working. A route change commits the pending
+  // draft once; individual keystrokes never trigger a network write.
+  useEffect(() => {
+    if (!editable) return;
+    return () => {
+      if (dirtyRef.current && !saveInFlight.current) void saveRef.current?.("autosave_draft");
+    };
+  }, [editable]);
 
   if (!(status === "Approved" || status === "Recruitment Setup" || status === "Job Posted")) return null;
 
@@ -443,7 +451,7 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
     }
 
     try {
-      autosaveInFlight.current = action === "autosave_draft";
+      saveInFlight.current = true;
       const response = await fetch(`/api/roles/${encodeURIComponent(roleId)}/recruitment-setup`, {
         method: "POST",
         credentials: "same-origin",
@@ -480,7 +488,7 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
     } finally {
       setSaving(false);
       setSavingAction("");
-      autosaveInFlight.current = false;
+      saveInFlight.current = false;
     }
   }
 
