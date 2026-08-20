@@ -4734,6 +4734,7 @@ textarea:focus-visible {
 .applicants-table td.selection-column, .applicants-table th.selection-column { width: 44px !important; min-width: 44px !important; max-width: 44px; }
 .selection-column input[type="checkbox"] { display: block; width: 16px; height: 16px; margin: 0 auto; accent-color: var(--blue); cursor: pointer; }
 .selection-column input[type="checkbox"]:disabled { cursor: not-allowed; opacity: .5; }
+.applicant-readonly-label { color: var(--muted); font-size: 10px; font-weight: 800; white-space: nowrap; }
 .applicants-table tbody tr.is-selected { background: #eaf4ff; box-shadow: inset 3px 0 0 var(--blue); }
 .applicants-table tbody tr.is-selected:hover { background: #e3f0fc; }
 .roles-table tbody tr.is-selected { background: #eaf4ff; box-shadow: inset 3px 0 0 var(--blue); }

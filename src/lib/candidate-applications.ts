@@ -47,6 +47,8 @@ export type ApplicantSummary = {
   finalStatus: string;
   currentStage: string;
   nextAction: string;
+  /** Generated demo history is viewable only through an explicit stage filter. */
+  isHistoricalDemo?: boolean;
 };
 
 export type ApplicantDetails = ApplicantSummary & {
@@ -389,7 +391,7 @@ function applyFinalBookingState(summary: ApplicantSummary, record: SheetRow, fin
   };
 }
 
-function mapApplicant(record: SheetRow): ApplicantSummary {
+function mapApplicant(record: SheetRow, isHistoricalDemo = false): ApplicantSummary {
   const finalStatus = field(record, "Final_Status");
   const voiceStatus = field(record, "Status 2 (Voice Interview)");
   const finalInterviewStatus = field(record, "Status 3 (Final Interview)");
@@ -411,6 +413,7 @@ function mapApplicant(record: SheetRow): ApplicantSummary {
     finalStatus: displayHrInterviewText(displayInterviewStageText(finalStatus)),
     currentStage: displayHrInterviewText(displayInterviewStageText(stageFor(record))),
     nextAction: displayHrInterviewText(displayInterviewStageText(nextActionFor(record))),
+    isHistoricalDemo,
   };
 }
 
@@ -535,8 +538,11 @@ export async function getApplicants(): Promise<ApplicantSummary[]> {
   // No-show maintenance runs in the background. Keep the Applicants page
   // focused on reading the data it needs to render.
   const live = (await readTab("High_Match_Profile", "CZ")).rows;
-  return withDemoApplicantList(live)
-    .map(mapApplicant)
+  const operational = withDemoApplicantList(live).map((record) => mapApplicant(record));
+  // Keep generated history out of the default table, but provide it to the
+  // client so an explicit dashboard-stage filter can show read-only examples.
+  const historical = isDemoMode() ? demoApplicantRows().map((record) => mapApplicant(record, true)) : [];
+  return [...operational, ...historical]
     .filter((applicant) => applicant.applicationId !== "")
     .sort((left, right) => Date.parse(right.appliedAt) - Date.parse(left.appliedAt));
 }

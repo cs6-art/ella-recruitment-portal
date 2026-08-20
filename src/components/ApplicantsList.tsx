@@ -101,7 +101,10 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
       .sort()
       .map((role) => ({ value: role, label: role }));
   }, [applicants, hasPublishedRoleScope, publishedRoles]);
-  const activeApplicants = useMemo(() => applicants.filter((applicant) => !removedIds.has(applicant.applicationId)), [applicants, removedIds]);
+  // Historical demo rows are hidden during normal browsing, but become
+  // visible when HR explicitly chooses a dashboard stage to inspect them.
+  const showHistoricalDemo = stageFilter !== "All Stages";
+  const activeApplicants = useMemo(() => applicants.filter((applicant) => !removedIds.has(applicant.applicationId) && (!applicant.isHistoricalDemo || showHistoricalDemo)), [applicants, removedIds, showHistoricalDemo]);
   const dashboardStages = useMemo(() => {
     const labels = historyMetrics?.stageCounts.map((stage) => stage.label) ?? [];
     return labels.length > 0 ? labels : [...DASHBOARD_STAGE_LABELS];
@@ -118,7 +121,10 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
       const applicantRole = applicant.selectedRole || applicant.roleId;
       const searchable = `${applicant.applicationId} ${applicant.candidateName} ${applicant.email} ${applicant.roleId} ${applicant.selectedRole} ${applicant.department}`.toLowerCase();
       return (!query || searchable.includes(query)) &&
-        (!hasPublishedRoleScope || publishedRoleKeys.has(applicantRole) || publishedRoleKeys.has(applicant.roleId)) &&
+        // Generated history is intentionally read-only, so it can still be
+        // inspected from a dashboard stage filter even when its synthetic role
+        // is not present in the live published-role directory.
+        (!hasPublishedRoleScope || applicant.isHistoricalDemo || publishedRoleKeys.has(applicantRole) || publishedRoleKeys.has(applicant.roleId)) &&
         (roleFilter === "All Roles" || applicant.roleId === selectedRole?.roleId || applicantRole === roleFilter || applicant.selectedRole === selectedRole?.label) &&
         (stageFilter === "All Stages" || dashboardStageLabel(applicant.currentStage) === stageFilter || applicant.currentStage === stageFilter);
     });
@@ -126,8 +132,9 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
 
   const totalPages = Math.max(1, Math.ceil(visibleApplicants.length / pageSize));
   const pagedApplicants = visibleApplicants.slice((page - 1) * pageSize, page * pageSize);
-  const selectedApplicants = activeApplicants.filter((applicant) => selectedIds.has(applicant.applicationId));
-  const allVisibleSelected = canManageApplicants && visibleApplicants.length > 0 && visibleApplicants.every((applicant) => selectedIds.has(applicant.applicationId));
+  const selectableVisibleApplicants = visibleApplicants.filter((applicant) => !applicant.isHistoricalDemo);
+  const selectedApplicants = activeApplicants.filter((applicant) => !applicant.isHistoricalDemo && selectedIds.has(applicant.applicationId));
+  const allVisibleSelected = canManageApplicants && selectableVisibleApplicants.length > 0 && selectableVisibleApplicants.every((applicant) => selectedIds.has(applicant.applicationId));
 
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
@@ -139,9 +146,8 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
   const summaryScreened = historyMetrics?.screened ?? activeApplicants.filter((applicant) => ["processed", "for hr review", "pending hr review"].includes(applicant.resumeStatus.trim().toLowerCase())).length;
   const summaryVoice = historyMetrics?.voiceActivity ?? voiceCount;
   const summaryHr = historyMetrics?.hrActivity ?? finalInterviewCount;
-  // Keep the pipeline headline aligned with the history-backed summary. The
-  // table itself remains limited to operational records so demo history does
-  // not become selectable or actionable.
+  // Keep the pipeline headline aligned with the history-backed summary. Demo
+  // history is read-only and appears only after an explicit stage filter.
   const hasApplicantFilters = Boolean(search.trim()) || roleFilter !== "All Roles" || stageFilter !== "All Stages";
   const matchingApplicantCount = hasApplicantFilters ? visibleApplicants.length : summaryTotal;
 
@@ -200,8 +206,8 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
   function toggleAllVisibleApplicants() {
     setSelectedIds((current) => {
       const next = new Set(current);
-      if (allVisibleSelected) visibleApplicants.forEach((applicant) => next.delete(applicant.applicationId));
-      else visibleApplicants.forEach((applicant) => next.add(applicant.applicationId));
+      if (allVisibleSelected) selectableVisibleApplicants.forEach((applicant) => next.delete(applicant.applicationId));
+      else selectableVisibleApplicants.forEach((applicant) => next.add(applicant.applicationId));
       return next;
     });
   }
@@ -250,11 +256,11 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
         ) : (
           <div className="table-wrap">
             <table className="applicants-table">
-              <thead><tr>{canManageApplicants && <th className="selection-column"><input type="checkbox" aria-label="Select all visible applicants" checked={allVisibleSelected} onChange={toggleAllVisibleApplicants} /></th>}<th>Candidate</th><th>Role</th><th>Applied</th><th>Match</th><th>Current Stage</th><th>Next Action</th><th>Action</th></tr></thead>
+              <thead><tr>{canManageApplicants && <th className="selection-column"><input type="checkbox" aria-label="Select all visible applicants" checked={allVisibleSelected} disabled={selectableVisibleApplicants.length === 0} onChange={toggleAllVisibleApplicants} /></th>}<th>Candidate</th><th>Role</th><th>Applied</th><th>Match</th><th>Current Stage</th><th>Next Action</th><th>Action</th></tr></thead>
               <tbody>
                 {pagedApplicants.map((applicant, index) => (
                   <tr key={`${applicant.applicationId || "applicant"}-${applicant.roleId || "role"}-${index}`} className={selectedIds.has(applicant.applicationId) ? "is-selected" : undefined}>
-                    {canManageApplicants && <td className="selection-column"><input type="checkbox" aria-label={`Select ${applicant.candidateName || applicant.applicationId}`} checked={selectedIds.has(applicant.applicationId)} disabled={deletingIds.has(applicant.applicationId)} onChange={() => toggleApplicantSelection(applicant.applicationId)} /></td>}
+                    {canManageApplicants && <td className="selection-column">{applicant.isHistoricalDemo ? <span className="applicant-readonly-label">Demo</span> : <input type="checkbox" aria-label={`Select ${applicant.candidateName || applicant.applicationId}`} checked={selectedIds.has(applicant.applicationId)} disabled={deletingIds.has(applicant.applicationId)} onChange={() => toggleApplicantSelection(applicant.applicationId)} />}</td>}
                     {/* data-label values let the responsive CSS render each row as a
                         labeled card when the table cannot fit the content column. */}
                     <td data-label="Candidate"><Link className="applicant-name-link" href={`/applicants/${encodeURIComponent(applicant.applicationId)}`}><strong>{applicant.candidateName || "Unnamed candidate"}</strong><span>{applicant.email || applicant.applicationId}</span></Link></td>
@@ -263,7 +269,7 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
                     <td data-label="Match"><strong className="applicant-score">{scoreValue(applicant.matchScore)}</strong>{applicant.recommendation && <span className="applicant-subtext">{applicant.recommendation}</span>}</td>
                     <td data-label="Current stage"><span className={stageClass(applicant.currentStage)}>{applicant.currentStage || "Pending HR Review"}</span></td>
                     <td data-label="Next action">{applicant.nextAction}</td>
-                    <td data-label="Action"><div className="applicant-table-actions"><Link href={`/applicants/${encodeURIComponent(applicant.applicationId)}`}>View</Link>{canManageApplicants && <><Link href={`/applicants/${encodeURIComponent(applicant.applicationId)}/edit`}>Edit</Link><button type="button" className="table-danger-action" disabled={deletingIds.has(applicant.applicationId) || deletingId === "bulk"} onClick={() => void deleteApplicants([applicant])}>{deletingIds.has(applicant.applicationId) ? "Deleting..." : "Delete"}</button></>}</div></td>
+                    <td data-label="Action"><div className="applicant-table-actions"><Link href={`/applicants/${encodeURIComponent(applicant.applicationId)}`}>View</Link>{canManageApplicants && !applicant.isHistoricalDemo && <><Link href={`/applicants/${encodeURIComponent(applicant.applicationId)}/edit`}>Edit</Link><button type="button" className="table-danger-action" disabled={deletingIds.has(applicant.applicationId) || deletingId === "bulk"} onClick={() => void deleteApplicants([applicant])}>{deletingIds.has(applicant.applicationId) ? "Deleting..." : "Delete"}</button></>}{applicant.isHistoricalDemo && <span className="applicant-readonly-label">Read-only demo history</span>}</div></td>
                   </tr>
                 ))}
               </tbody>
