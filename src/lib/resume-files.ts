@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { google } from "googleapis";
 import mammoth from "mammoth";
-import pdfParse from "pdf-parse/lib/pdf-parse.js";
+import { PDFParse } from "pdf-parse";
 import WordExtractor from "word-extractor";
 
 import { getGoogleServiceAccountPrivateKey } from "@/lib/google-service-account";
@@ -122,11 +122,19 @@ function normalizeExtractedText(value: string) {
 }
 
 async function extractText(buffer: Buffer, kind: ResumeFileKind) {
-  const textValue = kind === "pdf"
-    ? (await pdfParse(buffer)).text
-    : kind === "docx"
-      ? (await mammoth.extractRawText({ buffer })).value
-      : (await new WordExtractor().extract(buffer)).getBody();
+  let textValue: string;
+  if (kind === "pdf") {
+    const parser = new PDFParse({ data: buffer });
+    try {
+      textValue = (await parser.getText()).text;
+    } finally {
+      await parser.destroy();
+    }
+  } else if (kind === "docx") {
+    textValue = (await mammoth.extractRawText({ buffer })).value;
+  } else {
+    textValue = await new WordExtractor().extract(buffer).then((document) => document.getBody());
+  }
   const text = normalizeExtractedText(textValue || "");
   if (text.length < 20) throw new Error("The uploaded resume does not contain enough readable text.");
   return text;

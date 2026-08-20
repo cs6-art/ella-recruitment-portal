@@ -45,6 +45,13 @@ test("candidate contact side effects stay disabled while workflow processing rem
   assert.match(workflow, /attendeeEmails: \[\]/);
 });
 
+test("resume extraction uses the supported PDF parser entrypoint", () => {
+  const resumeFiles = read("src/lib/resume-files.ts");
+  assert.match(resumeFiles, /import \{ PDFParse \} from "pdf-parse"/);
+  assert.match(resumeFiles, /await parser\.destroy\(\)/);
+  assert.doesNotMatch(resumeFiles, /pdf-parse\/lib\/pdf-parse/);
+});
+
 test("applicant routes are protected and render populated sheet data", () => {
   const list = read("src/app/applicants/page.tsx");
   const screening = read("src/app/resume-screening/page.tsx");
