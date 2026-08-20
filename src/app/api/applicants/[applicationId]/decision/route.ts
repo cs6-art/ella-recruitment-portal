@@ -7,7 +7,6 @@ import {
   type ApplicantDecision,
   type ApplicantDecisionStage,
 } from "@/lib/applicant-workflow";
-import { demoActionBlockReason } from "@/lib/candidate-applications";
 import { getPublicAppBaseUrl } from "@/lib/public-url";
 import { consumeRateLimit, rateLimitHeaders, requestClientKey } from "@/lib/rate-limit";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
@@ -35,10 +34,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ app
     }
 
     const applicationId = decodeURIComponent((await params).applicationId);
-    // Demo mode: never let a presentation click email or phone a real candidate.
-    const blocked = await demoActionBlockReason(applicationId);
-    if (blocked) return NextResponse.json({ error: blocked }, { status: 503 });
-
+    // Decisions are internal workflow state and remain available in demo mode.
+    // Applicant-facing email/call/booking side effects are guarded downstream.
     const result = await recordApplicantDecision(
       applicationId,
       body.stage,

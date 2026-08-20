@@ -7,7 +7,6 @@ import { getRoleRequestById } from "@/lib/google-sheets";
 import { consumeRateLimit, rateLimitHeaders, requestClientKey } from "@/lib/rate-limit";
 import { deleteResumeFile, MAX_RESUME_FILE_BYTES, storeResumeFile } from "@/lib/resume-files";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
-import { isDemoMode } from "@/lib/demo-mode";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,7 +28,6 @@ function legacyQueueIdForHash(sha256: string) {
 }
 
 export async function POST(request: Request) {
-  if (isDemoMode()) return responseError("Demo mode is read-only: resume storage and applicant processing are disabled.", 503);
   const user = verifySessionToken((await cookies()).get(COOKIE_NAME)?.value);
   if (!user) return responseError("Authentication required.", 401);
   if (user.canReviewRole !== true && user.canApproveRole !== true) return responseError("Only HR reviewers can upload bulk resumes.", 403);

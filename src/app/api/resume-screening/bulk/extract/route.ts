@@ -2,7 +2,6 @@ import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 
 import { extractDocumentText } from "@/lib/document-extraction";
-import { isDemoMode } from "@/lib/demo-mode";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,7 +16,6 @@ function isValidSecret(request: Request) {
 }
 
 export async function POST(request: Request) {
-  if (isDemoMode()) return NextResponse.json({ success: false, error: "Demo mode is read-only: resume storage and applicant processing are disabled." }, { status: 503 });
   if (!isValidSecret(request)) return NextResponse.json({ success: false, error: "Invalid workflow secret." }, { status: 401 });
 
   try {

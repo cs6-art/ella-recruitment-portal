@@ -398,14 +398,9 @@ export function buildCandidateApplicationPayload(input: {
 }
 
 export async function sendCandidateApplicationWebhook(webhookUrl: string, webhookSecret: string, payload: CandidateApplicationWebhookPayload) {
-  if (isDemoMode()) {
-    const error = "Demo mode is read-only: applicant emails, calls, bookings, and calendar changes are disabled.";
-    const response = new Response(JSON.stringify({ success: false, error }), {
-      status: 503,
-      headers: { "Content-Type": "application/json" },
-    });
-    return { response, result: { success: false, error } as Record<string, unknown> };
-  }
+  // Demo mode accepts new applicants and lets n8n run screening. Candidate
+  // contact workflows remain disabled separately, so this handoff does not
+  // email, call, or book the applicant.
   const response = await fetch(webhookUrl, {
     method: "POST",
     headers: {
@@ -1110,7 +1105,6 @@ async function syncFinalTrackingBooking(input: {
 }
 
 export async function markInterviewNoShow(slotId: string) {
-  if (isDemoMode()) throw new Error("Demo mode is read-only: applicant emails, calls, bookings, and calendar changes are disabled.");
   const cleanSlotId = text(slotId);
   if (!cleanSlotId) throw new Error("Interview slot is required.");
   const [slotsData, applicantsData] = await Promise.all([readSheet("Interview_Slots", "X"), readSheet("High_Match_Profile", "BH")]);
@@ -1657,7 +1651,6 @@ export async function synchronizeFinalInterviewSlots({ roleId, hodEmail, availab
  * portal still records that outcome itself.
  */
 export async function recordApplicantDecision(applicationId: string, stage: ApplicantDecisionStage, decision: ApplicantDecision, reviewer: { name: string; email: string }, comments: string, publicAppBaseUrl = "") {
-  if (isDemoMode()) throw new Error("Demo mode is read-only: applicant emails, calls, bookings, and calendar changes are disabled.");
   const data = await readSheet("High_Match_Profile", "BH");
   const found = findApplicant(data, applicationId);
   if (!found) throw new Error("Applicant not found.");

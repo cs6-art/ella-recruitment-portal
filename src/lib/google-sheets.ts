@@ -4,7 +4,7 @@ import { cachedSheetsRead, invalidateSheetsCache } from "@/lib/sheets-cache";
 import { BASELINE_EVALUATION_FIELDS, EVALUATION_FIELD_CATALOG } from "@/lib/recruitment-setup-schema";
 import { getGoogleServiceAccountPrivateKey } from "@/lib/google-service-account";
 import { demoRoleSummaries } from "@/lib/demo-data";
-import { isDemoMode } from "@/lib/demo-mode";
+import { isDemoMode, isDemoWindowRecord } from "@/lib/demo-mode";
 
 const spreadsheetId =
   process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
@@ -965,10 +965,15 @@ export async function getRoleRequests(): Promise<
   ) as RoleRequestSummary[];
 
   if (!isDemoMode()) return live;
-  // Demo mode is presentation-only: never mix live role/requester data into
-  // the synthetic dataset shown to a client.
-  void live;
-  return demoRoleSummaries();
+  // Keep the synthetic history for demos, but include roles created after the
+  // cutoff so new requests remain visible and actionable during the demo.
+  const recentLive = live.filter((role) => isDemoWindowRecord(role.createdAt));
+  const merged = new Map<string, RoleRequestSummary>();
+  [...demoRoleSummaries(), ...recentLive].forEach((role) => {
+    const identity = role.roleId.trim().toLowerCase();
+    if (identity) merged.set(identity, role);
+  });
+  return [...merged.values()];
 }
 
 export async function getRoleRequestById(

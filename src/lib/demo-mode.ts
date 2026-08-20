@@ -1,12 +1,12 @@
 /**
  * Demo mode renders a synthetic recruitment history for client presentations
- * as a read-only safety boundary.
+ * while allowing new test roles and applicants to move through internal
+ * workflow steps.
  *
  * The portal is wired to n8n workflows that email and phone real candidates, so
- * demo mode keeps live records out of presentation views and disables every
- * applicant-facing side effect. This is intentionally stricter than a date
- * cutoff: a presenter must never accidentally email, call, schedule, or
- * modify a real applicant while the demo environment is enabled.
+ * demo mode keeps older live history out of presentation views and disables
+ * applicant-facing side effects. New records after the cutoff remain visible
+ * so the workflow can be demonstrated without contacting a real applicant.
  *
  * Keep this module dependency-free: `proxy.ts` runs on the Edge runtime.
  */

@@ -21,13 +21,13 @@ test("authentication and logout use secure HTTP-only cookie settings", () => {
   assert.match(logoutSource, /sameSite: "lax"/);
 });
 
-test("demo mode keeps presentation data synthetic and applicant actions read-only", () => {
-  assert.match(demoModeSource, /read-only safety boundary/);
-  assert.match(candidateApplicationsSource, /return demoApplicantRows\(\)/);
-  assert.match(candidateApplicationsSource, /return demoInterviewBookings\(\)/);
+test("demo mode keeps history synthetic while allowing new internal workflow records", () => {
+  assert.match(demoModeSource, /allowing new test roles and applicants/);
+  assert.match(candidateApplicationsSource, /\[\.\.\.demoApplicantRows\(\), \.\.\.recentLive\]/);
+  assert.match(candidateApplicationsSource, /\[\.\.\.demoInterviewBookings\(\), \.\.\.recentLive\]/);
   assert.match(candidateApplicationsSource, /applicant emails, calls, bookings, and calendar changes are disabled/);
+  assert.match(applicantWorkflowSource, /Demo mode accepts new applicants/);
   assert.match(applicantWorkflowSource, /if \(isDemoMode\(\)\) throw new Error/);
-  assert.match(applicantWorkflowSource, /if \(isDemoMode\(\)\) \{/);
   assert.match(calendarSource, /reason: "demo_mode"/);
   assert.match(demoDataSource, /function nextWeekday/);
   assert.match(demoDataSource, /return random\(\) < 0\.08 \? "No Show" : "Completed"/);

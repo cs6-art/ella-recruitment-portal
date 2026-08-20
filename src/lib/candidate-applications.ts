@@ -2,7 +2,7 @@ import { google } from "googleapis";
 import { getGoogleServiceAccountPrivateKey } from "@/lib/google-service-account";
 import { cachedSheetsRead } from "@/lib/sheets-cache";
 import { demoActiveBookingLinkRoleIds, demoApplicantRows, demoInterviewBookings } from "@/lib/demo-data";
-import { isDemoMode } from "@/lib/demo-mode";
+import { isDemoMode, isDemoWindowRecord } from "@/lib/demo-mode";
 import { getRoleRequestById, type RoleRequestDetails } from "@/lib/google-sheets";
 import { evaluationFieldsForSetup, type EvaluationField } from "@/lib/recruitment-setup-schema";
 
@@ -437,27 +437,26 @@ export function calculateApplicantMetrics(rows: SheetRow[], now = new Date(), ti
 }
 
 /**
- * Demo pages are presentation-only. Returning synthetic rows exclusively keeps
- * live applicants, contact details, and appointments out of every dashboard.
+ * Demo pages use a large synthetic history, but keep records created after the
+ * demo cutoff visible so a presenter can submit and review a real test
+ * applicant without losing it from the workflow UI.
  */
 function withDemoHistory(rows: SheetRow[]): SheetRow[] {
   if (!isDemoMode()) return rows;
-  void rows;
-  return demoApplicantRows();
+  const recentLive = rows.filter((row) => isDemoWindowRecord(field(row, "Applied_At", "Applied At", "Created_At", "Created At", "Submitted_At", "Submitted At")));
+  return [...demoApplicantRows(), ...recentLive];
 }
 
 function withDemoBookings(bookings: InterviewBooking[]): InterviewBooking[] {
   if (!isDemoMode()) return bookings;
-  void bookings;
-  return demoInterviewBookings();
+  const recentLive = bookings.filter((booking) => isDemoWindowRecord(`${booking.date}T${booking.startTime}:00`));
+  return [...demoInterviewBookings(), ...recentLive];
 }
 
 /**
- * Guards actions that can reach a candidate while demo mode is on.
- *
- * Returns a human-readable reason for every action while demo mode is enabled.
- * The guard is deliberately unconditional: demo views contain no live records
- * and no applicant may be emailed, called, booked, or mutated by accident.
+ * Guards destructive profile edits while demo mode is on. Internal review
+ * decisions are intentionally allowed so new test applicants can complete the
+ * workflow; booking and contact actions have their own downstream guards.
  */
 export async function demoActionBlockReason(targetApplicationId: string): Promise<string | null> {
   if (!isDemoMode()) return null;
