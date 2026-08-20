@@ -28,11 +28,12 @@ test("demo mode keeps history out of the default list but exposes read-only stag
   assert.match(demoModeSource, /allowing new test roles and applicants/);
   assert.match(demoModeSource, /2026-08-20T00:00:00\+08:00/);
   assert.doesNotMatch(demoModeSource, /Intl\.DateTimeFormat/);
-  assert.match(candidateApplicationsSource, /\^APP-BULK-/);
+  assert.match(candidateApplicationsSource, /APP-\(\?:BULK-/);
   assert.match(candidateApplicationsSource, /return isDemoWindowRecord\(field\(/);
   assert.match(candidateApplicationsSource, /function withDemoHistory\(rows: SheetRow\[\]\)/);
   assert.match(candidateApplicationsSource, /\[\.\.\.demoApplicantRows\(\), \.\.\.recentLive\]/);
   assert.match(candidateApplicationsSource, /function withDemoApplicantList\(rows: SheetRow\[\]\)/);
+  assert.match(candidateApplicationsSource, /APP-\(\?:BULK-\|\\d\{13\}-\[A-Z0-9\]\{6\}\)/);
   assert.match(candidateApplicationsSource, /const operational = withDemoApplicantList\(live\)/);
   assert.match(candidateApplicationsSource, /const historical = isDemoMode\(\)/);
   assert.match(candidateApplicationsSource, /map\(\(record\) => mapApplicant\(record, true\)\)/);

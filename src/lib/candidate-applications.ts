@@ -486,7 +486,11 @@ function withDemoHistory(rows: SheetRow[]): SheetRow[] {
 function withDemoApplicantList(rows: SheetRow[]): SheetRow[] {
   if (!isDemoMode()) return rows;
   return rows.filter((row) => {
-    if (/^APP-BULK-/i.test(applicationId(row))) return true;
+    const id = applicationId(row);
+    // Public/n8n submissions use a timestamped APP id. Keep those real test
+    // records visible even when their submitted timestamp predates a demo
+    // cutoff, while still hiding generated YYYYMMDD-sequence history rows.
+    if (/^APP-(?:BULK-|\d{13}-[A-Z0-9]{6})/i.test(id)) return true;
     return isDemoWindowRecord(field(
       row,
       "Date_of_Application",
