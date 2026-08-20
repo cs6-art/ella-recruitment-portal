@@ -6,10 +6,8 @@ import { createInterviewSlot } from "@/lib/applicant-workflow";
 import { getRoleRequestById } from "@/lib/google-sheets";
 import { consumeRateLimit, rateLimitHeaders, requestClientKey } from "@/lib/rate-limit";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
-import { isDemoMode } from "@/lib/demo-mode";
 
 export async function POST(request: Request) {
-  if (isDemoMode()) return NextResponse.json({ error: "Demo mode is read-only: interview availability changes are disabled." }, { status: 503 });
   const user = verifySessionToken((await cookies()).get(COOKIE_NAME)?.value);
   if (!user || (user.canReviewRole !== true && user.canApproveRole !== true)) return NextResponse.json({ error: "You are not authorized to manage interview availability." }, { status: 403 });
   const rate = consumeRateLimit(`slot-create:${user.email}:${requestClientKey(request)}`, 30, 15 * 60 * 1000);

@@ -268,7 +268,6 @@ export type CalendarAvailabilityResult =
  * booking — the caller logs the outcome and moves on.
  */
 export async function createFinalInterviewEvent(input: CalendarEventInput): Promise<CalendarEventResult> {
-  if (isDemoMode()) return { created: false, reason: "demo_mode" };
   try {
     const target = await finalInterviewCalendarTarget(input.hodEmail);
     const client = await getAuthorizedClient(target.email);

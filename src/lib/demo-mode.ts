@@ -4,9 +4,9 @@
  * workflow steps.
  *
  * The portal is wired to n8n workflows that email and phone real candidates, so
- * demo mode keeps older live history out of presentation views and disables
- * applicant-facing side effects. New records after the cutoff remain visible
- * so the workflow can be demonstrated without contacting a real applicant.
+ * demo mode keeps older live history out of presentation views and protects
+ * those historical records from applicant-facing side effects. New records
+ * after the cutoff remain visible and can complete the live demo workflow.
  *
  * Keep this module dependency-free: `proxy.ts` runs on the Edge runtime.
  */
@@ -46,4 +46,9 @@ export function demoCutoffMs(): number {
 export function isDemoWindowRecord(timestamp: string | undefined | null): boolean {
   const parsed = Date.parse(String(timestamp ?? ""));
   return Number.isFinite(parsed) && parsed >= demoCutoffMs();
+}
+
+/** Allow real side effects only for records created during the active demo. */
+export function isDemoSideEffectAllowed(timestamp: string | undefined | null): boolean {
+  return !isDemoMode() || isDemoWindowRecord(timestamp);
 }

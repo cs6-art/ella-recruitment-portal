@@ -8,7 +8,7 @@ import { getFinalInterviewCalendarConfig, getRoleRequestById } from "@/lib/googl
 import { expandHodAvailabilitySlots, parseHodAvailabilitySlots, slotMatchesHodAvailability } from "@/lib/hod-availability";
 import { isValidTimezone, scheduledInstant } from "@/lib/interview-time";
 import { bookingLink } from "@/lib/public-url";
-import { isDemoMode } from "@/lib/demo-mode";
+import { isDemoSideEffectAllowed } from "@/lib/demo-mode";
 import { cachedSheetsRead, invalidateSheetsCache } from "@/lib/sheets-cache";
 import type { ResumeFileRecord } from "@/lib/resume-files";
 import { generateAutomaticVoiceInterviewSlots, type VoiceInterviewSlot } from "@/lib/voice-interview-availability";
@@ -164,6 +164,7 @@ export type BookingContext = {
   scheduledDate: string;
   scheduledTime: string;
   timezone: string;
+  appliedAt: string;
   preferredMobile: string;
   currentSlot?: BookingSlot;
   slots: BookingSlot[];
@@ -607,6 +608,7 @@ export async function getBookingContext(kind: BookingKind, token: string): Promi
     scheduledDate,
     scheduledTime,
     timezone,
+    appliedAt: field(row, "Applied_At", "Applied At", "Created_At", "Created At", "Submitted_At", "Submitted At"),
     currentSlot: currentSlot?.slot,
     slots,
   };
@@ -790,7 +792,6 @@ async function withReservationLock<T>(key: string, operation: () => Promise<T>) 
 // response instead of overwriting the first candidate. Multi-instance
 // deployments should move this reservation primitive to the shared database.
 export async function reserveBooking(kind: BookingKind, token: string, slotId: string, preferredMobile: string) {
-  if (isDemoMode()) throw new Error("Demo mode is read-only: applicant emails, calls, bookings, and calendar changes are disabled.");
   const lockKey = `${kind}:${text(slotId)}`;
   return withReservationLock(lockKey, () => reserveBookingInternal(kind, token, slotId, preferredMobile));
 }
@@ -802,6 +803,9 @@ async function reserveBookingInternal(kind: BookingKind, token: string, slotId: 
   if (!isPreferredMobileValid(confirmedMobile)) throw new Error("Confirm a valid preferred mobile number in international format.");
   const [context, slotsData, applicantData] = await Promise.all([getBookingContext(kind, token), readSheet("Interview_Slots", "X"), readSheet("High_Match_Profile", "BH")]);
   if (!context) throw new Error("This booking link is invalid or expired.");
+  if (!isDemoSideEffectAllowed(context.appliedAt)) {
+    throw new Error("This demo booking link is protected because it belongs to historical data.");
+  }
   const role = await getRoleRequestById(context.roleId);
   const finalCalendarEmail = kind === "final" ? (await getFinalInterviewCalendarConfig()).email : "";
   let matchingSlotIndex = slotsData.rows.findIndex((row) => field(row, "Slot_ID", "Slot ID") === cleanSlotId);
