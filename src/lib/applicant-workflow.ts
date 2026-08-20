@@ -251,16 +251,22 @@ export function isPreferredMobileValid(value: string) {
 // for date/number parsing.
 function asTextCell(value: string) { return value ? `'${value}` : value; }
 
-async function readSheet(tab: string, endColumn: string): Promise<SheetData> {
+async function readSheet(tab: string, endColumn: string, options: { fresh?: boolean } = {}): Promise<SheetData> {
   // Cached: reserveBooking() alone reads Interview_Slots and
   // High_Match_Profile up to three times per call (getBookingContext, its
   // own Promise.all, then updateCells locating column indices). A short
   // cache turns those into one real API read plus cache hits, instead of
   // burning three read-quota units for identical data.
-  const values = await cachedSheetsRead(`${tab}:${endColumn}:${spreadsheetId}`, async () => {
+  const fetchValues = async () => {
     const response = await sheets.spreadsheets.values.get({ spreadsheetId, range: `'${tab.replace(/'/g, "''")}'!A1:${endColumn}` });
     return response.data.values ?? [];
-  });
+  };
+  // The decision API and the detail page may run on different serverless
+  // instances. Bypass the process-local cache for the status history so the
+  // just-recorded action is visible immediately after navigation.
+  const values = options.fresh
+    ? await fetchValues()
+    : await cachedSheetsRead(`${tab}:${endColumn}:${spreadsheetId}`, fetchValues);
   const headers = (values[0] ?? []).map(text);
   const rows: Row[] = [];
   const rowNumbers: number[] = [];
@@ -438,7 +444,7 @@ function candidateHistoryValues(entry: CandidateStatusHistoryEntry): string[] {
 
 export async function getCandidateStatusHistory(applicationId: string): Promise<CandidateStatusHistoryEntry[]> {
   try {
-    const { rows } = await readSheet("Candidate_Status_History", "M");
+    const { rows } = await readSheet("Candidate_Status_History", "M", { fresh: true });
     const normalizedApplicationId = text(applicationId).toLowerCase();
     return rows
       .filter((row) => field(row, "Application_ID", "Application ID").toLowerCase() === normalizedApplicationId)

@@ -7,6 +7,7 @@ import ActionFeedback from "@/components/ActionFeedback";
 import ValidationSummary from "@/components/ValidationSummary";
 
 type Stage = "resume" | "voice" | "final";
+type SavedDecision = { decision: string; comments: string };
 type Props = {
   applicationId: string;
   resumeDecision: string;
@@ -64,7 +65,7 @@ function DecisionRow({ stage, title, description, current, link, enabled = true,
   enabled?: boolean;
   applicationId: string;
   canReview: boolean;
-  onSaved: (message: string) => void;
+  onSaved: (message: string, decision: string, comments: string) => void;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -80,7 +81,10 @@ function DecisionRow({ stage, title, description, current, link, enabled = true,
       const response = await fetch(`/api/applicants/${encodeURIComponent(applicationId)}/decision`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ stage, decision, comments: trimmed }) });
       const data = await response.json();
       if (!response.ok || !data.success) throw new Error(data.error || "Unable to save decision.");
-      onSaved(decision === "Approve" ? `${title} approved.` : decision === "Reject" ? `${title} marked rejected.` : `${title} returned for review.`);
+      // Show the saved state immediately while the server component refreshes.
+      // This avoids a pending-looking card when the write and read hit
+      // different serverless instances with separate in-memory caches.
+      onSaved(decision === "Approve" ? `${title} approved.` : decision === "Reject" ? `${title} marked rejected.` : `${title} returned for review.`, decision, trimmed);
       // Refresh the server component data after the workflow write so the
       // summary cards, timeline, and available decisions stay in sync without
       // losing the reviewer's current page position.
@@ -109,10 +113,21 @@ function DecisionRow({ stage, title, description, current, link, enabled = true,
 
 export default function ApplicantDecisionPanel(props: Props) {
   const [message, setMessage] = useState("");
+  const [savedDecisions, setSavedDecisions] = useState<Partial<Record<Stage, SavedDecision>>>({});
   const stage = reviewStage(props);
+  const saveDecision = (nextMessage: string, decision: string, comments: string) => {
+    setMessage(nextMessage);
+    setSavedDecisions((current) => ({ ...current, [stage]: { decision, comments } }));
+  };
+  const resumeDecision = savedDecisions.resume?.decision || props.resumeDecision;
+  const resumeComments = savedDecisions.resume?.comments || props.resumeComments;
+  const voiceDecision = savedDecisions.voice?.decision || props.voiceDecision;
+  const voiceComments = savedDecisions.voice?.comments || props.voiceComments;
+  const finalDecision = savedDecisions.final?.decision || props.finalInterviewStatus;
+  const finalComments = savedDecisions.final?.comments || props.finalComments;
   return <section className="card applicant-decision-card"><div className="card-header"><div><h2>HR Decisions</h2><p>Review the applicant&apos;s current workflow stage. Comments are required for every decision.</p></div></div>{message && <ActionFeedback kind="success" className="applicant-decision-success">{message}</ActionFeedback>}<div className="applicant-decision-list">
-    {stage === "resume" && (isDecided(props.resumeDecision) ? <CompletedDecision title="AI CV Analysis" decision={props.resumeDecision} comments={props.resumeComments} /> : <DecisionRow stage="resume" title="AI CV Analysis" description="Review Ella&apos;s CV analysis recommendation before moving the applicant to the voice interview." current={props.resumeDecision} applicationId={props.applicationId} canReview={props.canReview} onSaved={setMessage} />)}
-    {stage === "voice" && <><CompletedDecision title="AI CV Analysis" decision={props.resumeDecision} comments={props.resumeComments} />{isDecided(props.voiceDecision) ? <CompletedDecision title="Voice Interview Review" decision={props.voiceDecision} comments={props.voiceComments} link={props.finalBookingLink} /> : <DecisionRow stage="voice" title="Voice Interview Review" description="Review the combined screening evidence below before approving the applicant for the next stage." current={props.voiceDecision} link={props.finalBookingLink} applicationId={props.applicationId} canReview={props.canReview} onSaved={setMessage} />}</>}
-    {stage === "final" && <><CompletedDecision title="Voice Interview Review" decision={props.voiceDecision} comments={props.voiceComments} />{isDecided(props.finalStatus) ? <CompletedDecision title="HR Interview Decision" decision={props.finalStatus} comments={props.finalComments} /> : <DecisionRow stage="final" title="HR Interview Decision" description="Record the HR interview outcome after the interviewer has completed the meeting." current={props.finalInterviewStatus === "Interview Completed" ? "" : props.finalInterviewStatus} enabled applicationId={props.applicationId} canReview={props.canReview} onSaved={setMessage} />}</>}
+    {stage === "resume" && (isDecided(resumeDecision) ? <CompletedDecision title="AI CV Analysis" decision={resumeDecision} comments={resumeComments} /> : <DecisionRow stage="resume" title="AI CV Analysis" description="Review Ella&apos;s CV analysis recommendation before moving the applicant to the voice interview." current={resumeDecision} applicationId={props.applicationId} canReview={props.canReview} onSaved={saveDecision} />)}
+    {stage === "voice" && <><CompletedDecision title="AI CV Analysis" decision={resumeDecision} comments={resumeComments} />{isDecided(voiceDecision) ? <CompletedDecision title="Voice Interview Review" decision={voiceDecision} comments={voiceComments} link={props.finalBookingLink} /> : <DecisionRow stage="voice" title="Voice Interview Review" description="Review the combined screening evidence below before approving the applicant for the next stage." current={voiceDecision} link={props.finalBookingLink} applicationId={props.applicationId} canReview={props.canReview} onSaved={saveDecision} />}</>}
+    {stage === "final" && <><CompletedDecision title="Voice Interview Review" decision={voiceDecision} comments={voiceComments} />{isDecided(props.finalStatus) || isDecided(finalDecision) ? <CompletedDecision title="HR Interview Decision" decision={props.finalStatus || finalDecision} comments={finalComments} /> : <DecisionRow stage="final" title="HR Interview Decision" description="Record the HR interview outcome after the interviewer has completed the meeting." current={finalDecision === "Interview Completed" ? "" : finalDecision} enabled applicationId={props.applicationId} canReview={props.canReview} onSaved={saveDecision} />}</>}
   </div></section>;
 }

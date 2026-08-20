@@ -207,9 +207,9 @@ function configuredEvaluationValues(
     });
 }
 
-async function readTab(tabName: string, endColumn: string): Promise<{ headers: string[]; rows: SheetRow[] }> {
+async function readTab(tabName: string, endColumn: string, options: { fresh?: boolean } = {}): Promise<{ headers: string[]; rows: SheetRow[] }> {
   const escapedTabName = tabName.replace(/'/g, "''");
-  const values = await cachedSheetsRead(`${tabName}:${endColumn}:${spreadsheetId}`, async () => {
+  const fetchValues = async () => {
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId,
       // Google Sheets rejects mixed open-ended ranges such as A1:R. Use
@@ -217,7 +217,14 @@ async function readTab(tabName: string, endColumn: string): Promise<{ headers: s
       range: `'${escapedTabName}'!A:${endColumn}`,
     });
     return response.data.values ?? [];
-  });
+  };
+  // Applicant decisions are written by one serverless request and the detail
+  // page is often rendered by another. A process-local cache invalidation in
+  // the write request cannot reach that second instance, so detail reads must
+  // bypass the short-lived cache and show the decision that was just saved.
+  const values = options.fresh
+    ? await fetchValues()
+    : await cachedSheetsRead(`${tabName}:${endColumn}:${spreadsheetId}`, fetchValues);
   const headers = (values[0] ?? []).map((value) => text(value));
   const rows = values.slice(1)
     .filter((row) => row.some((value) => text(value) !== ""))
@@ -679,7 +686,7 @@ export async function getBulkResumeQueue(roleId = ""): Promise<BulkResumeQueueIt
 
 export async function getApplicantById(id: string): Promise<ApplicantDetails | null> {
   const [{ rows: applicantRows }, { rows: voiceResults }, { rows: callLogs }, { rows: finalInterviews }, { rows: slots }] = await Promise.all([
-    readTab("High_Match_Profile", "CZ"),
+    readTab("High_Match_Profile", "CZ", { fresh: true }),
     readTab("Voice_Interview_Results", "AF"),
     readTab("Voice_Call_Logs", "AD"),
     readTab("Final_Interview_Tracking", "AE"),
