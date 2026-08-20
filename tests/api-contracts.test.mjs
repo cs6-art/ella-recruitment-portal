@@ -33,6 +33,8 @@ test("role creation uses the canonical n8n event", () => {
   assert.match(source, /eventType: "role_request_created"/);
   assert.match(source, /Status: initialStatus/);
   assert.match(source, /Last_Updated_At: createdAt/);
+  assert.match(source, /portalUrl/);
+  assert.match(source, /\/roles\/\$\{encodeURIComponent\(roleId\)\}/);
 });
 
 test("recruitment template reads use valid open-ended A1 ranges", () => {

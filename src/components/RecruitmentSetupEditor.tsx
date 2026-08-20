@@ -495,7 +495,7 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
         <div className="vapi-section-heading">
           <div><span className="vapi-kicker">HR EDITS THESE SECTIONS</span><h3>Screening instructions</h3><p>Add only the guidance that is specific to this role.</p></div>
         </div>
-        <div className="form-grid vapi-form-grid">
+        <div className="form-grid vapi-form-grid vapi-form-grid-single-column">
           <Field id="vapi-screeningCriteria" label="What should Ella listen for?" value={values.screeningCriteria} onChange={(value) => update("screeningCriteria", value)} disabled={!editable || saving} multiline required placeholder="What evidence should HR and Ella look for in each candidate?" hint="Ella will use this as extra guidance during the call, alongside the fields below." />
           <Field id="vapi-license" label="License or certificate" value={values.licenseOrCertificateRequired} onChange={(value) => update("licenseOrCertificateRequired", value)} disabled={!editable || saving} required={values.licenseRequirementStatus === "Required"} placeholder="Example: CPA preferred" />
           <Field id="vapi-keywords" label="Keywords to look for" value={values.keywordsToLookFor} onChange={(value) => update("keywordsToLookFor", value)} disabled={!editable || saving} placeholder="Separate keywords with commas" />

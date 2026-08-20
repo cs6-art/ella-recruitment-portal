@@ -88,12 +88,21 @@ function WorkflowSummary({ status, resumeTargetStatus, history }: { status: stri
   return <section className="workflow-summary" aria-label="Recruitment progress"><div className="workflow-summary-heading"><div><span className="eyebrow-dark">RECRUITMENT PROGRESS</span><h2>Role Request Progress</h2></div></div><ol className="workflow-steps">{workflowStages.map((stage, index) => { const state = stateFor(index); return <li className={state} key={stage} aria-current={state === "current" || state === "paused" ? "step" : undefined}><span aria-hidden="true">{state === "complete" ? "✓" : index + 1}</span><strong>{stage}</strong><small className="workflow-state">{stateLabel(state)}</small></li>; })}</ol></section>;
 }
 
+const HISTORY_PAGE_SIZE = 3;
+
 function HistoryTimeline({ history }: { history: RoleStatusHistoryEntry[] }) {
-  return <Card id="status-history" title="Status History" className="history-card">{history.length === 0 ? <div className="empty">No status history is available.</div> : <div className="history-timeline">{history.map((entry, index) => {
+  const [page, setPage] = useState(0);
+  useEffect(() => { setPage(0); }, [history]);
+  const pageCount = Math.max(1, Math.ceil(history.length / HISTORY_PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount - 1);
+  const pageStart = currentPage * HISTORY_PAGE_SIZE;
+  const visibleHistory = history.slice(pageStart, pageStart + HISTORY_PAGE_SIZE);
+
+  return <Card id="status-history" title="Status History" className="history-card">{history.length === 0 ? <div className="empty">No status history is available.</div> : <><div className="history-timeline">{visibleHistory.map((entry, index) => {
     const created = entry.action === "role_request_created";
     const notification = entry.notificationStatus?.toLowerCase().replace(/-/g, "_");
     return <article className="timeline-entry" key={`${entry.actionRequestId || entry.timestamp}-${index}`}><span className="timeline-marker" aria-hidden="true" /><div className="timeline-content"><div className="timeline-top"><div><h3>{created ? "Role Request Created" : entry.newStatus ? `${entry.previousStatus || "Status"} → ${entry.newStatus}` : getStatusActionLabel(entry.action)}</h3>{!created && <span className="timeline-action">{getStatusActionLabel(entry.action)}</span>}{created && entry.newStatus && <span className="timeline-action">Initial status: {entry.newStatus}</span>}</div><time dateTime={entry.timestamp}>{dateValue(entry.timestamp)}</time></div>{(hasValue(entry.performedByName) || hasValue(entry.performedByEmail)) && <div className="timeline-performer"><strong>{entry.performedByName}</strong>{formatEmail(entry.performedByEmail) && <span>{formatEmail(entry.performedByEmail)}</span>}</div>}{(entry.accessRole || entry.department) && <div className="timeline-meta">{[entry.accessRole, entry.department].filter(Boolean).join(" · ")}</div>}{hasValue(entry.comments) && <p className="timeline-comments">{entry.comments}</p>}{entry.notificationStatus && <span className={`notification-badge notification-${notification}`}>{entry.notificationStatus.replace(/_/g, " ")}{entry.notificationError ? ` · ${entry.notificationError}` : ""}</span>}</div></article>;
-  })}</div>}</Card>;
+  })}</div>{history.length > HISTORY_PAGE_SIZE && <nav className="history-pagination" aria-label="Status history pagination"><span>Showing {pageStart + 1}–{Math.min(pageStart + HISTORY_PAGE_SIZE, history.length)} of {history.length} records</span><div><button type="button" className="btn btn-secondary btn-small" disabled={currentPage === 0} onClick={() => setPage((value) => Math.max(0, value - 1))}>Newer</button><span aria-live="polite">Page {currentPage + 1} of {pageCount}</span><button type="button" className="btn btn-secondary btn-small" disabled={currentPage >= pageCount - 1} onClick={() => setPage((value) => Math.min(pageCount - 1, value + 1))}>Older</button></div></nav>}</>}</Card>;
 }
 
 export default function RoleDetails({ roleId, userEmail, canReviewRole, canApproveRole }: Props) {

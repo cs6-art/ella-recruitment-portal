@@ -1086,6 +1086,7 @@ a { color: inherit; text-decoration: none; }
 .vapi-fact strong { overflow: hidden; color: var(--navy); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
 .vapi-builder { background: linear-gradient(180deg, #ffffff, #fbfdff); }
 .vapi-form-grid { gap: 14px; }
+.vapi-form-grid-single-column { grid-template-columns: 1fr; }
 .vapi-form-grid .field-wide { grid-column: 1 / -1; }
 .vapi-form-grid textarea { min-height: 108px; }
 .vapi-question-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
@@ -1462,6 +1463,9 @@ a { color: inherit; text-decoration: none; }
 .setup-validation-summary { margin: 16px 20px 0; }
 .setup-action-bar { position: sticky; bottom: 0; z-index: 3; display: flex; justify-content: flex-end; gap: 10px; padding: 14px 20px; border-top: 1px solid var(--line); background: rgba(250,252,255,.96); backdrop-filter: blur(10px); }
 .history-timeline { padding: 10px 20px 18px; }
+.history-pagination { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 20px 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+.history-pagination > div { display: inline-flex; align-items: center; gap: 10px; }
+.history-pagination .btn { min-height: 34px; padding: 7px 10px; }
 .timeline-entry { position: relative; display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 12px; padding: 14px 0; }
 .timeline-entry:not(:last-child)::before { content: ""; position: absolute; top: 31px; bottom: -15px; left: 9px; width: 2px; background: #d9e7f2; }
 .timeline-marker { position: relative; z-index: 1; width: 20px; height: 20px; margin-top: 2px; border: 4px solid #d9ebfa; border-radius: 50%; background: var(--blue); }
