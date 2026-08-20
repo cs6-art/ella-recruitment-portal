@@ -998,9 +998,11 @@ export async function getRoleRequests(options: { liveOnly?: boolean } = {}): Pro
   // including roles created before the demo cutoff. Other presentation lists
   // continue using the synthetic history unless explicitly requesting live data.
   if (!isDemoMode() || options.liveOnly) return live;
-  // Keep the synthetic history for demos, but include roles created after the
-  // cutoff so new requests remain visible and actionable during the demo.
-  const recentLive = live.filter((role) => isDemoWindowRecord(role.createdAt));
+  // Keep the synthetic history for demos, but always retain a role that has
+  // durable publication evidence. This keeps the internal Role Requests list
+  // aligned with the public intake selectors even when a valid role predates
+  // the demo cutoff.
+  const recentLive = live.filter((role) => isDemoWindowRecord(role.createdAt) || isPublishedRoleForIntake(role));
   const merged = new Map<string, RoleRequestSummary>();
   [...demoRoleSummaries(), ...recentLive].forEach((role) => {
     const identity = role.roleId.trim().toLowerCase();
