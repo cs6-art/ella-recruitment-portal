@@ -960,6 +960,11 @@ a { color: inherit; text-decoration: none; }
   gap: 6px;
 }
 
+.pagination-pages {
+  min-width: 274px;
+  justify-content: center;
+}
+
 .pagination-button {
   display: inline-flex;
   min-width: 34px;
@@ -999,12 +1004,29 @@ a { color: inherit; text-decoration: none; }
   color: #fff;
 }
 
+.pagination-page-button,
+.pagination-ellipsis,
+.pagination-slot {
+  box-sizing: border-box;
+  width: 34px;
+  min-width: 34px;
+}
+
+.pagination-page-button {
+  padding-inline: 0;
+}
+
 .pagination-ellipsis {
   display: inline-flex;
-  width: 18px;
+  height: 34px;
   align-items: center;
   justify-content: center;
   color: var(--muted);
+}
+
+.pagination-slot {
+  display: inline-flex;
+  height: 34px;
 }
 
 .pagination-size-control {
@@ -4719,6 +4741,17 @@ textarea:focus-visible {
 .applicants-table th, .applicants-table td { padding-top: 12px; padding-bottom: 12px; }
 .applicants-table .applicant-table-actions { gap: 7px; }
 .applicants-table .applicant-table-actions a, .applicants-table .applicant-table-actions .table-danger-action { min-height: 30px; padding: 6px 9px; }
+.applicants-page .applicants-table tbody tr { height: 76px; }
+.applicants-page .applicants-table tbody td { height: 76px; box-sizing: border-box; overflow: hidden; vertical-align: middle; }
+.applicants-page .applicants-table td[data-label="Role"] strong,
+.applicants-page .applicants-table td[data-label="Next action"] {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.applicants-page .applicants-table .applicant-stage { min-width: 190px; min-height: 30px; box-sizing: border-box; align-items: center; }
+.applicants-page .applicant-table-actions { min-height: 34px; flex-wrap: nowrap; }
 .roles-table th.selection-column, .roles-table td.selection-column { width: 44px !important; }
 .roles-table th:nth-child(2) { width: 16%; }
 .roles-table th:nth-child(3) { width: 10%; }
@@ -5327,5 +5360,14 @@ textarea:focus-visible {
   .applicants-page .applicant-table-actions {
     justify-content: flex-start;
     flex-wrap: wrap;
+  }
+
+  .applicants-page .applicants-table tbody tr,
+  .applicants-page .applicants-table tbody td {
+    height: auto;
+  }
+
+  .applicants-page .applicants-table .applicant-stage {
+    min-width: 0;
   }
 }

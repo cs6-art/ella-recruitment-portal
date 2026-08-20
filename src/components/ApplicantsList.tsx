@@ -98,6 +98,11 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
   const summaryScreened = historyMetrics?.screened ?? activeApplicants.filter((applicant) => ["processed", "for hr review", "pending hr review"].includes(applicant.resumeStatus.trim().toLowerCase())).length;
   const summaryVoice = historyMetrics?.voiceActivity ?? voiceCount;
   const summaryHr = historyMetrics?.hrActivity ?? finalInterviewCount;
+  // Keep the pipeline headline aligned with the history-backed summary. The
+  // table itself remains limited to operational records so demo history does
+  // not become selectable or actionable.
+  const hasApplicantFilters = Boolean(search.trim()) || roleFilter !== "All Roles" || stageFilter !== "All Stages";
+  const matchingApplicantCount = hasApplicantFilters ? visibleApplicants.length : summaryTotal;
 
   async function deleteApplicants(applicantsToDelete: ApplicantSummary[]) {
     if (applicantsToDelete.length === 0) return;
@@ -185,7 +190,7 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
 
       <section className="card applicants-card">
         <div className="applicants-toolbar">
-          <div><h2>Applicant Pipeline</h2><span>{visibleApplicants.length} matching applicant{visibleApplicants.length === 1 ? "" : "s"}</span></div>
+          <div><h2>Applicant Pipeline</h2><span>{matchingApplicantCount} matching applicant{matchingApplicantCount === 1 ? "" : "s"}</span></div>
           {canManageApplicants && <div className="bulk-selection-toolbar"><span>{selectedApplicants.length} selected</span><button type="button" className="btn btn-danger-outline" disabled={selectedApplicants.length === 0 || deletingId !== ""} onClick={() => void deleteApplicants(selectedApplicants)}>Delete selected</button></div>}
           <div className="applicants-filters">
             <input aria-label="Search applicants" placeholder="Search candidate, role, or ID" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} />
