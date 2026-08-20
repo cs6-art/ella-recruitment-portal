@@ -140,6 +140,8 @@ test("job-description PDF extraction uses the current resilient parser", () => {
   assert.match(pdfTextParserSource, /createRequire\(import\.meta\.url\)/);
   assert.match(pdfTextParserSource, /requireNodeModule\("@napi-rs\/canvas"\)/);
   assert.match(pdfTextParserSource, /requireNodeModule\("pdf-parse"\)/);
+  assert.match(pdfTextParserSource, /requireNodeModule\("pdf-parse\/worker"\)/);
+  assert.match(pdfTextParserSource, /PDFParse\.setWorker\(getData\(\)\)/);
   assert.match(pdfTextParserSource, /"DOMMatrix"/);
   assert.match(documentExtractionSource, /await parser\.destroy\(\)/);
   assert.doesNotMatch(pdfTextParserSource, /pdf-parse\/lib\/pdf-parse/);

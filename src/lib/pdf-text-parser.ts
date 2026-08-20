@@ -7,6 +7,14 @@ type PdfTextParser = {
 
 type PdfTextParserConstructor = new (options: { data: Buffer }) => PdfTextParser;
 
+type PdfParseModule = {
+  PDFParse: PdfTextParserConstructor & { setWorker(workerSource: string): string };
+};
+
+type PdfWorkerModule = {
+  getData(): string;
+};
+
 type CanvasRuntime = Record<"DOMMatrix" | "DOMPoint" | "DOMRect" | "ImageData" | "Path2D", unknown>;
 
 // PDF.js expects these browser geometry primitives to exist while its module
@@ -31,6 +39,13 @@ function installPdfJsNodeGlobals() {
 
 export function createPdfTextParser(data: Buffer): PdfTextParser {
   installPdfJsNodeGlobals();
-  const { PDFParse } = requireNodeModule("pdf-parse") as { PDFParse: PdfTextParserConstructor };
+  const { PDFParse } = requireNodeModule("pdf-parse") as PdfParseModule;
+  const { getData } = requireNodeModule("pdf-parse/worker") as PdfWorkerModule;
+
+  // pdf-parse otherwise resolves `./pdf.worker.mjs` dynamically beside its
+  // CJS entrypoint. Serverless file tracing cannot see that dynamic import,
+  // so Vercel omits the worker. The package's embedded worker API is
+  // self-contained and works identically in local and serverless Node.
+  PDFParse.setWorker(getData());
   return new PDFParse({ data });
 }

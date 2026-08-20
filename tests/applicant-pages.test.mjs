@@ -51,6 +51,8 @@ test("resume extraction uses the supported PDF parser entrypoint", () => {
   assert.match(resumeFiles, /createPdfTextParser/);
   assert.match(pdfTextParser, /requireNodeModule\("@napi-rs\/canvas"\)/);
   assert.match(pdfTextParser, /requireNodeModule\("pdf-parse"\)/);
+  assert.match(pdfTextParser, /requireNodeModule\("pdf-parse\/worker"\)/);
+  assert.match(pdfTextParser, /PDFParse\.setWorker\(getData\(\)\)/);
   assert.match(pdfTextParser, /"ImageData"/);
   assert.match(pdfTextParser, /"Path2D"/);
   assert.match(resumeFiles, /await parser\.destroy\(\)/);
