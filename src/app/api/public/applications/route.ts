@@ -10,10 +10,11 @@ import {
   sendCandidateApplicationWebhook,
 } from "@/lib/applicant-workflow";
 import { candidateBodyForValidation, readCandidateIntakeRequest } from "@/lib/candidate-intake";
-import { getRoleRequestById } from "@/lib/google-sheets";
+import { getRoleRequestById, isPublishedRoleForIntake } from "@/lib/google-sheets";
 import { evaluationFieldsForSetup } from "@/lib/recruitment-setup-schema";
 import { consumeRateLimit, rateLimitHeaders, requestClientKey } from "@/lib/rate-limit";
 import { deleteResumeFile, MAX_RESUME_REQUEST_BYTES, storeResumeFile } from "@/lib/resume-files";
+import { invalidateSheetsCache } from "@/lib/sheets-cache";
 
 export const runtime = "nodejs";
 
@@ -49,7 +50,7 @@ export async function POST(request: Request) {
 
     const roleId = parsed.data.roleId.trim();
     const role = roleId ? await getRoleRequestById(roleId) : null;
-    if (!role || role.status !== "Job Posted" || role.recruitmentSetupStatus !== "Published") {
+    if (!role || !isPublishedRoleForIntake(role)) {
       return responseError("This role is not accepting applications.", 404);
     }
 
@@ -91,6 +92,10 @@ export async function POST(request: Request) {
       if (storedResume) await deleteResumeFile(storedResume.record).catch(() => undefined);
       return responseError("The application could not be submitted.", response.status === 409 ? 409 : 502);
     }
+
+    // The workflow appends to Sheets independently of the portal process.
+    // Invalidate the cached list before an HR reviewer opens Applicants.
+    invalidateSheetsCache("High_Match_Profile");
 
     return NextResponse.json({
       success: true,

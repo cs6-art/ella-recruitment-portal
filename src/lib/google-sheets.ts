@@ -71,6 +71,8 @@ export type RoleRequestSummary = {
   status: string;
   applicationLink?: string;
   recruitmentSetupStatus?: string;
+  postingConfirmed?: string;
+  postedAt?: string;
   jobDescription?: string;
   postingChannels?: string;
   hodEmail: string;
@@ -148,6 +150,8 @@ export type RoleRequestDetails = {
   evaluationFieldToggles?: string;
   customEvaluationFields?: { key: string; label: string; description: string }[];
   recruitmentSetupStatus?: string;
+  postingConfirmed?: string;
+  postedAt?: string;
   salaryDisclosureStatus?: string;
   experienceRequirementStatus?: string;
   licenseRequirementStatus?: string;
@@ -174,6 +178,27 @@ export type RoleRequestDetails = {
   source: string;
   applicationLink?: string;
 };
+
+type PublishedRoleState = {
+  status?: string;
+  recruitmentSetupStatus?: string;
+  postingConfirmed?: string;
+  postedAt?: string;
+};
+
+/**
+ * Intake is available only after the publish action has left durable evidence.
+ * Older sheet rows can contain stale `Job Posted` / `Published` labels even
+ * though posting was never confirmed, so those two labels alone are not enough.
+ */
+export function isPublishedRoleForIntake(role: PublishedRoleState): boolean {
+  const status = toText(role.status).toLowerCase();
+  const setupStatus = toText(role.recruitmentSetupStatus).toLowerCase();
+  const postingConfirmed = toText(role.postingConfirmed).toLowerCase();
+  return status === "job posted"
+    && setupStatus === "published"
+    && (postingConfirmed === "true" || toText(role.postedAt) !== "");
+}
 
 export type RoleStatusHistoryEntry = {
   historyId: string;
@@ -572,6 +597,8 @@ function mapRoleRequest(
     ...storedEvaluationFields,
 
     recruitmentSetupStatus: getField(record, ["Recruitment_Setup_Status"]),
+    postingConfirmed: getField(record, ["Posting_Confirmed", "Posting Confirmed"]),
+    postedAt: getField(record, ["Posted_At", "Posted At"]),
     salaryDisclosureStatus: getField(record, [
       "Salary_Disclosure_Status",
       "Salary Disclosure Status",
@@ -933,6 +960,8 @@ export async function getRoleRequests(options: { liveOnly?: boolean } = {}): Pro
         status: role.status,
         applicationLink: role.applicationLink,
         recruitmentSetupStatus: role.recruitmentSetupStatus,
+        postingConfirmed: role.postingConfirmed,
+        postedAt: role.postedAt,
         jobDescription: role.jobDescription,
         postingChannels: role.postingChannels,
         hodEmail: role.hodEmail,

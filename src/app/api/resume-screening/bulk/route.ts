@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { getBulkResumeQueue } from "@/lib/candidate-applications";
-import { getRoleRequests } from "@/lib/google-sheets";
+import { getRoleRequests, isPublishedRoleForIntake } from "@/lib/google-sheets";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -18,10 +18,10 @@ export async function GET(request: Request) {
 
   const roleId = new URL(request.url).searchParams.get("roleId")?.trim() || "";
   try {
-    const roles = await getRoleRequests();
+    const roles = await getRoleRequests({ liveOnly: true });
     const publishedRoleIds = new Set(
       roles
-        .filter((role) => role.status === "Job Posted" && role.recruitmentSetupStatus === "Published")
+        .filter(isPublishedRoleForIntake)
         .map((role) => role.roleId.toLowerCase()),
     );
     if (roleId && !publishedRoleIds.has(roleId.toLowerCase())) return errorResponse("The selected role is not published.", 409);

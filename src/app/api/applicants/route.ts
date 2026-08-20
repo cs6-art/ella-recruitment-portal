@@ -11,11 +11,12 @@ import {
   sendCandidateApplicationWebhook,
 } from "@/lib/applicant-workflow";
 import { candidateBodyForValidation, readCandidateIntakeRequest } from "@/lib/candidate-intake";
-import { getRoleRequestById } from "@/lib/google-sheets";
+import { getRoleRequestById, isPublishedRoleForIntake } from "@/lib/google-sheets";
 import { evaluationFieldsForSetup } from "@/lib/recruitment-setup-schema";
 import { consumeRateLimit, rateLimitHeaders, requestClientKey } from "@/lib/rate-limit";
 import { deleteResumeFile, storeResumeFile } from "@/lib/resume-files";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
+import { invalidateSheetsCache } from "@/lib/sheets-cache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -49,7 +50,7 @@ export async function POST(request: Request) {
 
     const roleId = parsed.data.roleId.trim();
     const role = await getRoleRequestById(roleId);
-    if (!role || role.status !== "Job Posted" || role.recruitmentSetupStatus !== "Published") {
+    if (!role || !isPublishedRoleForIntake(role)) {
       return responseError("The selected role is not available for manual candidate intake.", 409);
     }
 
@@ -91,6 +92,10 @@ export async function POST(request: Request) {
       if (storedResume) await deleteResumeFile(storedResume.record).catch(() => undefined);
       return responseError("The application could not be submitted.", response.status === 409 ? 409 : 502);
     }
+
+    // n8n writes the applicant row outside this process. Drop any pre-submit
+    // sheet snapshot so the Applicants page immediately sees the new record.
+    invalidateSheetsCache("High_Match_Profile");
 
     return NextResponse.json({
       success: true,

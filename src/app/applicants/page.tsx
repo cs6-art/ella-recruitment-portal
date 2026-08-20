@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import ApplicantsList from "@/components/ApplicantsList";
 import { getApplicants } from "@/lib/candidate-applications";
-import { getRoleRequests } from "@/lib/google-sheets";
+import { getRoleRequests, isPublishedRoleForIntake } from "@/lib/google-sheets";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -26,9 +26,9 @@ function ApplicantsLoading() {
 }
 
 async function ApplicantsData({ user }: { user: { canReviewRole?: boolean; canApproveRole?: boolean } }) {
-  const [applicants, roles] = await Promise.all([getApplicants(), getRoleRequests()]);
+  const [applicants, roles] = await Promise.all([getApplicants(), getRoleRequests({ liveOnly: true })]);
   const publishedRoles = roles
-    .filter((role) => role.status === "Job Posted" && role.recruitmentSetupStatus === "Published")
+    .filter(isPublishedRoleForIntake)
     .map((role) => ({
       roleId: role.roleId,
       label: role.jobTitle || role.roleId,

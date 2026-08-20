@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { getBulkResumeQueue } from "@/lib/candidate-applications";
-import { getRoleRequestById } from "@/lib/google-sheets";
+import { getRoleRequestById, isPublishedRoleForIntake } from "@/lib/google-sheets";
 import { consumeRateLimit, rateLimitHeaders, requestClientKey } from "@/lib/rate-limit";
 import { deleteResumeFile, MAX_RESUME_FILE_BYTES, storeResumeFile } from "@/lib/resume-files";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
@@ -53,7 +53,7 @@ export async function POST(request: Request) {
     if (files.length > MAX_FILES_PER_BATCH) return responseError(`Upload up to ${MAX_FILES_PER_BATCH} resumes per batch.`, 422);
 
     const role = await getRoleRequestById(roleId);
-    if (!role || role.status !== "Job Posted" || role.recruitmentSetupStatus !== "Published") return responseError("The selected role is not available for bulk screening.", 409);
+    if (!role || !isPublishedRoleForIntake(role)) return responseError("The selected role is not available for bulk screening.", 409);
 
     const queue = await getBulkResumeQueue(roleId);
     const latestByFile = new Map(queue.map((item) => [item.driveFileId, item]));

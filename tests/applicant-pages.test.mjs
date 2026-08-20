@@ -51,11 +51,11 @@ test("applicant routes are protected and render populated sheet data", () => {
   const detail = read("src/app/applicants/[applicationId]/page.tsx");
   assert.match(list, /verifySessionToken/);
   assert.match(list, /getApplicants/);
-  assert.match(list, /role\.status === "Job Posted" && role\.recruitmentSetupStatus === "Published"/);
+  assert.match(list, /isPublishedRoleForIntake/);
   assert.match(list, /publishedRoles/);
   assert.match(screening, /CandidateApplicationForm/);
   assert.match(screening, /\/api\/applicants/);
-  assert.match(screening, /role\.status === "Job Posted" && role\.recruitmentSetupStatus === "Published"/);
+  assert.match(screening, /isPublishedRoleForIntake/);
   assert.match(screening, /Resume Screening/);
   assert.doesNotMatch(screening, /BulkResumeScreeningPanel/);
   assert.match(screening, /Upload from Google Drive/);
@@ -154,8 +154,7 @@ test("candidate intake forms and decisions expose the required fields", () => {
   assert.match(route, /findDuplicateCandidateApplication/);
   assert.match(route, /canReviewRole !== true/);
   assert.match(route, /source: "HR Manual Intake"/);
-  assert.match(route, /role\.status !== "Job Posted"/);
-  assert.match(route, /role\.recruitmentSetupStatus !== "Published"/);
+  assert.match(route, /isPublishedRoleForIntake/);
   assert.match(publicRoute, /buildCandidateApplicationPayload/);
   assert.match(workflow, /evaluationFields/);
   // A stale n8n claim must be released when HR approves so final invitations

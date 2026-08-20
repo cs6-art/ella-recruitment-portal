@@ -283,6 +283,13 @@ export async function POST(request: Request, context: Context) {
       Salary_or_Budget_Range: setup.salaryOrBudgetRange,
       Earliest_Availability_Rule: setup.earliestAvailabilityRule,
       Recruitment_Setup_Status: nextRecruitmentSetupStatus,
+      ...(setupAction === "publish_role"
+        ? {
+            Application_Link: applicationLink,
+            Posting_Confirmed: "TRUE",
+            Posted_At: updatedAt,
+          }
+        : {}),
       Salary_Disclosure_Status: setup.salaryDisclosureStatus,
       Experience_Requirement_Status: setup.experienceRequirementStatus,
       License_Requirement_Status: setup.licenseRequirementStatus,

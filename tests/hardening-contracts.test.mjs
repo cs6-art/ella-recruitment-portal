@@ -12,6 +12,9 @@ const demoDataSource = fs.readFileSync("src/lib/demo-data.ts", "utf8");
 const candidateApplicationsSource = fs.readFileSync("src/lib/candidate-applications.ts", "utf8");
 const applicantWorkflowSource = fs.readFileSync("src/lib/applicant-workflow.ts", "utf8");
 const calendarSource = fs.readFileSync("src/lib/google-calendar.ts", "utf8");
+const roleSheetSource = fs.readFileSync("src/lib/google-sheets.ts", "utf8");
+const hrApplicantRouteSource = fs.readFileSync("src/app/api/applicants/route.ts", "utf8");
+const publicApplicantRouteSource = fs.readFileSync("src/app/api/public/applications/route.ts", "utf8");
 
 test("authentication and logout use secure HTTP-only cookie settings", () => {
   assert.match(authSource, /httpOnly: true/);
@@ -24,13 +27,23 @@ test("authentication and logout use secure HTTP-only cookie settings", () => {
 test("demo mode keeps history synthetic while allowing new internal workflow records", () => {
   assert.match(demoModeSource, /allowing new test roles and applicants/);
   assert.match(candidateApplicationsSource, /\[\.\.\.demoApplicantRows\(\), \.\.\.recentLive\]/);
+  assert.match(candidateApplicationsSource, /"Date_of_Application"/);
   assert.match(candidateApplicationsSource, /\[\.\.\.demoInterviewBookings\(\), \.\.\.recentLive\]/);
+  assert.match(hrApplicantRouteSource, /invalidateSheetsCache\("High_Match_Profile"\)/);
+  assert.match(publicApplicantRouteSource, /invalidateSheetsCache\("High_Match_Profile"\)/);
   assert.match(candidateApplicationsSource, /Guards destructive profile edits/);
   assert.match(applicantWorkflowSource, /Demo mode accepts new applicants/);
   assert.match(applicantWorkflowSource, /isDemoSideEffectAllowed\(context\.appliedAt\)/);
   assert.match(calendarSource, /reason: "demo_mode"/);
   assert.match(demoDataSource, /function nextWeekday/);
   assert.match(demoDataSource, /return random\(\) < 0\.08 \? "No Show" : "Completed"/);
+});
+
+test("candidate intake exposes only roles with durable publication evidence", () => {
+  assert.match(roleSheetSource, /export function isPublishedRoleForIntake/);
+  assert.match(roleSheetSource, /postingConfirmed === "true" \|\| toText\(role\.postedAt\) !== ""/);
+  assert.match(roleSheetSource, /"Posting_Confirmed"/);
+  assert.match(roleSheetSource, /"Posted_At"/);
 });
 
 test("status and setup payloads preserve idempotency and event contracts", () => {

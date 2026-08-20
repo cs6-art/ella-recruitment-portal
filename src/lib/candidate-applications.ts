@@ -443,7 +443,17 @@ export function calculateApplicantMetrics(rows: SheetRow[], now = new Date(), ti
  */
 function withDemoHistory(rows: SheetRow[]): SheetRow[] {
   if (!isDemoMode()) return rows;
-  const recentLive = rows.filter((row) => isDemoWindowRecord(field(row, "Applied_At", "Applied At", "Created_At", "Created At", "Submitted_At", "Submitted At")));
+  const recentLive = rows.filter((row) => isDemoWindowRecord(field(
+    row,
+    "Date_of_Application",
+    "Date of Application",
+    "Applied_At",
+    "Applied At",
+    "Created_At",
+    "Created At",
+    "Submitted_At",
+    "Submitted At",
+  )));
   return [...demoApplicantRows(), ...recentLive];
 }
 
