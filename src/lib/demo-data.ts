@@ -17,6 +17,13 @@ import type { RoleRequestSummary } from "@/lib/google-sheets";
  */
 
 const DEMO_START = "2025-11-03";
+/**
+ * The synthetic history stops short of today so that records created live
+ * during a presentation are always the most recent rows in every list. Without
+ * the gap, generated applicants share today's date and outrank the very record
+ * being demonstrated.
+ */
+const HISTORY_GAP_DAYS = 3;
 const TIMEZONE = "Asia/Singapore";
 
 /** Mirrors `normalizeHeader()` in candidate-applications.ts / google-sheets.ts. */
@@ -282,9 +289,10 @@ function buildDataset(today: string): DemoDataset {
   const bookings: InterviewBooking[] = [];
 
   const totalDays = Math.max(1, daysBetween(DEMO_START, today));
+  const lastHistoryDay = Math.max(0, totalDays - HISTORY_GAP_DAYS);
   let sequence = 0;
 
-  for (let dayOffset = 0; dayOffset <= totalDays; dayOffset += 1) {
+  for (let dayOffset = 0; dayOffset <= lastHistoryDay; dayOffset += 1) {
     const date = addDays(DEMO_START, dayOffset);
     const ageDays = totalDays - dayOffset;
 
