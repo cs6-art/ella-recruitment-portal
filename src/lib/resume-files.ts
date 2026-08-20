@@ -1,5 +1,4 @@
 import crypto from "node:crypto";
-import { createRequire } from "node:module";
 import { Readable } from "node:stream";
 import path from "node:path";
 
@@ -8,6 +7,7 @@ import mammoth from "mammoth";
 import WordExtractor from "word-extractor";
 
 import { getGoogleServiceAccountPrivateKey } from "@/lib/google-service-account";
+import { createPdfTextParser } from "@/lib/pdf-text-parser";
 
 // This module is the single server-side boundary for resume validation,
 // extraction, private storage, download tokens, and retention cleanup.
@@ -30,20 +30,6 @@ const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingm
 const DOC_MIME = "application/msword";
 
 export type ResumeFileKind = "pdf" | "docx" | "doc";
-
-type PdfTextParser = {
-  getText(): Promise<{ text: string }>;
-  destroy(): Promise<void>;
-};
-
-type PdfTextParserConstructor = new (options: { data: Buffer }) => PdfTextParser;
-
-const requirePdfParse = createRequire(import.meta.url);
-
-function createPdfTextParser(data: Buffer): PdfTextParser {
-  const { PDFParse } = requirePdfParse("pdf-parse") as { PDFParse: PdfTextParserConstructor };
-  return new PDFParse({ data });
-}
 
 export type ResumeFileRecord = {
   fileId: string;

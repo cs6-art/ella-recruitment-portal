@@ -13,9 +13,10 @@ const distDir = process.env.NEXT_DIST_DIR
 /** @type {import("next").NextConfig} */
 const nextConfig = {
   distDir,
-  // pdf-parse uses Node-specific and optional dependencies internally. Keep
-  // it external so route handlers load its supported Node export at runtime.
-  serverExternalPackages: ["pdf-parse"],
+  // PDF parsing uses a native canvas package for the DOM geometry primitives
+  // that PDF.js needs in Node. Keep both packages external so Vercel loads the
+  // supported Node modules (and the correct native binary) at runtime.
+  serverExternalPackages: ["@napi-rs/canvas", "pdf-parse"],
 };
 
 export default nextConfig;

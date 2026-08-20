@@ -47,10 +47,14 @@ test("candidate contact side effects stay disabled while workflow processing rem
 
 test("resume extraction uses the supported PDF parser entrypoint", () => {
   const resumeFiles = read("src/lib/resume-files.ts");
-  assert.match(resumeFiles, /createRequire\(import\.meta\.url\)/);
-  assert.match(resumeFiles, /requirePdfParse\("pdf-parse"\)/);
+  const pdfTextParser = read("src/lib/pdf-text-parser.ts");
+  assert.match(resumeFiles, /createPdfTextParser/);
+  assert.match(pdfTextParser, /requireNodeModule\("@napi-rs\/canvas"\)/);
+  assert.match(pdfTextParser, /requireNodeModule\("pdf-parse"\)/);
+  assert.match(pdfTextParser, /"ImageData"/);
+  assert.match(pdfTextParser, /"Path2D"/);
   assert.match(resumeFiles, /await parser\.destroy\(\)/);
-  assert.doesNotMatch(resumeFiles, /pdf-parse\/lib\/pdf-parse/);
+  assert.doesNotMatch(pdfTextParser, /pdf-parse\/lib\/pdf-parse/);
 });
 
 test("applicant routes are protected and render populated sheet data", () => {

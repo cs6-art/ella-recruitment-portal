@@ -8,6 +8,7 @@ const departmentSource = fs.readFileSync("src/lib/department-options.ts", "utf8"
 const apiSource = fs.readFileSync("src/app/api/roles/route.ts", "utf8");
 const parseDescriptionSource = fs.readFileSync("src/app/api/roles/parse-description/route.ts", "utf8");
 const documentExtractionSource = fs.readFileSync("src/lib/document-extraction.ts", "utf8");
+const pdfTextParserSource = fs.readFileSync("src/lib/pdf-text-parser.ts", "utf8");
 const dateOnlySource = fs.readFileSync("src/lib/date-only.ts", "utf8");
 
 function validate(input) {
@@ -135,8 +136,11 @@ test("role drafts normalize the stored target date for the browser date input", 
 });
 
 test("job-description PDF extraction uses the current resilient parser", () => {
-  assert.match(documentExtractionSource, /createRequire\(import\.meta\.url\)/);
-  assert.match(documentExtractionSource, /requirePdfParse\("pdf-parse"\)/);
+  assert.match(documentExtractionSource, /createPdfTextParser/);
+  assert.match(pdfTextParserSource, /createRequire\(import\.meta\.url\)/);
+  assert.match(pdfTextParserSource, /requireNodeModule\("@napi-rs\/canvas"\)/);
+  assert.match(pdfTextParserSource, /requireNodeModule\("pdf-parse"\)/);
+  assert.match(pdfTextParserSource, /"DOMMatrix"/);
   assert.match(documentExtractionSource, /await parser\.destroy\(\)/);
-  assert.doesNotMatch(documentExtractionSource, /pdf-parse\/lib\/pdf-parse/);
+  assert.doesNotMatch(pdfTextParserSource, /pdf-parse\/lib\/pdf-parse/);
 });
