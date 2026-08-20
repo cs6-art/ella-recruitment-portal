@@ -437,24 +437,28 @@ export function calculateApplicantMetrics(rows: SheetRow[], now = new Date(), ti
 }
 
 /**
- * Demo pages use a large synthetic history, but keep records created after the
- * demo cutoff visible so a presenter can submit and review a real test
- * applicant without losing it from the workflow UI.
+ * Keep the client-demo Applicants page focused on records that can be opened
+ * and explained end to end: real test applications from the fixed August 20
+ * baseline plus persisted applications created by the bulk-upload workflow.
+ * The generated historical cohort remains available to dashboard/demo helpers,
+ * but is intentionally excluded from this operational list and its counters.
  */
 function withDemoHistory(rows: SheetRow[]): SheetRow[] {
   if (!isDemoMode()) return rows;
-  const recentLive = rows.filter((row) => isDemoWindowRecord(field(
-    row,
-    "Date_of_Application",
-    "Date of Application",
-    "Applied_At",
-    "Applied At",
-    "Created_At",
-    "Created At",
-    "Submitted_At",
-    "Submitted At",
-  )));
-  return [...demoApplicantRows(), ...recentLive];
+  return rows.filter((row) => {
+    if (/^APP-BULK-/i.test(applicationId(row))) return true;
+    return isDemoWindowRecord(field(
+      row,
+      "Date_of_Application",
+      "Date of Application",
+      "Applied_At",
+      "Applied At",
+      "Created_At",
+      "Created At",
+      "Submitted_At",
+      "Submitted At",
+    ));
+  });
 }
 
 function withDemoBookings(bookings: InterviewBooking[]): InterviewBooking[] {
@@ -471,7 +475,7 @@ function withDemoBookings(bookings: InterviewBooking[]): InterviewBooking[] {
 export async function demoActionBlockReason(targetApplicationId: string): Promise<string | null> {
   if (!isDemoMode()) return null;
   const normalizedId = text(targetApplicationId).toLowerCase();
-  const { rows } = await readTab("High_Match_Profile", "BH");
+  const { rows } = await readTab("High_Match_Profile", "CZ");
   const applicant = rows.find((row) => applicationId(row).toLowerCase() === normalizedId);
   if (!applicant) return "Applicant record was not found.";
   const appliedAt = field(
@@ -493,7 +497,7 @@ export async function demoActionBlockReason(targetApplicationId: string): Promis
 export async function getApplicants(): Promise<ApplicantSummary[]> {
   // No-show maintenance runs in the background. Keep the Applicants page
   // focused on reading the data it needs to render.
-  const live = (await readTab("High_Match_Profile", "BH")).rows;
+  const live = (await readTab("High_Match_Profile", "CZ")).rows;
   return withDemoHistory(live)
     .map(mapApplicant)
     .filter((applicant) => applicant.applicationId !== "")
@@ -503,7 +507,7 @@ export async function getApplicants(): Promise<ApplicantSummary[]> {
 export async function getApplicantMetrics(): Promise<ApplicantMetrics> {
   // The scheduled interview maintenance handles past no-show updates. Keep
   // dashboard metrics read-only so the dashboard does not wait on that work.
-  const rows = withDemoHistory((await readTab("High_Match_Profile", "BH")).rows);
+  const rows = withDemoHistory((await readTab("High_Match_Profile", "CZ")).rows);
   return calculateApplicantMetrics(rows.filter((record) => applicationId(record) !== ""));
 }
 
@@ -556,7 +560,7 @@ function hasActiveBookingLink(record: SheetRow, kind: "voice" | "final") {
  * completed appointments remain visible even when a link has expired.
  */
 export async function getActiveBookingLinkRoleIds() {
-  const { rows } = await readTab("High_Match_Profile", "BH");
+  const { rows } = await readTab("High_Match_Profile", "CZ");
   const voice = new Set<string>();
   const final = new Set<string>();
   rows.forEach((record) => {
@@ -628,7 +632,7 @@ export async function getBulkResumeQueue(roleId = ""): Promise<BulkResumeQueueIt
 
 export async function getApplicantById(id: string): Promise<ApplicantDetails | null> {
   const [{ rows: applicantRows }, { rows: voiceResults }, { rows: callLogs }, { rows: finalInterviews }, { rows: slots }] = await Promise.all([
-    readTab("High_Match_Profile", "BH"),
+    readTab("High_Match_Profile", "CZ"),
     readTab("Voice_Interview_Results", "AF"),
     readTab("Voice_Call_Logs", "AD"),
     readTab("Final_Interview_Tracking", "AE"),

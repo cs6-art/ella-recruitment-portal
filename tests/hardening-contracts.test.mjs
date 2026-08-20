@@ -24,11 +24,13 @@ test("authentication and logout use secure HTTP-only cookie settings", () => {
   assert.match(logoutSource, /sameSite: "lax"/);
 });
 
-test("demo mode keeps history synthetic while allowing new internal workflow records", () => {
+test("demo mode shows persisted test and bulk applicants while protecting historical actions", () => {
   assert.match(demoModeSource, /allowing new test roles and applicants/);
   assert.match(demoModeSource, /2026-08-20T00:00:00\+08:00/);
   assert.doesNotMatch(demoModeSource, /Intl\.DateTimeFormat/);
-  assert.match(candidateApplicationsSource, /\[\.\.\.demoApplicantRows\(\), \.\.\.recentLive\]/);
+  assert.match(candidateApplicationsSource, /\^APP-BULK-/);
+  assert.match(candidateApplicationsSource, /return isDemoWindowRecord\(field\(/);
+  assert.doesNotMatch(candidateApplicationsSource, /\[\.\.\.demoApplicantRows\(\), \.\.\.recentLive\]/);
   assert.match(candidateApplicationsSource, /"Date_of_Application"/);
   assert.match(candidateApplicationsSource, /\[\.\.\.demoInterviewBookings\(\), \.\.\.recentLive\]/);
   assert.match(hrApplicantRouteSource, /invalidateSheetsCache\("High_Match_Profile"\)/);

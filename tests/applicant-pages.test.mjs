@@ -48,9 +48,20 @@ test("dashboard includes candidate pipeline metrics without exposing them to cre
   assert.match(dashboard, /Pending Approval/);
 });
 
-test("candidate contact side effects stay disabled while workflow processing remains wired", () => {
+test("eligible final bookings invite the applicant through Google Calendar", () => {
   const workflow = read("src/lib/applicant-workflow.ts");
-  assert.match(workflow, /attendeeEmails: \[\]/);
+  const applications = read("src/lib/candidate-applications.ts");
+  assert.match(workflow, /attendeeEmails: \[context\.email\]/);
+  assert.match(workflow, /Final_Interview_Booking_Token_Status", value: "Used"/);
+  assert.match(workflow, /Final_Interview_Scheduled_Date/);
+  assert.match(workflow, /Final_Interview_Scheduled_Time/);
+  assert.match(workflow, /Final_Interview_Timezone/);
+  assert.match(workflow, /appendDimension/);
+  assert.match(workflow, /requiredColumnCount - currentColumnCount/);
+  assert.match(workflow, /High_Match_Profile", "CZ"/);
+  assert.match(applications, /High_Match_Profile", "CZ"/);
+  assert.doesNotMatch(workflow, /High_Match_Profile", "BH"/);
+  assert.doesNotMatch(applications, /High_Match_Profile", "BH"/);
 });
 
 test("resume extraction uses the supported PDF parser entrypoint", () => {

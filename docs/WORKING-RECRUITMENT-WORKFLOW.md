@@ -34,6 +34,8 @@ This document records the production path verified during the client-demo prepar
 2. n8n workflow `4FsKYuSxyaKxFtsM` (`Voice Interview HR Decision v2 - Hashed Final Booking Token`) polls every two minutes and processes explicit HR decisions.
 3. Approval generates the hashed HR interview booking token and sends the HR interview booking invitation.
 4. The HR interview calendar uses the connected shared HR Google Calendar for conflicts and event creation.
+5. A valid booking adds the applicant email as a Google Calendar attendee, marks the final token `Used`, and stores the scheduled date, time, and timezone on the applicant row.
+6. Workflow `4FsKYuSxyaKxFtsM` skips applicants whose final token is already `Used`/`Booked` or whose HR interview is scheduled. Its invitation-completion writes are limited to email and processing fields, so a delayed n8n execution cannot revert a completed booking.
 
 ## Demo safety boundary
 

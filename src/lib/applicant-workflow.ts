@@ -467,7 +467,7 @@ export async function getCandidateStatusHistory(applicationId: string): Promise<
 export async function getBookingContext(kind: BookingKind, token: string): Promise<BookingContext | null> {
   await syncPastBookedInterviewsNoShow();
   await syncPastAvailableInterviewSlots();
-  const [applicantData, slotsData] = await Promise.all([readSheet("High_Match_Profile", "BH"), readSheet("Interview_Slots", "X")]);
+  const [applicantData, slotsData] = await Promise.all([readSheet("High_Match_Profile", "CZ"), readSheet("Interview_Slots", "X")]);
   const cleanToken = text(token);
   const tokenHash = hashToken(cleanToken);
   const applicantIndex = applicantData.rows.findIndex((row) => kind === "voice"
@@ -595,12 +595,36 @@ export async function getBookingContext(kind: BookingKind, token: string): Promi
 
 type CellUpdate = { tab: string; row: number; header: string; value: string };
 
+async function ensureSheetColumnCapacity(tab: string, requiredColumnCount: number) {
+  const metadata = await sheets.spreadsheets.get({
+    spreadsheetId,
+    fields: "sheets(properties(sheetId,title,gridProperties(columnCount)))",
+  });
+  const properties = metadata.data.sheets
+    ?.map((sheet) => sheet.properties)
+    .find((sheet) => sheet?.title === tab);
+  const currentColumnCount = properties?.gridProperties?.columnCount ?? 0;
+  if (properties?.sheetId === undefined || currentColumnCount >= requiredColumnCount) return;
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId,
+    requestBody: {
+      requests: [{
+        appendDimension: {
+          sheetId: properties.sheetId,
+          dimension: "COLUMNS",
+          length: requiredColumnCount - currentColumnCount,
+        },
+      }],
+    },
+  });
+}
+
 async function updateCells(updates: CellUpdate[]) {
   const grouped = new Map<string, CellUpdate[]>();
   updates.forEach((update) => grouped.set(update.tab, [...(grouped.get(update.tab) ?? []), update]));
   for (const [tab, tabUpdates] of grouped) {
     const data = await readSheet(tab,
-      tab === "High_Match_Profile" ? "BH" :
+      tab === "High_Match_Profile" ? "CZ" :
         tab === "Interview_Slots" ? "X" :
           tab === "Voice_Call_Queue" ? "X" : "AE");
     const requests: { range: string; values: string[][] }[] = [];
@@ -614,6 +638,7 @@ async function updateCells(updates: CellUpdate[]) {
       }
       requests.push({ range: `'${tab}'!${columnName(index)}${update.row}`, values: [[update.value]] });
     });
+    if (headers.length > data.headers.length) await ensureSheetColumnCapacity(tab, headers.length);
     await sheets.spreadsheets.values.batchUpdate({ spreadsheetId, requestBody: { valueInputOption: "USER_ENTERED", data: requests } });
     invalidateSheetsCache(tab);
   }
@@ -627,7 +652,7 @@ export type ApplicantProfileUpdate = {
 };
 
 export async function updateApplicantProfile(applicationId: string, input: ApplicantProfileUpdate) {
-  const applicantData = await readSheet("High_Match_Profile", "BH");
+  const applicantData = await readSheet("High_Match_Profile", "CZ");
   const found = findApplicant(applicantData, applicationId);
   if (!found) throw new Error("Applicant not found.");
 
@@ -680,7 +705,7 @@ export async function deleteApplicant(applicationId: string) {
   const normalizedApplicationId = applicationId.trim().toLowerCase();
   if (!normalizedApplicationId) throw new Error("Applicant ID is required.");
   const [applicantData, slots, history, voiceResults, callLogs, finalTracking, callQueue] = await Promise.all([
-    readSheet("High_Match_Profile", "BH"),
+    readSheet("High_Match_Profile", "CZ"),
     readOptionalSheet("Interview_Slots", "X"),
     readOptionalSheet("Candidate_Status_History", "M"),
     readOptionalSheet("Voice_Interview_Results", "AF"),
@@ -792,7 +817,7 @@ async function reserveBookingInternal(kind: BookingKind, token: string, slotId: 
   if (!cleanSlotId) throw new Error("Choose an interview slot.");
   const confirmedMobile = normalizePreferredMobile(preferredMobile);
   if (!isPreferredMobileValid(confirmedMobile)) throw new Error("Confirm a valid preferred mobile number in international format.");
-  const [context, slotsData, applicantData] = await Promise.all([getBookingContext(kind, token), readSheet("Interview_Slots", "X"), readSheet("High_Match_Profile", "BH")]);
+  const [context, slotsData, applicantData] = await Promise.all([getBookingContext(kind, token), readSheet("Interview_Slots", "X"), readSheet("High_Match_Profile", "CZ")]);
   if (!context) throw new Error("This booking link is invalid or expired.");
   if (!isDemoSideEffectAllowed(context.appliedAt)) {
     throw new Error("This demo booking link is protected because it belongs to historical data.");
@@ -954,6 +979,9 @@ async function reserveBookingInternal(kind: BookingKind, token: string, slotId: 
       { tab: "High_Match_Profile", row: applicantRow, header: "Final_Status", value: "Final Interview Scheduled" },
       { tab: "High_Match_Profile", row: applicantRow, header: "Final_Interview_Booking_Token_Status", value: "Used" },
       { tab: "High_Match_Profile", row: applicantRow, header: "Final_Interview_Booking_Token_Used_At", value: now },
+      { tab: "High_Match_Profile", row: applicantRow, header: "Final_Interview_Scheduled_Date", value: field(matchingSlot, "Date") },
+      { tab: "High_Match_Profile", row: applicantRow, header: "Final_Interview_Scheduled_Time", value: field(matchingSlot, "Start_Time", "Start Time") },
+      { tab: "High_Match_Profile", row: applicantRow, header: "Final_Interview_Timezone", value: field(matchingSlot, "Timezone", "Time Zone") || "Asia/Singapore" },
       { tab: "High_Match_Profile", row: applicantRow, header: "Last_Updated", value: now },
     );
     const interviewerName = finalCalendarEmail ? "HR" : "";
@@ -1007,9 +1035,10 @@ async function reserveBookingInternal(kind: BookingKind, token: string, slotId: 
           startTime: field(matchingSlot, "Start_Time", "Start Time"),
           endTime: field(matchingSlot, "End_Time", "End Time"),
           timezone: field(matchingSlot, "Timezone", "Time Zone"),
-          // Candidate contact is disabled for this environment. Keep the
-          // HR calendar event internal so Google does not email the applicant.
-          attendeeEmails: [],
+          // Booking is already protected by the fixed demo cutoff and
+          // synthetic-record guard above. Invite the eligible applicant so
+          // Google Calendar sends the actual interview invitation.
+          attendeeEmails: [context.email],
         });
         const calendarUpdates: CellUpdate[] = result.created
           ? [
@@ -1104,7 +1133,7 @@ async function syncFinalTrackingBooking(input: {
 export async function markInterviewNoShow(slotId: string) {
   const cleanSlotId = text(slotId);
   if (!cleanSlotId) throw new Error("Interview slot is required.");
-  const [slotsData, applicantsData] = await Promise.all([readSheet("Interview_Slots", "X"), readSheet("High_Match_Profile", "BH")]);
+  const [slotsData, applicantsData] = await Promise.all([readSheet("Interview_Slots", "X"), readSheet("High_Match_Profile", "CZ")]);
   const slotIndex = slotsData.rows.findIndex((row) => field(row, "Slot_ID", "Slot ID") === cleanSlotId);
   if (slotIndex < 0) throw new Error("Interview slot not found.");
   const slot = slotsData.rows[slotIndex];
@@ -1197,7 +1226,7 @@ export async function syncPastBookedInterviewsNoShow() {
   pastBookedNoShowSync = (async () => {
     const [slotsData, applicantsData] = await Promise.all([
       readSheet("Interview_Slots", "X"),
-      readSheet("High_Match_Profile", "BH"),
+      readSheet("High_Match_Profile", "CZ"),
     ]);
     const [voiceResultsData, callLogsData, finalTrackingData, historyData] = await Promise.all([
       readOptionalSheet("Voice_Interview_Results", "AF"),
@@ -1661,7 +1690,7 @@ export async function synchronizeFinalInterviewSlots({ roleId, hodEmail, availab
  * portal still records that outcome itself.
  */
 export async function recordApplicantDecision(applicationId: string, stage: ApplicantDecisionStage, decision: ApplicantDecision, reviewer: { name: string; email: string }, comments: string, publicAppBaseUrl = "") {
-  const data = await readSheet("High_Match_Profile", "BH");
+  const data = await readSheet("High_Match_Profile", "CZ");
   const found = findApplicant(data, applicationId);
   if (!found) throw new Error("Applicant not found.");
   const now = new Date().toISOString();
