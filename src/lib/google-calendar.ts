@@ -4,6 +4,7 @@ import { google } from "googleapis";
 import { getCalendarConnection, saveCalendarConnection } from "@/lib/calendar-tokens";
 import { getFinalInterviewCalendarConfig } from "@/lib/google-sheets";
 import { scheduledInstant } from "@/lib/interview-time";
+import { isDemoMode } from "@/lib/demo-mode";
 
 const CALENDAR_SCOPES = [
   "https://www.googleapis.com/auth/calendar.events",
@@ -253,7 +254,7 @@ export type CalendarEventInput = {
 
 export type CalendarEventResult =
   | { created: true; eventId: string; htmlLink: string }
-  | { created: false; reason: "not_connected" | "error"; error?: string };
+  | { created: false; reason: "not_connected" | "error" | "demo_mode"; error?: string };
 
 export type CalendarAvailabilityResult =
   | { available: true; checked: true }
@@ -267,6 +268,7 @@ export type CalendarAvailabilityResult =
  * booking — the caller logs the outcome and moves on.
  */
 export async function createFinalInterviewEvent(input: CalendarEventInput): Promise<CalendarEventResult> {
+  if (isDemoMode()) return { created: false, reason: "demo_mode" };
   try {
     const target = await finalInterviewCalendarTarget(input.hodEmail);
     const client = await getAuthorizedClient(target.email);
@@ -395,8 +397,9 @@ export async function getCalendarBusyWindows(input: { hodEmail: string; start: D
   }
 }
 
-export async function deleteFinalInterviewEvent(hodEmail: string, eventId: string): Promise<{ deleted: true } | { deleted: false; reason: "not_connected" | "error"; error?: string }> {
+export async function deleteFinalInterviewEvent(hodEmail: string, eventId: string): Promise<{ deleted: true } | { deleted: false; reason: "not_connected" | "error" | "demo_mode"; error?: string }> {
   if (!eventId) return { deleted: true };
+  if (isDemoMode()) return { deleted: false, reason: "demo_mode" };
   try {
     const target = await finalInterviewCalendarTarget(hodEmail);
     const client = await getAuthorizedClient(target.email);

@@ -2,7 +2,7 @@ import { google } from "googleapis";
 import { getGoogleServiceAccountPrivateKey } from "@/lib/google-service-account";
 import { cachedSheetsRead } from "@/lib/sheets-cache";
 import { demoActiveBookingLinkRoleIds, demoApplicantRows, demoInterviewBookings } from "@/lib/demo-data";
-import { isDemoMode, isDemoWindowRecord } from "@/lib/demo-mode";
+import { isDemoMode } from "@/lib/demo-mode";
 import { getRoleRequestById, type RoleRequestDetails } from "@/lib/google-sheets";
 import { evaluationFieldsForSetup, type EvaluationField } from "@/lib/recruitment-setup-schema";
 
@@ -437,48 +437,32 @@ export function calculateApplicantMetrics(rows: SheetRow[], now = new Date(), ti
 }
 
 /**
- * In demo mode, list the synthetic history alongside anything created since the
- * demo cutoff, so a workflow driven live during a presentation shows up next to
- * it. The real back catalogue stays hidden, so a presenter never sees a genuine
- * candidate and cannot act on one.
+ * Demo pages are presentation-only. Returning synthetic rows exclusively keeps
+ * live applicants, contact details, and appointments out of every dashboard.
  */
 function withDemoHistory(rows: SheetRow[]): SheetRow[] {
   if (!isDemoMode()) return rows;
-  const recent = rows.filter((record) => isDemoWindowRecord(field(record, "Date_of_Application", "Date of Application")));
-  return [...demoApplicantRows(), ...recent];
+  void rows;
+  return demoApplicantRows();
 }
 
 function withDemoBookings(bookings: InterviewBooking[]): InterviewBooking[] {
   if (!isDemoMode()) return bookings;
-  const recent = bookings.filter((booking) => isDemoWindowRecord(booking.bookedAt) || isDemoWindowRecord(booking.lastUpdated));
-  return [...demoInterviewBookings(), ...recent]
-    .sort((left, right) => `${left.date} ${left.startTime}`.localeCompare(`${right.date} ${right.startTime}`));
+  void bookings;
+  return demoInterviewBookings();
 }
 
 /**
  * Guards actions that can reach a candidate while demo mode is on.
  *
- * Returns a human-readable reason when the record must not be actioned, or
- * null when it is safe. Two cases are refused:
- *
- *  - Synthetic history rows, which have no live record at all.
- *  - Real applicants from before the demo cutoff, who must never be emailed or
- *    phoned because someone clicked around during a presentation.
- *
- * Records created during the demo window pass, so the full workflow can be
- * driven live end to end.
+ * Returns a human-readable reason for every action while demo mode is enabled.
+ * The guard is deliberately unconditional: demo views contain no live records
+ * and no applicant may be emailed, called, booked, or mutated by accident.
  */
 export async function demoActionBlockReason(targetApplicationId: string): Promise<string | null> {
   if (!isDemoMode()) return null;
-  const { rows } = await readTab("High_Match_Profile", "BH");
-  const record = rows.find((row) => applicationId(row) === targetApplicationId);
-  if (!record) {
-    return "This applicant is part of the demo history and cannot be actioned. Use a record created during this demo instead.";
-  }
-  if (!isDemoWindowRecord(field(record, "Date_of_Application", "Date of Application"))) {
-    return "Demo mode protects applicants who existed before the demo started, so no email or call can be sent to this candidate.";
-  }
-  return null;
+  void targetApplicationId;
+  return "Demo mode is read-only: applicant emails, calls, bookings, and calendar changes are disabled.";
 }
 
 export async function getApplicants(): Promise<ApplicantSummary[]> {
@@ -558,7 +542,9 @@ export async function getActiveBookingLinkRoleIds() {
   });
   if (isDemoMode()) {
     const demoIds = demoActiveBookingLinkRoleIds().map((roleId) => roleId.toLowerCase());
-    return { voice: [...new Set([...demoIds, ...voice])], final: [...new Set([...demoIds, ...final])] };
+    void voice;
+    void final;
+    return { voice: demoIds, final: demoIds };
   }
   return { voice: [...voice], final: [...final] };
 }

@@ -12,11 +12,12 @@ import UiIcon from "@/components/UiIcon";
 import type { InterviewBooking } from "@/lib/candidate-applications";
 import type { RoleRequestSummary } from "@/lib/google-sheets";
 import { scheduledInstant } from "@/lib/interview-time";
-import { isBeforeTargetHiringDate, isCurrentCalendarMonth, isStandardFinalInterviewSlot, isStandardVoiceInterviewSlot, roleAvailabilityRules, slotKey, virtualSlotsForRole } from "@/lib/interview-availability-rules";
+import { isBeforeTargetHiringDate, isCurrentCalendarMonth, isStandardFinalInterviewSlot, isStandardVoiceInterviewSlot, isTargetHiringDateOverdue, roleAvailabilityRules, slotKey, virtualSlotsForRole } from "@/lib/interview-availability-rules";
 import { formatPortalDateKey, PORTAL_TIME_ZONE } from "@/lib/portal-time";
 
 type BookingKind = "voice" | "final";
 type InterviewType = "AI Voice Interview" | "Final Interview";
+type CalendarInterviewBooking = InterviewBooking & { targetHiringDate?: string; targetHiringDateOverdue?: boolean };
 type BookingRole = Pick<RoleRequestSummary, "roleId" | "jobTitle" | "targetHiringDate" | "hodEmail" | "voiceInterviewAvailabilityMode" | "voiceInterviewSlots" | "voiceInterviewAutoStartDate" | "voiceInterviewAutoEndDate" | "voiceInterviewTimezone" | "interviewAvailabilityRules"> & { finalBusyWindows?: string; finalCalendarConnected?: boolean; hasActiveVoiceBookingLink?: boolean; hasActiveFinalBookingLink?: boolean };
 type RuleForm = { interviewType: InterviewType; roleId: string; mode: "recurring" | "specific"; startDate: string; endDate: string; weekdays: number[]; startTime: string; endTime: string; duration: string; timezone: string; specificDate: string };
 
@@ -49,16 +50,22 @@ function overlapsBusyWindow(slot: Pick<InterviewBooking, "date" | "startTime" | 
     return windows.some((window) => Date.parse(window.start) < end && Date.parse(window.end) > start);
   } catch { return false; }
 }
-function virtualBookings(role: BookingRole): InterviewBooking[] {
+function virtualBookings(role: BookingRole): CalendarInterviewBooking[] {
   const source = role;
   const busyWindows = busyWindowsForRole(role);
   // Display the HR calendar's recurring windows to authorized viewers even
   // when the busy lookup is unavailable; reservation still verifies the
   // connected calendar authoritatively before booking.
-  return (["AI Voice Interview", "Final Interview"] as InterviewType[]).flatMap((interviewType) => virtualSlotsForRole(source, interviewType).map((slot) => {
+  return (["AI Voice Interview", "Final Interview"] as InterviewType[]).flatMap((interviewType) => {
+    const targetHiringDateOverdue = isTargetHiringDateOverdue(role.targetHiringDate, role.voiceInterviewTimezone || "Asia/Singapore");
+    // Keep expired roles lightweight: one expired marker carries the overdue
+    // state to the calendar without materializing hundreds of unusable slots.
+    const slots = [...virtualSlotsForRole(source, interviewType), ...(targetHiringDateOverdue ? virtualSlotsForRole(source, interviewType, false).slice(0, 1) : [])];
+    return slots.map((slot) => {
     const blocked = interviewType === "Final Interview" && overlapsBusyWindow(slot, busyWindows);
-    return { ...slot, status: blocked ? "Blocked" : "Available", applicationId: "", candidateName: "", candidateEmail: "", bookedAt: "", lastUpdated: "", calendarEventId: "", calendarEventLink: "", calendarEventStatus: blocked ? "Conflict" : "", calendarEventError: blocked ? "HR Google Calendar conflict" : "" };
-  }).flat());
+    return { ...slot, status: blocked ? "Blocked" : "Available", applicationId: "", candidateName: "", candidateEmail: "", bookedAt: "", lastUpdated: "", calendarEventId: "", calendarEventLink: "", calendarEventStatus: blocked ? "Conflict" : "", calendarEventError: blocked ? "HR Google Calendar conflict" : "", targetHiringDate: role.targetHiringDate, targetHiringDateOverdue };
+    });
+  });
 }
 function hasActiveBookingLink(role: BookingRole, interviewType: string) {
   return interviewType.toLowerCase().includes("voice") ? role.hasActiveVoiceBookingLink === true : role.hasActiveFinalBookingLink === true;
@@ -88,7 +95,7 @@ function calendarDisplayBookings(bookings: InterviewBooking[]) {
   });
 }
 
-function CalendarPanel({ kind, month, bookings, selectedDate, selectedKind, onSelectDate }: { kind: BookingKind; month: Date; bookings: InterviewBooking[]; selectedDate: string; selectedKind: BookingKind | ""; onSelectDate: (date: string, kind: BookingKind) => void }) {
+function CalendarPanel({ kind, month, bookings, selectedDate, selectedKind, targetHiringDate, targetHiringDateOverdue, onSelectDate }: { kind: BookingKind; month: Date; bookings: InterviewBooking[]; selectedDate: string; selectedKind: BookingKind | ""; targetHiringDate?: string; targetHiringDateOverdue?: boolean; onSelectDate: (date: string, kind: BookingKind) => void }) {
   const days = calendarDays(month);
   const byDate = bookings.reduce<Map<string, InterviewBooking[]>>((map, booking) => {
     const key = dateKey(booking.date);
@@ -97,11 +104,14 @@ function CalendarPanel({ kind, month, bookings, selectedDate, selectedKind, onSe
   }, new Map());
   const title = titleFor(kind);
   const stats = summarizeBookings(bookings);
+  const overdueBooking = bookings.find((booking) => "targetHiringDateOverdue" in booking) as CalendarInterviewBooking | undefined;
+  const effectiveTargetHiringDate = targetHiringDate || overdueBooking?.targetHiringDate;
+  const effectiveTargetHiringDateOverdue = targetHiringDateOverdue ?? overdueBooking?.targetHiringDateOverdue ?? false;
   const note = kind === "voice"
     ? "Future dates show available times. Past dates show only booked and no-show outcomes."
     : "Future dates show availability and calendar conflicts. Past dates show only booked and no-show outcomes.";
 
-  return <section className={`card booking-calendar-card booking-calendar-${kind}`}>
+  return <section className={`card booking-calendar-card booking-calendar-${kind} ${effectiveTargetHiringDateOverdue ? "is-target-overdue" : ""}`}>
     <div className="calendar-panel-heading">
       <div>
         <span className="calendar-panel-kicker">{kind === "voice" ? "VOICE SCREENING" : "HR INTERVIEW"}</span>
@@ -110,6 +120,7 @@ function CalendarPanel({ kind, month, bookings, selectedDate, selectedKind, onSe
           <InfoTip label={`About the ${title} calendar`}>{kind === "final" ? "Availability comes from the connected HR Google Calendar." : "HR manages voice-interview availability rules."} Select a date to see available times and booking status.</InfoTip>
         </div>
         <p>Dates are summarized so the calendar stays easy to scan.</p>
+        {effectiveTargetHiringDateOverdue && <span className="calendar-target-status is-overdue" role="status">Target hiring date overdue</span>}
         <span className="calendar-availability-note"><span aria-hidden="true" /> {note}</span>
         <div className="calendar-legend" aria-label={`${title} calendar legend`}>
           <span><i className="calendar-legend-dot is-available" aria-hidden="true" />Available</span>
@@ -153,6 +164,7 @@ function CalendarPanel({ kind, month, bookings, selectedDate, selectedKind, onSe
         </div>;
       })}
     </div>
+    {effectiveTargetHiringDateOverdue && <div className="calendar-overdue-overlay" role="status" aria-live="polite"><strong>Target hiring date overdue</strong><span>Update the target hiring date to reopen interview availability.</span>{effectiveTargetHiringDate && <small>Target date: {dateLabel(effectiveTargetHiringDate)}</small>}</div>}
   </section>;
 }
 
@@ -206,7 +218,7 @@ export default function BookingsList({ bookings: initialBookings, roles }: { boo
     // booking link is issued.
     const generated = roleOptions
       .flatMap((role) => virtualBookings(role))
-      .map((booking) => booking.status.toLowerCase() === "available" && !hasFutureTime(booking) ? { ...booking, status: "Expired" } : booking);
+      .map((booking) => booking.status.toLowerCase() === "available" && (!hasFutureTime(booking) || !isBeforeTargetHiringDate(booking.date, (booking as CalendarInterviewBooking).targetHiringDate)) ? { ...booking, status: "Expired" } : booking);
     // The internal calendar must show generated HR windows even when a public
     // booking link has not been issued yet; the public workflow applies its
     // own booking-link visibility rules separately.

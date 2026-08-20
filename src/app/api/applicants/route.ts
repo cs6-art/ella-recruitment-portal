@@ -16,6 +16,7 @@ import { evaluationFieldsForSetup } from "@/lib/recruitment-setup-schema";
 import { consumeRateLimit, rateLimitHeaders, requestClientKey } from "@/lib/rate-limit";
 import { deleteResumeFile, storeResumeFile } from "@/lib/resume-files";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
+import { isDemoMode } from "@/lib/demo-mode";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,6 +28,7 @@ function responseError(error: string, status: number, extra: Record<string, unkn
 export async function POST(request: Request) {
   let storedResume: Awaited<ReturnType<typeof storeResumeFile>> | null = null;
   try {
+    if (isDemoMode()) return responseError("Demo mode is read-only: applicant emails, calls, bookings, and calendar changes are disabled.", 503);
     const user = verifySessionToken((await cookies()).get(COOKIE_NAME)?.value);
     if (!user) return responseError("Authentication required.", 401);
     if (user.canReviewRole !== true) return responseError("Only HR reviewers can add candidates.", 403);

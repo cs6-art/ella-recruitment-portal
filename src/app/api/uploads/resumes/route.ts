@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
 import { consumeRateLimit, rateLimitHeaders, requestClientKey } from "@/lib/rate-limit";
 import { MAX_RESUME_FILE_BYTES, MAX_RESUME_REQUEST_BYTES, storeResumeFile } from "@/lib/resume-files";
+import { isDemoMode } from "@/lib/demo-mode";
 
 export const runtime = "nodejs";
 
@@ -13,6 +14,7 @@ function failure(error: string, status: number) {
 
 export async function POST(request: Request) {
   try {
+    if (isDemoMode()) return failure("Demo mode is read-only: resume storage and applicant processing are disabled.", 503);
     const user = verifySessionToken((await cookies()).get(COOKIE_NAME)?.value);
     if (!user || user.canReviewRole !== true) return failure("Only HR reviewers can upload resume files.", 403);
 

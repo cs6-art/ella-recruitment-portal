@@ -8,6 +8,7 @@ import { getFinalInterviewCalendarConfig, getRoleRequestById } from "@/lib/googl
 import { expandHodAvailabilitySlots, parseHodAvailabilitySlots, slotMatchesHodAvailability } from "@/lib/hod-availability";
 import { isValidTimezone, scheduledInstant } from "@/lib/interview-time";
 import { bookingLink } from "@/lib/public-url";
+import { isDemoMode } from "@/lib/demo-mode";
 import { cachedSheetsRead, invalidateSheetsCache } from "@/lib/sheets-cache";
 import type { ResumeFileRecord } from "@/lib/resume-files";
 import { generateAutomaticVoiceInterviewSlots, type VoiceInterviewSlot } from "@/lib/voice-interview-availability";
@@ -397,6 +398,14 @@ export function buildCandidateApplicationPayload(input: {
 }
 
 export async function sendCandidateApplicationWebhook(webhookUrl: string, webhookSecret: string, payload: CandidateApplicationWebhookPayload) {
+  if (isDemoMode()) {
+    const error = "Demo mode is read-only: applicant emails, calls, bookings, and calendar changes are disabled.";
+    const response = new Response(JSON.stringify({ success: false, error }), {
+      status: 503,
+      headers: { "Content-Type": "application/json" },
+    });
+    return { response, result: { success: false, error } as Record<string, unknown> };
+  }
   const response = await fetch(webhookUrl, {
     method: "POST",
     headers: {
@@ -786,6 +795,7 @@ async function withReservationLock<T>(key: string, operation: () => Promise<T>) 
 // response instead of overwriting the first candidate. Multi-instance
 // deployments should move this reservation primitive to the shared database.
 export async function reserveBooking(kind: BookingKind, token: string, slotId: string, preferredMobile: string) {
+  if (isDemoMode()) throw new Error("Demo mode is read-only: applicant emails, calls, bookings, and calendar changes are disabled.");
   const lockKey = `${kind}:${text(slotId)}`;
   return withReservationLock(lockKey, () => reserveBookingInternal(kind, token, slotId, preferredMobile));
 }
@@ -862,7 +872,7 @@ async function reserveBookingInternal(kind: BookingKind, token: string, slotId: 
     if (!calendar.checked) throw new Error(calendar.reason === "not_connected" ? "Connect the HR Google Calendar before booking an HR interview." : "Unable to verify the HR Google Calendar. Please try again.");
     if (!calendar.available) throw new Error("This HR interview time is now blocked by the HR Google Calendar. Choose another time.");
   }
-  let oldCalendarEventCleanup: { deleted: true } | { deleted: false; reason: "not_connected" | "error"; error?: string } | null = null;
+  let oldCalendarEventCleanup: { deleted: true } | { deleted: false; reason: "not_connected" | "error" | "demo_mode"; error?: string } | null = null;
   if (kind === "final" && oldSlotIndex >= 0 && calendarHodEmail) {
     const oldEventId = field(slotsData.rows[oldSlotIndex], "Google_Calendar_Event_ID");
     if (oldEventId) oldCalendarEventCleanup = await deleteFinalInterviewEvent(calendarHodEmail, oldEventId);
@@ -1100,6 +1110,7 @@ async function syncFinalTrackingBooking(input: {
 }
 
 export async function markInterviewNoShow(slotId: string) {
+  if (isDemoMode()) throw new Error("Demo mode is read-only: applicant emails, calls, bookings, and calendar changes are disabled.");
   const cleanSlotId = text(slotId);
   if (!cleanSlotId) throw new Error("Interview slot is required.");
   const [slotsData, applicantsData] = await Promise.all([readSheet("Interview_Slots", "X"), readSheet("High_Match_Profile", "BH")]);
@@ -1646,6 +1657,7 @@ export async function synchronizeFinalInterviewSlots({ roleId, hodEmail, availab
  * portal still records that outcome itself.
  */
 export async function recordApplicantDecision(applicationId: string, stage: ApplicantDecisionStage, decision: ApplicantDecision, reviewer: { name: string; email: string }, comments: string, publicAppBaseUrl = "") {
+  if (isDemoMode()) throw new Error("Demo mode is read-only: applicant emails, calls, bookings, and calendar changes are disabled.");
   const data = await readSheet("High_Match_Profile", "BH");
   const found = findApplicant(data, applicationId);
   if (!found) throw new Error("Applicant not found.");

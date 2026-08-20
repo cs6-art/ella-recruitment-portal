@@ -7,6 +7,11 @@ const logoutSource = fs.readFileSync("src/app/api/auth/logout/route.ts", "utf8")
 const statusSource = fs.readFileSync("src/app/api/roles/[roleId]/status/route.ts", "utf8");
 const setupSource = fs.readFileSync("src/app/api/roles/[roleId]/recruitment-setup/route.ts", "utf8");
 const promptSource = fs.readFileSync("src/lib/recruitment-prompt.ts", "utf8");
+const demoModeSource = fs.readFileSync("src/lib/demo-mode.ts", "utf8");
+const demoDataSource = fs.readFileSync("src/lib/demo-data.ts", "utf8");
+const candidateApplicationsSource = fs.readFileSync("src/lib/candidate-applications.ts", "utf8");
+const applicantWorkflowSource = fs.readFileSync("src/lib/applicant-workflow.ts", "utf8");
+const calendarSource = fs.readFileSync("src/lib/google-calendar.ts", "utf8");
 
 test("authentication and logout use secure HTTP-only cookie settings", () => {
   assert.match(authSource, /httpOnly: true/);
@@ -14,6 +19,18 @@ test("authentication and logout use secure HTTP-only cookie settings", () => {
   assert.match(authSource, /maxAge: 8 \* 60 \* 60/);
   assert.match(logoutSource, /httpOnly: true/);
   assert.match(logoutSource, /sameSite: "lax"/);
+});
+
+test("demo mode keeps presentation data synthetic and applicant actions read-only", () => {
+  assert.match(demoModeSource, /read-only safety boundary/);
+  assert.match(candidateApplicationsSource, /return demoApplicantRows\(\)/);
+  assert.match(candidateApplicationsSource, /return demoInterviewBookings\(\)/);
+  assert.match(candidateApplicationsSource, /applicant emails, calls, bookings, and calendar changes are disabled/);
+  assert.match(applicantWorkflowSource, /if \(isDemoMode\(\)\) throw new Error/);
+  assert.match(applicantWorkflowSource, /if \(isDemoMode\(\)\) \{/);
+  assert.match(calendarSource, /reason: "demo_mode"/);
+  assert.match(demoDataSource, /function nextWeekday/);
+  assert.match(demoDataSource, /return random\(\) < 0\.08 \? "No Show" : "Completed"/);
 });
 
 test("status and setup payloads preserve idempotency and event contracts", () => {

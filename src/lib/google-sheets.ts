@@ -4,7 +4,7 @@ import { cachedSheetsRead, invalidateSheetsCache } from "@/lib/sheets-cache";
 import { BASELINE_EVALUATION_FIELDS, EVALUATION_FIELD_CATALOG } from "@/lib/recruitment-setup-schema";
 import { getGoogleServiceAccountPrivateKey } from "@/lib/google-service-account";
 import { demoRoleSummaries } from "@/lib/demo-data";
-import { isDemoMode, isDemoWindowRecord } from "@/lib/demo-mode";
+import { isDemoMode } from "@/lib/demo-mode";
 
 const spreadsheetId =
   process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
@@ -965,10 +965,10 @@ export async function getRoleRequests(): Promise<
   ) as RoleRequestSummary[];
 
   if (!isDemoMode()) return live;
-  // Demo mode lists the synthetic role history plus anything raised since the
-  // cutoff, so a role request created live during a presentation appears
-  // alongside it while the real back catalogue stays hidden.
-  return [...demoRoleSummaries(), ...live.filter((role) => isDemoWindowRecord(role.createdAt))];
+  // Demo mode is presentation-only: never mix live role/requester data into
+  // the synthetic dataset shown to a client.
+  void live;
+  return demoRoleSummaries();
 }
 
 export async function getRoleRequestById(

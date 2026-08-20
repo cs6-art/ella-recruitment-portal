@@ -21,6 +21,10 @@ test("availability rules reject overlapping weekday windows and deduplicate lega
   assert.match(rules, /startTime: "10:00"/);
   assert.match(rules, /endTime: "16:00"/);
   assert.match(rules, /start === 12 \* 60/);
+  assert.match(rules, /isVoiceInterview \|\| isFinalInterview \? \[1, 2, 3, 4, 5\]/);
+  assert.match(rules, /export function isTargetHiringDateOverdue/);
+  assert.match(bookings, /Target hiring date overdue/);
+  assert.match(bookings, /is-target-overdue/);
 });
 
 test("availability write API blocks stacked voice schedules and rejects manual final schedules", () => {

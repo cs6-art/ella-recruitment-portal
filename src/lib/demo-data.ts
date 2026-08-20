@@ -75,6 +75,23 @@ function isWeekend(iso: string) {
   return day === 0 || day === 6;
 }
 
+/** Keep synthetic appointments aligned with the HR calendar's weekday rules. */
+function nextWeekday(iso: string) {
+  let date = iso;
+  while (isWeekend(date)) date = addDays(date, 1);
+  return date;
+}
+
+/**
+ * Historical demo appointments should read like attendance data, not a list
+ * of future bookings. Future appointments remain booked; past appointments
+ * are mostly completed with a small, believable no-show rate.
+ */
+function demoAppointmentStatus(scheduledDate: string, today: string, random: () => number) {
+  if (scheduledDate >= today) return "Booked";
+  return random() < 0.08 ? "No Show" : "Completed";
+}
+
 function timestamp(iso: string, hour: number, minute: number) {
   return `${iso}T${pad(hour)}:${pad(minute)}:00+08:00`;
 }
@@ -343,7 +360,7 @@ function buildDataset(today: string): DemoDataset {
       // Interview slots for candidates that actually reached those stages.
       const voiceStages: Outcome[] = ["voice_rejected", "final_rejected", "hired", "voice_scheduled", "voice_review_pending", "approved_for_final", "final_scheduled", "final_decision_pending"];
       if (voiceStages.includes(outcome)) {
-        const voiceDate = addDays(date, 2 + Math.floor(random() * 4));
+        const voiceDate = nextWeekday(addDays(date, 2 + Math.floor(random() * 4)));
         const hour = 9 + Math.floor(random() * 8);
         const minute = Math.floor(random() * 6) * 10;
         bookings.push({
@@ -354,7 +371,7 @@ function buildDataset(today: string): DemoDataset {
           startTime: `${pad(hour)}:${pad(minute)}`,
           endTime: `${pad(minute === 50 ? hour + 1 : hour)}:${pad((minute + 10) % 60)}`,
           timezone: TIMEZONE,
-          status: outcome === "voice_scheduled" ? "Booked" : "Booked",
+          status: demoAppointmentStatus(voiceDate, today, random),
           applicationId,
           candidateName: name,
           candidateEmail: `${handle}@${EMAIL_HOSTS[0]}`,
@@ -369,7 +386,7 @@ function buildDataset(today: string): DemoDataset {
 
       const finalStages: Outcome[] = ["final_rejected", "hired", "final_scheduled", "final_decision_pending"];
       if (finalStages.includes(outcome)) {
-        const finalDate = addDays(date, 8 + Math.floor(random() * 6));
+        const finalDate = nextWeekday(addDays(date, 8 + Math.floor(random() * 6)));
         const hour = 13 + Math.floor(random() * 4);
         bookings.push({
           slotId: `DEMO-F-${applicationId}`,
@@ -379,7 +396,7 @@ function buildDataset(today: string): DemoDataset {
           startTime: `${pad(hour)}:00`,
           endTime: `${pad(hour + 1)}:00`,
           timezone: TIMEZONE,
-          status: "Booked",
+          status: demoAppointmentStatus(finalDate, today, random),
           applicationId,
           candidateName: name,
           candidateEmail: `${handle}@${EMAIL_HOSTS[0]}`,

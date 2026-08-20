@@ -37,8 +37,8 @@ function time(value: number) { return `${Math.floor(value / 60).toString().padSt
 function validTimezone(value: string) {
   try { new Intl.DateTimeFormat("en-US", { timeZone: value }).format(); return value; } catch { return "Asia/Singapore"; }
 }
-function todayInTimezone(timezone: string) {
-  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+function todayInTimezone(timezone: string, now = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now);
   const values = Object.fromEntries(parts.filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
   return `${values.year}-${values.month}-${values.day}`;
 }
@@ -160,6 +160,12 @@ export function isBeforeTargetHiringDate(date: string, targetHiringDate?: string
   return !DATE.test(text(targetHiringDate)) || date <= text(targetHiringDate);
 }
 
+/** A role is overdue only after its target date has fully passed in its schedule timezone. */
+export function isTargetHiringDateOverdue(targetHiringDate?: string, timezone = "Asia/Singapore", now = new Date()) {
+  const target = text(targetHiringDate);
+  return DATE.test(target) && todayInTimezone(validTimezone(timezone), now) > target;
+}
+
 export function ruleToSlots(rule: InterviewAvailabilityRule, maxDays = 180): VoiceInterviewSlot[] {
   if (rule.status !== "Active") return [];
   if (rule.mode === "specific") {
@@ -176,7 +182,9 @@ export function ruleToSlots(rule: InterviewAvailabilityRule, maxDays = 180): Voi
   // booking policy, including legacy rules.
   const startTime = isVoiceInterview ? 9 * 60 : isFinalInterview ? 10 * 60 : minutes(rule.startTime);
   const endTime = isVoiceInterview ? 17 * 60 : isFinalInterview ? 16 * 60 : minutes(rule.endTime);
-  const weekdays = isVoiceInterview ? [1, 2, 3, 4, 5] : rule.weekdays;
+  // HR interviews are weekday-only even when an older saved rule contains
+  // weekend values; the shared calendar must never offer Saturday/Sunday slots.
+  const weekdays = isVoiceInterview || isFinalInterview ? [1, 2, 3, 4, 5] : rule.weekdays;
   const result: VoiceInterviewSlot[] = [];
   const end = addDays(rule.startDate, Math.min(maxDays, 180));
   const monthLimited = isVoiceInterview || isFinalInterview;
@@ -220,8 +228,8 @@ export function roleAvailabilityRules(role: { roleId: string; targetHiringDate?:
   return rules;
 }
 
-export function virtualSlotsForRole(role: Parameters<typeof roleAvailabilityRules>[0], interviewType: "AI Voice Interview" | "Final Interview") {
-  const slots = roleAvailabilityRules(role).filter((rule) => rule.interviewType === interviewType).flatMap((rule) => ruleToSlots(rule).filter((slot) => isBeforeTargetHiringDate(slot.date, role.targetHiringDate)).map((slot) => ({
+export function virtualSlotsForRole(role: Parameters<typeof roleAvailabilityRules>[0], interviewType: "AI Voice Interview" | "Final Interview", respectTargetHiringDate = true) {
+  const slots = roleAvailabilityRules(role).filter((rule) => rule.interviewType === interviewType).flatMap((rule) => ruleToSlots(rule).filter((slot) => !respectTargetHiringDate || isBeforeTargetHiringDate(slot.date, role.targetHiringDate)).map((slot) => ({
     slotId: `VIRTUAL-${hash(`${rule.ruleId}|${slot.date}|${slot.startTime}|${slot.endTime}|${slot.timezone}`).toUpperCase()}`,
     interviewType,
     roleId: role.roleId,

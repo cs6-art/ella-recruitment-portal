@@ -1,17 +1,12 @@
 /**
  * Demo mode renders a synthetic recruitment history for client presentations
- * while leaving the live system fully operable.
+ * as a read-only safety boundary.
  *
  * The portal is wired to n8n workflows that email and phone real candidates, so
- * demo mode draws a hard line by record age:
- *
- *  - Records created BEFORE the cutoff are the real back catalogue. They are
- *    hidden from every list, so a presenter never sees them and cannot act on
- *    them, and candidate-contacting routes refuse them outright.
- *  - Records created AFTER the cutoff are treated as demo/test data. They stay
- *    fully visible and actionable, so the whole workflow -- role request,
- *    approval, publish, application, screening, voice call, final booking --
- *    can be driven live in front of a client.
+ * demo mode keeps live records out of presentation views and disables every
+ * applicant-facing side effect. This is intentionally stricter than a date
+ * cutoff: a presenter must never accidentally email, call, schedule, or
+ * modify a real applicant while the demo environment is enabled.
  *
  * Keep this module dependency-free: `proxy.ts` runs on the Edge runtime.
  */
@@ -47,7 +42,7 @@ export function demoCutoffMs(): number {
   return Number.isFinite(midnight) ? midnight : Date.now();
 }
 
-/** True when a record's timestamp puts it in the actionable demo window. */
+/** True when a record's timestamp is on or after the optional demo cutoff. */
 export function isDemoWindowRecord(timestamp: string | undefined | null): boolean {
   const parsed = Date.parse(String(timestamp ?? ""));
   return Number.isFinite(parsed) && parsed >= demoCutoffMs();
