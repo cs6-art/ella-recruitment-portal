@@ -230,7 +230,20 @@ export default function RoleRequestForm({ user, roleId, status = "", initialValu
         body,
         credentials: "same-origin",
       });
-      const result = await response.json() as { success?: boolean; error?: string; draft?: RoleAiDraft };
+      // A proxy or an interrupted upstream workflow can return an empty body.
+      // Do not let Response.json() mask that as a browser-level exception.
+      const raw = await response.text();
+      let result: { success?: boolean; error?: string; draft?: RoleAiDraft } = {};
+      if (raw.trim()) {
+        try {
+          result = JSON.parse(raw) as typeof result;
+        } catch {
+          throw new Error("The AI draft service returned an invalid response. Please try again.");
+        }
+      }
+      if (!raw.trim()) {
+        throw new Error(`The AI draft service returned an empty response (HTTP ${response.status}). Please try again.`);
+      }
       if (!response.ok || result.success !== true || !result.draft) throw new Error(result.error || "Unable to generate the role draft.");
 
       const questions = [

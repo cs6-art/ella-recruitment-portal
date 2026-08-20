@@ -124,6 +124,8 @@ test("role creation can generate AI guidance from typed job descriptions", () =>
   assert.match(parseDescriptionSource, /typed-job-description/);
   assert.match(parseDescriptionSource, /requestedRole/);
   assert.match(formSource, /Generate AI questions/);
+  assert.match(formSource, /const raw = await response\.text\(\)/);
+  assert.match(formSource, /AI draft service returned an empty response/);
 });
 
 test("role drafts normalize the stored target date for the browser date input", () => {
