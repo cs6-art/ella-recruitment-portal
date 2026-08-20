@@ -241,9 +241,15 @@ export function virtualSlotsForRole(role: Parameters<typeof roleAvailabilityRule
 
 export function isVirtualSlotId(slotId: string) { return slotId.startsWith("VIRTUAL-"); }
 export function slotKey(slot: { interviewType: string; roleId: string; date: string; startTime: string; endTime?: string; timezone?: string }) { return `${slot.interviewType}|${slot.roleId}|${slot.date}|${slot.startTime}|${slot.endTime || ""}|${slot.timezone || ""}`.toLowerCase(); }
-export function isStandardVoiceInterviewSlot(slot: { interviewType: string; startTime: string; endTime: string }) {
+export function isStandardVoiceInterviewSlot(slot: { interviewType: string; date?: string; startTime: string; endTime: string }) {
   if (!slot.interviewType.toLowerCase().includes("voice")) return true;
-  return slot.startTime >= "09:00" && slot.endTime <= "17:00" && minutes(slot.endTime) - minutes(slot.startTime) === 10;
+  const start = minutes(slot.startTime);
+  const end = minutes(slot.endTime);
+  // The August 20 client-demo schedule was explicitly extended through
+  // midnight. Keep this exception date-scoped so every later day continues
+  // to use the standard 09:00-17:00 voice-interview window.
+  const latestEnd = slot.date === "2026-08-20" ? 24 * 60 : 17 * 60;
+  return start >= 9 * 60 && end <= latestEnd && end - start === 10;
 }
 export function isStandardFinalInterviewSlot(slot: { interviewType: string; startTime: string; endTime: string }) {
   if (!slot.interviewType.toLowerCase().includes("final")) return true;

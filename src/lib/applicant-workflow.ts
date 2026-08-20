@@ -1452,7 +1452,7 @@ export async function createConfiguredVoiceInterviewSlots({ roleId, mode, manual
   // Keep automatic voice availability limited to the current calendar month;
   // this prevents setup actions from creating hidden future-month rows.
   const slots = configuredSlots
-    .filter((slot) => isStandardVoiceInterviewSlot({ interviewType: "AI Voice Interview", startTime: slot.startTime, endTime: slot.endTime }))
+    .filter((slot) => isStandardVoiceInterviewSlot({ interviewType: "AI Voice Interview", date: slot.date, startTime: slot.startTime, endTime: slot.endTime }))
     .filter((slot) => isBeforeTargetHiringDate(slot.date, targetHiringDate))
     .filter((slot) => isCurrentCalendarMonth(slot.date, slot.timezone))
     .filter((slot) => scheduledInstant(slot.date, slot.startTime, slot.timezone).getTime() > Date.now());

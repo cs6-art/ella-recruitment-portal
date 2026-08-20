@@ -89,6 +89,12 @@ test("voice booking defaults to weekday ten-minute availability and creates only
   assert.deepEqual(finalSlots.at(-1), { date: "2026-08-20", startTime: "15:00", endTime: "16:00", timezone: "Asia/Singapore" });
 });
 
+test("August 20 demo voice slots may extend through midnight only", () => {
+  const availabilityRules = fs.readFileSync("src/lib/interview-availability-rules.ts", "utf8");
+  assert.match(availabilityRules, /slot\.date === "2026-08-20" \? 24 \* 60 : 17 \* 60/);
+  assert.match(availabilityRules, /end <= latestEnd && end - start === 10/);
+});
+
 test("setup action status is synchronized for legacy and canonical n8n payload readers", () => {
   assert.match(route, /const nextRecruitmentSetupStatus = isAutosaveDraft \? role\.recruitmentSetupStatus/);
   assert.match(route, /recruitmentSetupStatus: nextRecruitmentSetupStatus/);
