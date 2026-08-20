@@ -24,6 +24,27 @@ type Props = {
 
 type RoleOption = { value: string; label: string; roleId?: string };
 
+/**
+ * Map operational status wording onto the reconciled stage names used by the
+ * dashboard. This keeps the Applicants filter useful without changing the
+ * labels shown on individual records or the underlying sheet values.
+ */
+function dashboardStageLabel(stage: string) {
+  const value = stage.trim().toLowerCase();
+  if (value.includes("reject")) return "Rejected";
+  if (value.includes("passed hr") || value.includes("passed final") || value === "hired") return "Passed HR Interview";
+  if (value.includes("hr decision") || value.includes("final interview completed") || value.includes("hr interview completed")) return "HR Decision Pending";
+  if (value.includes("hr interview scheduled") || value.includes("final interview scheduled")) return "HR Interview Scheduled";
+  if (value.includes("approved for hr") || value.includes("approved for final")) return "Approved for HR Interview";
+  if (value.includes("voice interview completed") || value.includes("voice hr review") || value.includes("awaiting hr review")) return "Voice HR Review";
+  if (value.includes("voice interview scheduled") || value.includes("ai voice interview scheduled")) return "Voice Interview Scheduled";
+  if (value.includes("voice interview in progress") || value.includes("voice interview no show") || value.includes("voice interview busy")) return "Resume Approved";
+  if (value.includes("approved for ai voice") || value.includes("awaiting ai voice") || value.includes("voice booking pending")) return "Voice Booking Pending";
+  if (value.includes("resume approved")) return "Resume Approved";
+  if (value.includes("pending hr review") || value.includes("resume hr review") || value === "processed") return "Resume HR Review";
+  return stage;
+}
+
 function stageClass(stage: string) {
   return `applicant-stage applicant-stage-${stage.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
 }
@@ -68,7 +89,11 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
       .map((role) => ({ value: role, label: role }));
   }, [applicants, hasPublishedRoleScope, publishedRoles]);
   const activeApplicants = useMemo(() => applicants.filter((applicant) => !removedIds.has(applicant.applicationId)), [applicants, removedIds]);
-  const stages = useMemo(() => [...new Set(applicants.map((applicant) => applicant.currentStage).filter(Boolean))].sort(), [applicants]);
+  const dashboardStages = useMemo(() => historyMetrics?.stageCounts.map((stage) => stage.label) ?? [], [historyMetrics]);
+  const stages = useMemo(() => [...new Set([
+    ...dashboardStages,
+    ...applicants.map((applicant) => dashboardStageLabel(applicant.currentStage)).filter(Boolean),
+  ])].sort(), [applicants, dashboardStages]);
 
   const visibleApplicants = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -79,7 +104,7 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
       return (!query || searchable.includes(query)) &&
         (!hasPublishedRoleScope || publishedRoleKeys.has(applicantRole) || publishedRoleKeys.has(applicant.roleId)) &&
         (roleFilter === "All Roles" || applicant.roleId === selectedRole?.roleId || applicantRole === roleFilter || applicant.selectedRole === selectedRole?.label) &&
-        (stageFilter === "All Stages" || applicant.currentStage === stageFilter);
+        (stageFilter === "All Stages" || dashboardStageLabel(applicant.currentStage) === stageFilter || applicant.currentStage === stageFilter);
     });
   }, [activeApplicants, hasPublishedRoleScope, publishedRoleKeys, roleFilter, roleOptions, search, stageFilter]);
 
