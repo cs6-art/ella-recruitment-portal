@@ -149,6 +149,13 @@ function CombinedScreeningEvidence({ applicant }: { applicant: ApplicantDetails 
 
 function ResumeResource({ value, fileId, fileName, expiresAt }: { value: string; fileId?: string; fileName?: string; expiresAt?: string }) {
   const url = externalUrl(value);
+  // Newer submissions keep both the extracted text and the private upload.
+  // Render the text first so HR can review it inline, while retaining the
+  // original file as an optional download instead of hiding the extraction.
+  if (value.trim() && !url) return <div>
+    <pre className="applicant-resume">{value}</pre>
+    {fileId && <div className="resume-resource"><span className="resume-resource-icon"><UiIcon name="document" size={23} /></span><div className="resume-resource-copy"><strong>{fileName || "Resume / CV File"}</strong><span>{expiresAt ? `Private file; available until ${dateValue(expiresAt)}.` : "Private file available to authorized HR users."}</span></div><a className="btn btn-primary resume-resource-action" href={`/api/uploads/resumes/${encodeURIComponent(fileId)}`} target="_blank" rel="noreferrer"><UiIcon name="arrow-right" size={15} />Download original</a></div>}
+  </div>;
   if (url) return <div className="resume-resource"><span className="resume-resource-icon"><UiIcon name="document" size={23} /></span><div className="resume-resource-copy"><strong>Resume / CV File</strong><span>Open the candidate's submitted document in a new tab.</span></div><a className="btn btn-primary resume-resource-action" href={url} target="_blank" rel="noreferrer"><UiIcon name="arrow-right" size={15} />View Resume / CV</a></div>;
   if (fileId) return <div className="resume-resource"><span className="resume-resource-icon"><UiIcon name="document" size={23} /></span><div className="resume-resource-copy"><strong>{fileName || "Resume / CV File"}</strong><span>{expiresAt ? `Private file; available until ${dateValue(expiresAt)}.` : "Private file available to authorized HR users."}</span></div><a className="btn btn-primary resume-resource-action" href={`/api/uploads/resumes/${encodeURIComponent(fileId)}`} target="_blank" rel="noreferrer"><UiIcon name="arrow-right" size={15} />Download Resume / CV</a></div>;
   return <pre className="applicant-resume">{value || "No resume or CV is available."}</pre>;
