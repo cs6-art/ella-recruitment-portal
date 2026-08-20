@@ -47,7 +47,8 @@ test("candidate contact side effects stay disabled while workflow processing rem
 
 test("resume extraction uses the supported PDF parser entrypoint", () => {
   const resumeFiles = read("src/lib/resume-files.ts");
-  assert.match(resumeFiles, /import \{ PDFParse \} from "pdf-parse"/);
+  assert.match(resumeFiles, /createRequire\(import\.meta\.url\)/);
+  assert.match(resumeFiles, /requirePdfParse\("pdf-parse"\)/);
   assert.match(resumeFiles, /await parser\.destroy\(\)/);
   assert.doesNotMatch(resumeFiles, /pdf-parse\/lib\/pdf-parse/);
 });

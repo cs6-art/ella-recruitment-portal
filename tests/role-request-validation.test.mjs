@@ -135,7 +135,8 @@ test("role drafts normalize the stored target date for the browser date input", 
 });
 
 test("job-description PDF extraction uses the current resilient parser", () => {
-  assert.match(documentExtractionSource, /import \{ PDFParse \} from "pdf-parse"/);
+  assert.match(documentExtractionSource, /createRequire\(import\.meta\.url\)/);
+  assert.match(documentExtractionSource, /requirePdfParse\("pdf-parse"\)/);
   assert.match(documentExtractionSource, /await parser\.destroy\(\)/);
   assert.doesNotMatch(documentExtractionSource, /pdf-parse\/lib\/pdf-parse/);
 });

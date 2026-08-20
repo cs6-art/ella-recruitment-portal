@@ -13,6 +13,9 @@ const distDir = process.env.NEXT_DIST_DIR
 /** @type {import("next").NextConfig} */
 const nextConfig = {
   distDir,
+  // pdf-parse uses Node-specific and optional dependencies internally. Keep
+  // it external so route handlers load its supported Node export at runtime.
+  serverExternalPackages: ["pdf-parse"],
 };
 
 export default nextConfig;

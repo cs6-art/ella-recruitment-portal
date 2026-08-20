@@ -1,5 +1,6 @@
+import { createRequire } from "node:module";
+
 import mammoth from "mammoth";
-import { PDFParse } from "pdf-parse";
 import WordExtractor from "word-extractor";
 
 export const MAX_DOCUMENT_FILE_BYTES = 10 * 1024 * 1024;
@@ -9,6 +10,23 @@ const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingm
 const DOC_MIME = "application/msword";
 
 export type DocumentKind = "pdf" | "docx" | "doc";
+
+type PdfTextParser = {
+  getText(): Promise<{ text: string }>;
+  destroy(): Promise<void>;
+};
+
+type PdfTextParserConstructor = new (options: { data: Buffer }) => PdfTextParser;
+
+// Keep the heavyweight PDF implementation out of the route module until a
+// PDF is actually uploaded. `createRequire` selects pdf-parse's Node/CJS
+// export instead of webpack's browser-oriented import branch on Vercel.
+const requirePdfParse = createRequire(import.meta.url);
+
+function createPdfTextParser(data: Buffer): PdfTextParser {
+  const { PDFParse } = requirePdfParse("pdf-parse") as { PDFParse: PdfTextParserConstructor };
+  return new PDFParse({ data });
+}
 
 function detectKind(fileName: string, mimeType: string): DocumentKind | null {
   const extension = fileName.toLowerCase().split(".").pop();
@@ -62,7 +80,7 @@ export async function extractDocumentText(file: File) {
     // pdf-parse v2 handles current PDF cross-reference and object-stream
     // variants that the old v1 parser rejected as "Invalid PDF structure".
     // Always release parser resources, including when a PDF is malformed.
-    const parser = new PDFParse({ data: buffer });
+    const parser = createPdfTextParser(buffer);
     try {
       extracted = (await parser.getText()).text;
     } catch (error) {
