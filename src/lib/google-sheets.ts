@@ -904,7 +904,7 @@ export async function updateDirectoryUser(originalEmail: string, user: Directory
   invalidateSheetsCache("User_Directory");
 }
 
-export async function getRoleRequests(): Promise<
+export async function getRoleRequests(options: { liveOnly?: boolean } = {}): Promise<
   RoleRequestSummary[]
 > {
   const records =
@@ -964,7 +964,10 @@ export async function getRoleRequests(): Promise<
     JSON.stringify([...uniqueRoles.values()]),
   ) as RoleRequestSummary[];
 
-  if (!isDemoMode()) return live;
+  // Intake selectors must be able to target every currently published role,
+  // including roles created before the demo cutoff. Other presentation lists
+  // continue using the synthetic history unless explicitly requesting live data.
+  if (!isDemoMode() || options.liveOnly) return live;
   // Keep the synthetic history for demos, but include roles created after the
   // cutoff so new requests remain visible and actionable during the demo.
   const recentLive = live.filter((role) => isDemoWindowRecord(role.createdAt));

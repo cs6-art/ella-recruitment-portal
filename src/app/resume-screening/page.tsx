@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 
 import AppShell from "@/components/AppShell";
 import CandidateApplicationForm from "@/components/CandidateApplicationForm";
-import { getRoleRequestById, getRoleRequests } from "@/lib/google-sheets";
+import { getRoleRequests } from "@/lib/google-sheets";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -13,19 +13,11 @@ export default async function ResumeScreeningPage() {
   if (!user) redirect("/");
   if (user.canReviewRole !== true && user.canApproveRole !== true) redirect("/dashboard");
 
-  const roles = await getRoleRequests();
-  // Demo mode adds synthetic historical roles to the catalogue for reporting,
-  // but manual CV intake must only target roles backed by a live sheet row.
-  // Resolve each published option against the live lookup before rendering it
-  // so a visible demo role cannot produce a submission-time rejection.
-  const livePublishedRoles = await Promise.all(
-    roles
-      .filter((role) => role.status === "Job Posted" && role.recruitmentSetupStatus === "Published")
-      .map(async (role) => ({ role, liveRole: await getRoleRequestById(role.roleId) })),
-  );
-  const roleOptions = livePublishedRoles
-    .filter(({ liveRole }) => liveRole?.status === "Job Posted" && liveRole.recruitmentSetupStatus === "Published")
-    .map(({ role }) => role)
+  // Intake must use the live role sheet even in demo mode so every currently
+  // published role is available, not just the synthetic catalogue roles.
+  const roles = await getRoleRequests({ liveOnly: true });
+  const roleOptions = roles
+    .filter((role) => role.status === "Job Posted" && role.recruitmentSetupStatus === "Published")
     .map((role) => ({ roleId: role.roleId, label: `${role.jobTitle || role.roleId} (${role.roleId})` }))
     // Keep every resume-screening role selector predictable as the published
     // role catalogue grows; IDs remain the option values.
