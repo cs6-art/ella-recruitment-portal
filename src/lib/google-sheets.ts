@@ -5,6 +5,7 @@ import { BASELINE_EVALUATION_FIELDS, EVALUATION_FIELD_CATALOG } from "@/lib/recr
 import { getGoogleServiceAccountPrivateKey } from "@/lib/google-service-account";
 import { demoRoleSummaries } from "@/lib/demo-data";
 import { isDemoMode, isDemoWindowRecord } from "@/lib/demo-mode";
+import { normalizeDateOnly } from "@/lib/date-only";
 
 const spreadsheetId =
   process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
@@ -457,10 +458,10 @@ function mapRoleRequest(
       "Replacement Employee",
     ]),
 
-    targetHiringDate: getField(record, [
+    targetHiringDate: normalizeDateOnly(getField(record, [
       "Target_Hiring_Date",
       "Target Hiring Date",
-    ]),
+    ])),
 
     hodAvailabilityDates: getField(record, ["HOD_Availability_Dates"]),
     hodAvailabilityTimes: getField(record, ["HOD_Availability_Times"]),

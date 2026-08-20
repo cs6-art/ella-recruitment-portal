@@ -1,5 +1,5 @@
 import mammoth from "mammoth";
-import pdfParse from "pdf-parse/lib/pdf-parse.js";
+import { PDFParse } from "pdf-parse";
 import WordExtractor from "word-extractor";
 
 export const MAX_DOCUMENT_FILE_BYTES = 10 * 1024 * 1024;
@@ -57,11 +57,25 @@ export async function extractDocumentText(file: File) {
   if (buffer.length !== file.size) throw new Error("The uploaded job description could not be read completely.");
   assertSignature(buffer, kind);
 
-  const extracted = kind === "pdf"
-    ? (await pdfParse(buffer)).text
-    : kind === "docx"
-      ? (await mammoth.extractRawText({ buffer })).value
-      : (await new WordExtractor().extract(buffer)).getBody();
+  let extracted: string;
+  if (kind === "pdf") {
+    // pdf-parse v2 handles current PDF cross-reference and object-stream
+    // variants that the old v1 parser rejected as "Invalid PDF structure".
+    // Always release parser resources, including when a PDF is malformed.
+    const parser = new PDFParse({ data: buffer });
+    try {
+      extracted = (await parser.getText()).text;
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "The PDF could not be read.";
+      throw new Error(`We could not read text from this PDF (${detail}). Please re-export it as a standard PDF, or upload the original DOC/DOCX file.`);
+    } finally {
+      await parser.destroy();
+    }
+  } else if (kind === "docx") {
+    extracted = (await mammoth.extractRawText({ buffer })).value;
+  } else {
+    extracted = await new WordExtractor().extract(buffer).then((document) => document.getBody());
+  }
   const text = normalizeText(extracted || "");
   if (text.length < 20) throw new Error("The uploaded job description does not contain enough readable text.");
   return { fileName, kind, text };

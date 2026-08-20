@@ -7,6 +7,8 @@ const formSource = fs.readFileSync("src/components/RoleRequestForm.tsx", "utf8")
 const departmentSource = fs.readFileSync("src/lib/department-options.ts", "utf8");
 const apiSource = fs.readFileSync("src/app/api/roles/route.ts", "utf8");
 const parseDescriptionSource = fs.readFileSync("src/app/api/roles/parse-description/route.ts", "utf8");
+const documentExtractionSource = fs.readFileSync("src/lib/document-extraction.ts", "utf8");
+const dateOnlySource = fs.readFileSync("src/lib/date-only.ts", "utf8");
 
 function validate(input) {
   const email = String(input.requesterEmail || "").trim().toLowerCase();
@@ -122,4 +124,16 @@ test("role creation can generate AI guidance from typed job descriptions", () =>
   assert.match(parseDescriptionSource, /typed-job-description/);
   assert.match(parseDescriptionSource, /requestedRole/);
   assert.match(formSource, /Generate AI questions/);
+});
+
+test("role drafts normalize the stored target date for the browser date input", () => {
+  assert.match(formSource, /targetHiringDate: toDateInputValue\(initialValues\?\.targetHiringDate\)/);
+  assert.match(dateOnlySource, /monthFirst/);
+  assert.match(dateOnlySource, /input type="date"/);
+});
+
+test("job-description PDF extraction uses the current resilient parser", () => {
+  assert.match(documentExtractionSource, /import \{ PDFParse \} from "pdf-parse"/);
+  assert.match(documentExtractionSource, /await parser\.destroy\(\)/);
+  assert.doesNotMatch(documentExtractionSource, /pdf-parse\/lib\/pdf-parse/);
 });

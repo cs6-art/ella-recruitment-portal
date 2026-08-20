@@ -8,6 +8,7 @@ import ActionFeedback from "@/components/ActionFeedback";
 import UiIcon from "@/components/UiIcon";
 import ValidationSummary from "@/components/ValidationSummary";
 import { DEPARTMENT_OPTIONS, isKnownDepartment } from "@/lib/department-options";
+import { toDateInputValue } from "@/lib/date-only";
 import { roleRequestSchema } from "@/lib/role-schema";
 import type { RoleAiDraft } from "@/lib/role-ai-draft-schema";
 
@@ -103,6 +104,7 @@ export default function RoleRequestForm({ user, roleId, status = "", initialValu
   const initialForm = useMemo<FormState>(() => ({
     ...initial,
     ...initialValues,
+    targetHiringDate: toDateInputValue(initialValues?.targetHiringDate),
     hodEmail: HR_INTERVIEW_EMAIL,
   }), [initialValues]);
   const [form, setForm] = useState<FormState>(() => initialForm);
