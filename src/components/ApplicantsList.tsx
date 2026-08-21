@@ -74,7 +74,13 @@ function formatDate(value: string) {
  */
 function applicantSortTimestamp(applicant: ApplicantSummary) {
   const parsed = Date.parse(applicant.appliedAt);
-  if (Number.isFinite(parsed)) return parsed;
+  if (Number.isFinite(parsed)) {
+    // A few legacy/demo rows were written with a Singapore-local clock but a
+    // trailing `Z`, making them appear hours in the future. Never let those
+    // malformed values outrank a real application submitted just now.
+    if (parsed > Date.now() + 5 * 60 * 1000) return 0;
+    return parsed;
+  }
   const timestampedId = applicant.applicationId.match(/^APP-(\d{13})-/i);
   return timestampedId ? Number(timestampedId[1]) : 0;
 }
