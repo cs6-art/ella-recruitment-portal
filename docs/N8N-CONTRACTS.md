@@ -272,6 +272,14 @@ are stored as blank and do not prevent the applicant from appearing in the
 portal. See `docs/AUTOMATED-BULK-RESUME-SCREENING.md` for operations and access
 requirements.
 
+Portal multi-file uploads emit one `bulk_resume_batch_complete` event to the
+canonical role-request webhook after every selected file has received a
+terminal response from the bulk intake workflow. The active role-request
+workflow sends one internal HTML summary through Gmail account 4 to
+`cs6@mclinkgroup.com`, `cs9@mclinkgroup.com`, `mgt@mclinkgroup.com`, and
+`hrsg@mclinkgroup.com`. This notification is internal-only; no candidate is
+included as a recipient.
+
 ## Recruitment Setup stage actions
 
 The portal keeps the event name `recruitment_setup_updated` and adds a

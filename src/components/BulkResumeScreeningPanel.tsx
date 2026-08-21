@@ -76,11 +76,18 @@ export default function BulkResumeScreeningPanel({ roleOptions, driveUrl }: { ro
       const result = await response.json();
       if (!response.ok || result.success !== true) throw new Error(result.error || "Unable to submit the bulk resumes.");
       const submitted = Number(result.submitted || 0);
+      const completed = (result.results || []).filter((item: { status?: string }) => ["screened", "processed"].includes(String(item.status || "").toLowerCase())).length;
+      const notificationStatus = String(result.notificationStatus || "not_configured");
       const skippedResults = (result.results || []).filter((item: { skipped?: boolean }) => item.skipped) as Array<{ status?: string; message?: string }>;
       const alreadyScreened = skippedResults.filter((item) => item.status?.toLowerCase() === "screened").length;
       const alreadyActive = skippedResults.length - alreadyScreened;
-      const uploadSummary = submitted ? `${submitted} resume${submitted === 1 ? "" : "s"} queued for screening` : "No new resumes were queued";
-      setUploadMessage(`${uploadSummary}${alreadyScreened ? `; ${alreadyScreened} already screened and skipped` : ""}${alreadyActive ? `; ${alreadyActive} already queued or processing` : ""}.`);
+      const uploadSummary = completed || submitted ? `${completed || submitted} resume${(completed || submitted) === 1 ? "" : "s"} processed` : "No new resumes were processed";
+      const notificationSummary = notificationStatus === "sent"
+        ? " Internal completion email sent to HR and management."
+        : notificationStatus === "pending"
+          ? " Processing finished; the internal completion email is pending."
+          : " Internal completion email is not configured.";
+      setUploadMessage(`${uploadSummary}${alreadyScreened ? `; ${alreadyScreened} already screened and skipped` : ""}${alreadyActive ? `; ${alreadyActive} already queued or processing` : ""}.${notificationSummary}`);
       setFiles([]);
       await refreshStatus();
       router.refresh();

@@ -58,6 +58,9 @@ export async function POST(request: Request) {
     const queue = await getBulkResumeQueue(roleId);
     const latestByFile = new Map(queue.map((item) => [item.driveFileId, item]));
     const results: Array<Record<string, unknown>> = [];
+    // Keep one correlation id for the complete upload so the internal
+    // notification contains a single, auditable batch summary.
+    const batchId = `BATCH-${new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 14)}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
 
     for (const file of files) {
       let stored: Awaited<ReturnType<typeof storeResumeFile>> | null = null;
@@ -75,6 +78,7 @@ export async function POST(request: Request) {
 
         const payload = {
           eventType: "bulk_resume_uploaded",
+          batchId,
           queueId,
           roleId,
           applicationId: `APP-${crypto.createHash("sha256").update(`${roleId}:${stored.record.sha256}`).digest("hex").slice(0, 24)}`,
@@ -93,6 +97,8 @@ export async function POST(request: Request) {
           cache: "no-store",
         });
         if (!response.ok) throw new Error(`The screening workflow returned HTTP ${response.status}.`);
+        const workflowResult = await response.json().catch(() => ({})) as Record<string, unknown>;
+        const terminalStatus = String(workflowResult.status || "Screened");
 
         latestByFile.set(queueId, {
           driveFileId: queueId,
@@ -101,7 +107,7 @@ export async function POST(request: Request) {
           roleId,
           candidateName: "",
           candidateEmail: "",
-          status: "Processing",
+          status: terminalStatus,
           applicationId: payload.applicationId,
           errorMessage: "",
           discoveredAt: payload.submittedAt,
@@ -110,14 +116,49 @@ export async function POST(request: Request) {
           attemptCount: String(Number(previous?.attemptCount || 0) + 1),
           lastUpdated: payload.submittedAt,
         });
-        results.push({ fileName: stored.record.fileName, queueId, applicationId: payload.applicationId, status: "Processing" });
+        results.push({ fileName: stored.record.fileName, queueId, applicationId: payload.applicationId, status: terminalStatus });
       } catch (error) {
         if (stored && !results.some((result) => result.queueId === queueIdForHash(roleId, stored?.record.sha256 || ""))) await deleteResumeFile(stored.record).catch(() => undefined);
         results.push({ fileName: file.name, status: "Failed", error: error instanceof Error ? error.message : "Unable to submit this resume." });
       }
     }
 
-    return NextResponse.json({ success: true, roleId, results, submitted: results.filter((result) => result.status === "Processing").length }, { status: 202 });
+    // The bulk webhook returns after each item has been recorded. The API
+    // emits one internal completion event only after every selected file has
+    // reached a terminal queue status, preserving a single batch summary.
+    let notificationStatus: "sent" | "pending" | "not_configured" = "not_configured";
+    const notificationUrl = (process.env.N8N_ROLE_REQUEST_WEBHOOK_URL || process.env.N8N_ROLE_WEBHOOK_URL || "").trim();
+    if (notificationUrl && webhookSecret && files.length > 0) {
+      try {
+        const notificationResponse = await fetch(notificationUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Webhook-Secret": webhookSecret, "X-Idempotency-Key": `bulk-batch-${batchId}` },
+          body: JSON.stringify({
+            eventType: "bulk_resume_batch_complete",
+            batchId,
+            roleId,
+            roleTitle: role.jobTitle || "",
+            submittedByEmail: user.email,
+            totalFiles: files.length,
+            submitted: results.filter((result) => ["Screened", "Processed"].includes(String(result.status))).length,
+            skipped: results.filter((result) => result.skipped === true).length,
+            failed: results.filter((result) => result.status === "Failed").length,
+            results,
+            completedAt: new Date().toISOString(),
+            source: "Portal Bulk Upload",
+          }),
+          cache: "no-store",
+        });
+        notificationStatus = notificationResponse.ok ? "sent" : "pending";
+      } catch (error) {
+        // Upload success must not be rolled back because an internal alert is
+        // temporarily unavailable; the queue records remain authoritative.
+        console.error("[Bulk Resume Upload] completion notification failed:", error);
+        notificationStatus = "pending";
+      }
+    }
+
+    return NextResponse.json({ success: true, roleId, batchId, results, notificationStatus, submitted: results.filter((result) => ["Screened", "Processed"].includes(String(result.status))).length }, { status: 202 });
   } catch (error) {
     console.error("[Bulk Resume Upload] POST failed:", error);
     return responseError(error instanceof Error ? error.message : "Unable to upload bulk resumes.", 400);
