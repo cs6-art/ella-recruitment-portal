@@ -402,6 +402,11 @@ function mapApplicant(record: SheetRow, isHistoricalDemo = false): ApplicantSumm
   const finalStatus = field(record, "Final_Status");
   const voiceStatus = field(record, "Status 2 (Voice Interview)");
   const finalInterviewStatus = field(record, "Status 3 (Final Interview)");
+  // Demo and bulk-import rows can carry a generated application date that is
+  // ahead of the portal's local calendar date. Keep the source sheet intact,
+  // but never present an applicant as applied in the future in the UI.
+  const rawAppliedAt = field(record, "Date_of_Application", "Date of Application");
+  const appliedAt = clampFutureApplicationDate(rawAppliedAt);
   return {
     applicationId: applicationId(record),
     candidateName: field(record, "Candidate_Name", "Candidate Name", "Name"),
@@ -410,7 +415,7 @@ function mapApplicant(record: SheetRow, isHistoricalDemo = false): ApplicantSumm
     roleId: field(record, "Role_ID", "Role ID"),
     selectedRole: field(record, "Selected_Role", "Selected Role", "Role"),
     department: field(record, "Department"),
-    appliedAt: field(record, "Date_of_Application", "Date of Application"),
+    appliedAt,
     matchScore: field(record, "Match_Score", "Match Score"),
     recommendation: displayHrInterviewText(displayInterviewStageText(workflowRecommendationFor(record))),
     cvRecommendation: field(record, "Recommendation"),
@@ -422,6 +427,20 @@ function mapApplicant(record: SheetRow, isHistoricalDemo = false): ApplicantSumm
     nextAction: displayHrInterviewText(displayInterviewStageText(nextActionFor(record))),
     isHistoricalDemo,
   };
+}
+
+function clampFutureApplicationDate(value: string, timeZone = process.env.PORTAL_TIMEZONE || "Asia/Singapore") {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  const formatDate = (date: Date) => new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+  const appliedDate = formatDate(parsed);
+  const today = formatDate(new Date());
+  return appliedDate > today ? today : value;
 }
 
 function calendarDate(value: string, timeZone: string) {

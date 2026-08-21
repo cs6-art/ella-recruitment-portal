@@ -83,6 +83,18 @@ function nextWeekday(iso: string) {
 }
 
 /**
+ * Keep demo role calendars open for the current presentation window. The
+ * source role seeds intentionally retain their historical creation dates, but
+ * an old derived target date would otherwise make every calendar appear
+ * overdue. A deterministic offset keeps dates stable between refreshes while
+ * spreading them across the next few working weeks.
+ */
+function futureTargetHiringDate(today: string, roleIndex: number) {
+  const offsetDays = 1 + ((roleIndex * 3) % 14);
+  return nextWeekday(addDays(today, offsetDays));
+}
+
+/**
  * Historical demo appointments should read like attendance data, not a list
  * of future bookings. Future appointments remain booked; past appointments
  * are mostly completed with a small, believable no-show rate.
@@ -304,7 +316,11 @@ function buildDataset(today: string): DemoDataset {
       createdAt: timestamp(seed.createdAt, 9 + (index % 7), (index * 13) % 60),
       requesterEmail: requester.email,
       requesterName: requester.name,
-      targetHiringDate: addDays(seed.createdAt, 60),
+      // Demo roles are presented as active recruiting requests. Keep every
+      // derived target date in the future so the calendar does not show an
+      // overdue overlay during a client demo, without changing the source
+      // sheet's historical creation date.
+      targetHiringDate: futureTargetHiringDate(today, index),
       department: seed.department,
       requestType: index % 5 === 0 ? "Staff Replacement" : "Staff Addition",
       jobTitle: seed.jobTitle,
