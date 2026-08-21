@@ -405,7 +405,17 @@ function mapApplicant(record: SheetRow, isHistoricalDemo = false): ApplicantSumm
   // Demo and bulk-import rows can carry a generated application date that is
   // ahead of the portal's local calendar date. Keep the source sheet intact,
   // but never present an applicant as applied in the future in the UI.
-  const rawAppliedAt = field(record, "Date_of_Application", "Date of Application");
+  const rawAppliedAt = field(
+    record,
+    "Date_of_Application",
+    "Date of Application",
+    "Applied_At",
+    "Applied At",
+    "Created_At",
+    "Created At",
+    "Submitted_At",
+    "Submitted At",
+  );
   const appliedAt = clampFutureApplicationDate(rawAppliedAt);
   return {
     applicationId: applicationId(record),

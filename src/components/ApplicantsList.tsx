@@ -66,6 +66,19 @@ function formatDate(value: string) {
   return formatPortalDateTime(value, false);
 }
 
+/**
+ * Keep the operational table ordered by the actual application timestamp.
+ * Some sheet rows contain a date-only value, while live submissions use an
+ * ISO timestamp embedded in the application ID; use both when available so
+ * a newly submitted applicant cannot fall onto a later pagination page.
+ */
+function applicantSortTimestamp(applicant: ApplicantSummary) {
+  const parsed = Date.parse(applicant.appliedAt);
+  if (Number.isFinite(parsed)) return parsed;
+  const timestampedId = applicant.applicationId.match(/^APP-(\d{13})-/i);
+  return timestampedId ? Number(timestampedId[1]) : 0;
+}
+
 function scoreValue(value: string) {
   if (!value) return "—";
   return formatMatchScore(value);
@@ -131,6 +144,12 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
         // applicant merely because the role metadata is behind it.
         (roleFilter === "All Roles" || applicant.roleId === selectedRole?.roleId || applicantRole === roleFilter || applicant.selectedRole === selectedRole?.label) &&
         (stageFilter === "All Stages" || dashboardStageLabel(applicant.currentStage) === stageFilter || applicant.currentStage === stageFilter);
+    }).sort((left, right) => {
+      const dateDifference = applicantSortTimestamp(right) - applicantSortTimestamp(left);
+      if (dateDifference !== 0) return dateDifference;
+      // Keep ordering deterministic when multiple applications share the same
+      // date-only value.
+      return right.applicationId.localeCompare(left.applicationId);
     });
   }, [activeApplicants, roleFilter, roleOptions, search, stageFilter]);
 
@@ -143,6 +162,12 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
   }, [page, totalPages]);
+
+  // A refresh after a new submission should return HR to the first page,
+  // where the newest applicant is now visible.
+  useEffect(() => {
+    setPage(1);
+  }, [applicants]);
 
   const voiceCount = activeApplicants.filter((applicant) => applicant.voiceStatus || applicant.finalStatus.toLowerCase().includes("voice")).length;
   const finalInterviewCount = activeApplicants.filter((applicant) => applicant.finalInterviewStatus && applicant.finalInterviewStatus.toLowerCase() !== "pending").length;
