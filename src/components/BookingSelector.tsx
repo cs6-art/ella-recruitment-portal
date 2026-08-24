@@ -67,8 +67,8 @@ export default function BookingSelector({ token, initialContext }: { token: stri
       setError("Select an available time first.");
       return;
     }
-    const preferredMobile = `${countryCode}${cleanDigits(localMobile)}`;
-    if (!localMobile.trim()) {
+    const preferredMobile = context.kind === "voice" ? `${countryCode}${cleanDigits(localMobile)}` : "";
+    if (context.kind === "voice" && !localMobile.trim()) {
       setError("Confirm your preferred mobile number before booking.");
       return;
     }
@@ -106,7 +106,7 @@ export default function BookingSelector({ token, initialContext }: { token: stri
       <small>{completed ? "The recruitment team has received the interview result." : "You may close this page. The recruitment team has received your booking."}</small>
     </div> : noAvailability ? <div className="booking-empty booking-no-availability" role="status"><strong>No times are currently available</strong><p>Please reply to your interview invitation email so the recruitment team can send you a new booking link.</p></div> : <>
       {noShow && <div className="booking-notice">This interview was marked <strong>No Show</strong>. You may choose a replacement time below.</div>}
-      <div className="field booking-mobile-field"><span>Preferred mobile number *</span><div className="contact-number-controls"><label><CountrySelect ariaLabel="Country code" value={countryCode} disabled={saving} onChange={setCountryCode} /></label><label><span className="sr-only">Local mobile number</span><input required aria-label="Local mobile number" inputMode="numeric" value={localMobile} disabled={saving} placeholder={(countryOptions.find((country) => country.code === countryCode) || countryOptions[0]).placeholder} onChange={(event) => setLocalMobile(cleanDigits(event.target.value))} /></label></div><small>Enter the local number only, without the country code.</small></div>
+      {context.kind === "voice" && <div className="field booking-mobile-field"><span>Preferred mobile number *</span><div className="contact-number-controls"><label><CountrySelect ariaLabel="Country code" value={countryCode} disabled={saving} onChange={setCountryCode} /></label><label><span className="sr-only">Local mobile number</span><input required aria-label="Local mobile number" inputMode="numeric" value={localMobile} disabled={saving} placeholder={(countryOptions.find((country) => country.code === countryCode) || countryOptions[0]).placeholder} onChange={(event) => setLocalMobile(cleanDigits(event.target.value))} /></label></div><small>Enter the local number only, without the country code.</small></div>}
       <div className="booking-section-heading"><h2>Choose a date</h2><span>{context.slots.length} available times</span></div>
       {context.slots.length === 0 ? <div className="booking-empty">There are no available times right now. Please contact the recruitment team for a new booking link.</div> : <>
       <div className="booking-date-cards" aria-label="Available interview dates">{dates.map((date) => <button type="button" key={date} className={`booking-date-card ${selectedDate === date ? "is-selected" : ""}`} onClick={() => { setSelectedDate(date); setSelected(""); setError(""); }}><strong>{displayDate(date)}</strong><span>{slotsByDate.get(date)?.length || 0} available time{slotsByDate.get(date)?.length === 1 ? "" : "s"}</span></button>)}</div>
@@ -114,7 +114,7 @@ export default function BookingSelector({ token, initialContext }: { token: stri
         <div className="booking-time-list">{selectedDateSlots.map((slot) => <button type="button" className={`booking-slot ${selected === slot.slotId ? "booking-slot-selected" : ""}`} key={slot.slotId} onClick={() => setSelected(slot.slotId)}><strong>{slot.startTime} - {slot.endTime}</strong><small>{slot.timezone}</small></button>)}</div>
       </>}
       {error && <ValidationSummary error={error} title="Booking failed" />}
-      <button type="button" className="booking-submit" disabled={saving || !selected || !localMobile.trim() || context.slots.length === 0} onClick={() => void reserve()}>{saving ? "Confirming..." : noShow ? "Confirm new interview time" : "Confirm interview time"}</button>
+      <button type="button" className="booking-submit" disabled={saving || !selected || (context.kind === "voice" && !localMobile.trim()) || context.slots.length === 0} onClick={() => void reserve()}>{saving ? "Confirming..." : noShow ? "Confirm new interview time" : "Confirm interview time"}</button>
     </>}
     <p className="booking-help">Need help? Reply to the interview invitation email.</p>
   </section></main>;

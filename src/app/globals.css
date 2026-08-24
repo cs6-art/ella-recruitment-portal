@@ -1525,7 +1525,10 @@ html { scroll-behavior: smooth; }
 .table-danger-action:hover, .table-danger-action:focus-visible { text-decoration: underline; }
 .table-danger-action:disabled { opacity: .55; cursor: wait; }
 .btn-danger-outline { border: 1px solid #e3a39c; color: #a12b22; background: #fff8f7; }
-.btn-danger-outline:hover, .btn-danger-outline:focus-visible { border-color: #c95449; background: #fff0ee; }
+/* An earlier .btn-danger-outline:hover rule sets color:#fff; this rule wins
+   the cascade for border/background but must restate color, or the earlier
+   white text is left standing against this near-white background. */
+.btn-danger-outline:hover, .btn-danger-outline:focus-visible { border-color: #c95449; background: #fff0ee; color: #a12b22; }
 .roles-action-feedback { margin: 0 20px 14px; }
 /* Rendered directly in the page flow (not nested inside a card like
    .roles-action-feedback), so it should align flush with .hero-row and

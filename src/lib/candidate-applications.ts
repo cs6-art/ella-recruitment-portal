@@ -577,7 +577,14 @@ export async function demoActionBlockReason(targetApplicationId: string): Promis
 export async function getApplicants(): Promise<ApplicantSummary[]> {
   // No-show maintenance runs in the background. Keep the Applicants page
   // focused on reading the data it needs to render.
-  const live = (await readTab("High_Match_Profile", "CZ")).rows;
+  // Same cross-instance staleness this codebase already works around for the
+  // detail page (see readTab's fresh option above): a create/update/delete
+  // request and the router.refresh() that follows it can land on different
+  // serverless instances, so the process-local cache here can still be
+  // serving a pre-mutation snapshot. This is the primary applicant list, so
+  // bypass the cache rather than risk showing a just-deleted or just-edited
+  // record as unchanged.
+  const live = (await readTab("High_Match_Profile", "CZ", { fresh: true })).rows;
   const operational = withDemoApplicantList(live).map((record) => mapApplicant(record));
   // Keep generated history out of the default table, but provide it to the
   // client so an explicit dashboard-stage filter can show read-only examples.

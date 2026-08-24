@@ -5,9 +5,11 @@ import { z } from "zod";
 
 import {
   getRoleRequestById,
+  getRoleRequests,
   getRoleStatusHistory,
   updateRoleRequestFields,
 } from "@/lib/google-sheets";
+import { generateRoleId } from "@/lib/role-id";
 import { invalidateSheetsCache } from "@/lib/sheets-cache";
 import {
   COOKIE_NAME,
@@ -190,6 +192,24 @@ export async function POST(
       if (!role.reasonForRequest?.trim()) missingFields.push("Reason_For_Request");
       if (!role.targetHiringDate?.trim()) missingFields.push("Target_Hiring_Date");
       if (missingFields.length) return jsonError("Complete the requisition before requesting approval.", 409, { code: "REQUISITION_INCOMPLETE", missingFields });
+    }
+
+    // Autosaved drafts are identified by a client-generated DRAFT-<uuid> id
+    // that was never meant to be permanent. The first time a draft leaves the
+    // Draft status, rename it to the same readable, sequential Role_ID scheme
+    // used for roles created directly (e.g. CSE02), so the "DRAFT-..." id
+    // never surfaces once HR, management, or the public posting sees it.
+    if (action === "submit_draft_for_hr" && role.roleId.startsWith("DRAFT-")) {
+      try {
+        const existingRoles = await getRoleRequests();
+        const renamedRoleId = generateRoleId(role.jobTitle, existingRoles.map((existingRole) => existingRole.roleId));
+        await updateRoleRequestFields(role.roleId, { Role_ID: renamedRoleId });
+        invalidateSheetsCache("Role_Requests");
+        role.roleId = renamedRoleId;
+      } catch (renameError) {
+        // Keep the DRAFT- id rather than block submission if the rename fails.
+        console.error("[API Role Status] Could not rename draft role ID:", renameError);
+      }
     }
 
     const history = await getRoleStatusHistory(role.roleId);

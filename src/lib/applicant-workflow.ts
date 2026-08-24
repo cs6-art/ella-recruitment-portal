@@ -821,8 +821,12 @@ export async function reserveBooking(kind: BookingKind, token: string, slotId: s
 async function reserveBookingInternal(kind: BookingKind, token: string, slotId: string, preferredMobile: string) {
   const cleanSlotId = text(slotId);
   if (!cleanSlotId) throw new Error("Choose an interview slot.");
-  const confirmedMobile = normalizePreferredMobile(preferredMobile);
-  if (!isPreferredMobileValid(confirmedMobile)) throw new Error("Confirm a valid preferred mobile number in international format.");
+  // A mobile number is only needed for the AI voice interview, which calls
+  // the candidate. The HR interview is a calendar booking, not a phone call,
+  // and the candidate's contact number is already on file from their
+  // application, so re-collecting it here is unnecessary friction.
+  const confirmedMobile = kind === "voice" ? normalizePreferredMobile(preferredMobile) : "";
+  if (kind === "voice" && !isPreferredMobileValid(confirmedMobile)) throw new Error("Confirm a valid preferred mobile number in international format.");
   const [context, slotsData, applicantData] = await Promise.all([getBookingContext(kind, token), readSheet("Interview_Slots", "X"), readSheet("High_Match_Profile", "CZ")]);
   if (!context) throw new Error("This booking link is invalid or expired.");
   if (!isDemoSideEffectAllowed(context.appliedAt)) {
@@ -925,12 +929,17 @@ async function reserveBookingInternal(kind: BookingKind, token: string, slotId: 
       );
     }
   }
-  updates.push(
-    { tab: "High_Match_Profile", row: applicantRow, header: "Preferred_Mobile", value: asTextCell(confirmedMobile) },
-    { tab: "High_Match_Profile", row: applicantRow, header: "Contact_Number", value: asTextCell(confirmedMobile) },
-    { tab: "High_Match_Profile", row: applicantRow, header: "Contact Number", value: asTextCell(confirmedMobile) },
-    { tab: "High_Match_Profile", row: applicantRow, header: "Applicant_Country", value: field(applicantData.rows[applicantIndex], "Applicant_Country") || inferApplicantCountry(confirmedMobile) },
-  );
+  // Only the voice booking collects a mobile number - do not overwrite the
+  // applicant's existing contact number with a blank value when booking the
+  // HR (final) interview.
+  if (kind === "voice") {
+    updates.push(
+      { tab: "High_Match_Profile", row: applicantRow, header: "Preferred_Mobile", value: asTextCell(confirmedMobile) },
+      { tab: "High_Match_Profile", row: applicantRow, header: "Contact_Number", value: asTextCell(confirmedMobile) },
+      { tab: "High_Match_Profile", row: applicantRow, header: "Contact Number", value: asTextCell(confirmedMobile) },
+      { tab: "High_Match_Profile", row: applicantRow, header: "Applicant_Country", value: field(applicantData.rows[applicantIndex], "Applicant_Country") || inferApplicantCountry(confirmedMobile) },
+    );
+  }
   let queueValues: string[] | null = null;
   if (kind === "voice") {
     updates.push(

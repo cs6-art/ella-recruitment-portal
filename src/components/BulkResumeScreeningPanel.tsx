@@ -90,6 +90,7 @@ export default function BulkResumeScreeningPanel({ roleOptions, driveUrl }: { ro
       setUploadMessage(`${uploadSummary}${alreadyScreened ? `; ${alreadyScreened} already screened and skipped` : ""}${alreadyActive ? `; ${alreadyActive} already queued or processing` : ""}.${notificationSummary}`);
       setFiles([]);
       await refreshStatus();
+      router.push("/applicants");
       router.refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to submit the bulk resumes.");
