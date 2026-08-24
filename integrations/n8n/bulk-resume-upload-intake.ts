@@ -14,11 +14,15 @@ const queueSchema = [
 
 const queueParameters = {
   resource: 'sheet',
-  operation: 'appendOrUpdate',
+  // Portal submissions already reserve hashes before calling n8n. Keep the
+  // terminal queue event append-only so concurrent intake executions do not
+  // each perform another Sheets read to locate a matching row; the portal
+  // collapses this event history by role + stable jobId/Drive identity.
+  operation: 'append',
   authentication: 'serviceAccount',
   documentId: { __rl: true, mode: 'id', value: sheetDocument },
   sheetName: { __rl: true, mode: 'name', value: 'Bulk_Resume_Queue' },
-  columns: { mappingMode: 'autoMapInputData', value: {}, matchingColumns: ['jobId'], schema: queueSchema },
+  columns: { mappingMode: 'autoMapInputData', value: {}, schema: queueSchema },
   options: { handlingExtraData: 'ignoreIt', cellFormat: 'USER_ENTERED', locationDefine: { values: { headerRow: 1 } } },
 };
 const queueCredentials = { googleApi: newCredential('Google Sheets Service Account') };

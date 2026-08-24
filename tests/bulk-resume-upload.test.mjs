@@ -71,13 +71,13 @@ test("the intake handoff uses the verified Production Foundation webhook and pre
   assert.match(intake, /neverError: true/);
 });
 
-test("queue state writes upsert by stable jobId instead of racing append row positions", () => {
+test("portal intake appends terminal queue events without per-item Sheets reads", () => {
   const intake = read("integrations/n8n/bulk-resume-upload-intake.ts");
   assert.doesNotMatch(intake, /Read Bulk Resume Queue/);
   assert.doesNotMatch(intake, /Record Resume Processing/);
   assert.match(intake, /const environment = text\(body\.environment\)/);
-  assert.match(intake, /operation: 'appendOrUpdate'/);
-  assert.match(intake, /matchingColumns: \['jobId'\]/);
+  assert.match(intake, /operation: 'append'/);
+  assert.doesNotMatch(intake, /matchingColumns: \['jobId'\]/);
   assert.match(intake, /schema: queueSchema/);
   assert.match(intake, /Candidate Foundation handoff failed before a response was received/);
 });
