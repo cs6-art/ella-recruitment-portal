@@ -90,11 +90,25 @@ test("live bulk status reads are fresh and expose the downstream queue as the so
   assert.match(queue, /getBulkResumeQueue\(roleId = "", options: \{ fresh\?: boolean \} = \{\}\)/);
   assert.match(queue, /freshSheetsRead/);
   assert.match(queue, /getBulkResumeScreeningEvidence/);
+  assert.match(queue, /Bulk_Resume_Queue", "U"/);
   assert.match(cache, /export async function freshSheetsRead/);
   assert.match(route, /saved applicant screening result/);
   assert.match(route, /getBulkResumeQueue\(roleId, \{ fresh: true \}\)/);
   assert.match(route, /productionUatActive/);
   assert.match(route, /configuredProductionUatBatchId/);
+});
+
+test("bulk status reconciliation supports historical identifiers and expires stale terminal waits", () => {
+  const queue = read("src/lib/candidate-applications.ts");
+  const route = read("src/app/api/resume-screening/bulk/route.ts");
+  assert.match(queue, /byJobId/);
+  assert.match(queue, /byApplicationId/);
+  assert.match(queue, /byResumeSha/);
+  assert.match(queue, /byDriveFileId/);
+  assert.match(queue, /byRoleAndFileName/);
+  assert.match(route, /STALE_PROCESSING_MS = 30 \* 60 \* 1000/);
+  assert.match(route, /Applicant result could not be persisted/);
+  assert.match(route, /Screening did not produce a saved result within 30 minutes/);
 });
 
 test("uploaded resumes keep a traceable Drive link back to the candidate/application", () => {
@@ -116,6 +130,8 @@ test("the bulk panel supports drag-and-drop, live auto-refresh, and retrying onl
   assert.match(panel, /refreshInFlight/);
   assert.match(panel, /AbortController/);
   assert.match(panel, /successful completion must come from the queue-backed status API/);
+  assert.match(panel, /const POLL_INTERVAL_MS = 60000/);
+  assert.match(panel, /updates automatically every minute/);
 });
 
 test("bulk upload is wired into the live Resume Screening page", () => {

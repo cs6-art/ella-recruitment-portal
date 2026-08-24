@@ -21,7 +21,7 @@ type QueueItem = {
 };
 
 const statusOrder = ["Queued", "Processing", "Completed", "Failed", "Skipped"];
-const POLL_INTERVAL_MS = 2500;
+const POLL_INTERVAL_MS = 60000;
 const TERMINAL_STATUSES = new Set(["screened", "processed", "failed", "skipped"]);
 
 function statusClass(status: string) {
@@ -363,7 +363,7 @@ export default function BulkResumeScreeningPanel({ roleOptions, driveUrl }: { ro
         )}
 
         <div className="bulk-screening-status-header">
-          <div><strong>Screening queue</strong><small>{roleId ? `Status for ${roleId}${anyPending ? " · updating automatically" : ""}` : "Select a role to view its queue"}</small></div>
+          <div><strong>Screening queue</strong><small>{roleId ? `Status for ${roleId}${anyPending ? " · updates automatically every minute" : ""}` : "Select a role to view its queue"}</small></div>
           <button type="button" className="btn btn-secondary" onClick={() => void refreshStatus()} disabled={loading}>{loading ? "Refreshing..." : "Refresh status"}</button>
         </div>
 

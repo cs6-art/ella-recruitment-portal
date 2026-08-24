@@ -8,6 +8,7 @@ import { getRoleRequests, isPublishedRoleForIntake } from "@/lib/google-sheets";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
+const STALE_PROCESSING_MS = 30 * 60 * 1000;
 
 function errorResponse(error: string, status: number) {
   return NextResponse.json({ success: false, error }, { status });
@@ -34,18 +35,35 @@ export async function GET(request: Request) {
     // polled while work is active; read the queue fresh so the UI never turns
     // a stale snapshot into a misleading completion state.
     const queueItems = (await getBulkResumeQueue(roleId, { fresh: true })).filter((item) => publishedRoleIds.has(item.roleId.toLowerCase()));
-    const terminalItems = queueItems.filter((item) => ["screened", "processed"].includes(item.status.toLowerCase()));
-    const screeningEvidence = await getBulkResumeScreeningEvidence(terminalItems.map((item) => item.applicationId));
+    // Reconcile every current queue item, including historical rows that were
+    // written before jobId existed. The evidence matcher falls back through
+    // application ID, SHA, Drive file ID, role-scoped filename, and unique
+    // candidate identifiers without allowing cross-role matches.
+    const screeningEvidence = await getBulkResumeScreeningEvidence(queueItems);
+    const now = Date.now();
+    const queueAge = (item: (typeof queueItems)[number]) => {
+      const timestamp = Date.parse(item.lastUpdated || item.processedAt || item.processingStartedAt || item.discoveredAt);
+      return Number.isFinite(timestamp) ? now - timestamp : Number.MAX_SAFE_INTEGER;
+    };
     const items = queueItems.map((item) => {
-      if (!["screened", "processed"].includes(item.status.toLowerCase())) return item;
-      if (item.applicationId && screeningEvidence.has(item.applicationId.toLowerCase())) return item;
-      // Do not expose a terminal-looking queue event as Completed until the
-      // corresponding applicant row contains the saved AI result.
-      return {
-        ...item,
-        status: "Processing",
-        errorMessage: "Waiting for the saved applicant screening result.",
-      };
+      const rawStatus = item.status.toLowerCase();
+      const hasEvidence = screeningEvidence.has(`${item.roleId.toLowerCase()}|${item.driveFileId.toLowerCase()}`);
+      if (hasEvidence && ["screened", "processed", "processing"].includes(rawStatus)) {
+        return { ...item, status: "Screened", errorMessage: "" };
+      }
+      if (["screened", "processed"].includes(rawStatus)) {
+        // A recent Screened event can briefly precede the applicant write. An
+        // old one is no longer active work and must be visible as a durable
+        // failure rather than an endless Processing item.
+        if (queueAge(item) >= STALE_PROCESSING_MS) {
+          return { ...item, status: "Failed", errorMessage: "Applicant result could not be persisted." };
+        }
+        return { ...item, status: "Processing", errorMessage: "Waiting for the saved applicant screening result." };
+      }
+      if (rawStatus === "processing" && queueAge(item) >= STALE_PROCESSING_MS) {
+        return { ...item, status: "Failed", errorMessage: "Screening did not produce a saved result within 30 minutes." };
+      }
+      return item;
     });
     const counts = items.reduce<Record<string, number>>((result, item) => {
       const status = item.status || "Queued";

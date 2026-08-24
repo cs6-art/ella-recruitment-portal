@@ -164,6 +164,10 @@ export type BulkResumeQueueItem = {
   processedAt: string;
   attemptCount: string;
   lastUpdated: string;
+  environment?: string;
+  isUat?: boolean;
+  batchId?: string;
+  jobId?: string;
 };
 
 type SheetRow = Record<string, string>;
@@ -683,7 +687,7 @@ export async function getActiveBookingLinkRoleIds() {
 }
 
 export async function getBulkResumeQueue(roleId = "", options: { fresh?: boolean } = {}): Promise<BulkResumeQueueItem[]> {
-  const { rows } = await readTab("Bulk_Resume_Queue", "R", { ...options, spreadsheetId: bulkResumeSpreadsheetId() });
+  const { rows } = await readTab("Bulk_Resume_Queue", "U", { ...options, spreadsheetId: bulkResumeSpreadsheetId() });
   const normalizedRoleId = roleId.trim().toLowerCase();
   const latestByFile = new Map<string, BulkResumeQueueItem>();
   const eventTimestamp = (item: BulkResumeQueueItem) => {
@@ -706,42 +710,116 @@ export async function getBulkResumeQueue(roleId = "", options: { fresh?: boolean
       processedAt: field(record, "Processed_At", "Processed At", "processedAt"),
       attemptCount: field(record, "Attempt_Count", "Attempt Count", "attemptCount"),
       lastUpdated: field(record, "Last_Updated", "Last Updated", "lastUpdated"),
+      environment: field(record, "Environment", "environment"),
+      isUat: ["true", "1", "yes"].includes(field(record, "Is_UAT", "Is UAT", "is_uat").toLowerCase()),
+      batchId: field(record, "Batch_ID", "Batch ID", "batchId"),
+      jobId: field(record, "Job_ID", "Job ID", "jobId"),
     }))
     .filter((item) => item.driveFileId && (!normalizedRoleId || item.roleId.toLowerCase() === normalizedRoleId))
     .forEach((item) => {
-      const previous = latestByFile.get(item.driveFileId);
+      const identity = `${item.roleId.toLowerCase()}|${item.driveFileId.toLowerCase()}`;
+      const previous = latestByFile.get(identity);
       const itemTime = eventTimestamp(item);
       const previousTime = previous ? eventTimestamp(previous) : Number.NEGATIVE_INFINITY;
       // Queue rows are append-only events. Prefer the most recently timestamped
       // event so a reordered or manually edited sheet cannot make a Screened
       // resume look Queued and send it through AI again.
       if (!previous || (Number.isFinite(itemTime) && (!Number.isFinite(previousTime) || itemTime >= previousTime))) {
-        latestByFile.set(item.driveFileId, item);
+        latestByFile.set(identity, item);
       }
     });
   return [...latestByFile.values()].sort((left, right) => eventTimestamp(right) - eventTimestamp(left));
 }
 
 /**
- * Return application IDs for which the candidate sheet contains the minimum
+ * Return queue identities for which the candidate sheet contains the minimum
  * persisted AI-screening result. The queue's Screened event is written by n8n
  * after the screening workflow responds, but this second check protects the
  * portal from showing a false completion if that workflow or its sheet write
- * is only partially successful. This read is cached because the bulk queue
- * itself is the fresh/polling source and the candidate record changes less
- * often than the queue status.
+ * is only partially successful. Matching remains backward-compatible with
+ * historical rows that predate jobId metadata.
  */
-export async function getBulkResumeScreeningEvidence(applicationIds: string[]): Promise<Set<string>> {
-  const wanted = new Set(applicationIds.map((id) => text(id).toLowerCase()).filter(Boolean));
-  if (wanted.size === 0) return new Set();
-  const { rows } = await readTab("High_Match_Profile", "CZ", { spreadsheetId: bulkResumeSpreadsheetId() });
-  return new Set(rows.filter((record) => {
-    const id = applicationId(record).toLowerCase();
-    const resumeStatus = field(record, "Status (Resume Processing)").toLowerCase();
-    return wanted.has(id)
-      && ["processed", "for hr review", "pending hr review"].includes(resumeStatus)
-      && Boolean(field(record, "Recommendation"));
-  }).map(applicationId));
+function bulkQueueKey(item: Pick<BulkResumeQueueItem, "roleId" | "driveFileId">) {
+  return `${text(item.roleId).toLowerCase()}|${text(item.driveFileId).toLowerCase()}`;
+}
+
+function normalizedFileName(value: unknown) {
+  return text(value).toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function queueResumeSha(item: BulkResumeQueueItem) {
+  const explicit = text((item as BulkResumeQueueItem & { resumeSha256?: string }).resumeSha256);
+  if (explicit) return explicit.toLowerCase();
+  const match = text(item.driveFileId).match(/^BULK-[A-Z0-9_-]+-([a-f0-9]{64})$/i);
+  return match?.[1]?.toLowerCase() || "";
+}
+
+function applicantHasScreeningEvidence(record: SheetRow) {
+  const resumeStatus = field(record, "Status (Resume Processing)").toLowerCase();
+  return ["processed", "for hr review", "pending hr review"].includes(resumeStatus)
+    && Boolean(field(record, "Recommendation"));
+}
+
+function applicantRoleMatches(item: BulkResumeQueueItem, record: SheetRow) {
+  const queueRole = text(item.roleId).toLowerCase();
+  const applicantRole = field(record, "Role_ID", "Role ID").toLowerCase();
+  return !queueRole || !applicantRole || queueRole === applicantRole;
+}
+
+/**
+ * Match queue events to persisted applicant screening evidence. New rows use
+ * jobId/applicationId; older rows often only have the Drive file ID or name.
+ * Strong identifiers are accepted directly, while filename/name fallbacks are
+ * accepted only when they identify one role-scoped applicant.
+ */
+export async function getBulkResumeScreeningEvidence(queueItems: BulkResumeQueueItem[]): Promise<Set<string>> {
+  if (queueItems.length === 0) return new Set();
+  const { rows } = await readTab("High_Match_Profile", "CZ", { fresh: true, spreadsheetId: bulkResumeSpreadsheetId() });
+  const evidenceRows = rows.filter(applicantHasScreeningEvidence);
+  const index = (valueFor: (record: SheetRow) => string) => {
+    const result = new Map<string, SheetRow[]>();
+    for (const record of evidenceRows) {
+      const value = valueFor(record).toLowerCase();
+      if (!value) continue;
+      result.set(value, [...(result.get(value) || []), record]);
+    }
+    return result;
+  };
+  const byJobId = index((record) => field(record, "Job_ID", "Job ID", "jobId"));
+  const byApplicationId = index(applicationId);
+  const byResumeSha = index((record) => field(record, "Resume_File_SHA256", "Resume File SHA256", "resumeFileSha256"));
+  const byDriveFileId = index((record) => field(record, "Resume_File_ID", "Resume File ID", "resumeFileId"));
+  const byRoleAndFileName = index((record) => `${field(record, "Role_ID", "Role ID").toLowerCase()}|${normalizedFileName(field(record, "Resume_File_Name", "Resume File Name", "resumeFileName"))}`);
+  const byRoleAndEmail = index((record) => `${field(record, "Role_ID", "Role ID").toLowerCase()}|${field(record, "Candidate_Email", "Candidate Email", "Email").toLowerCase()}`);
+  const byRoleAndName = index((record) => `${field(record, "Role_ID", "Role ID").toLowerCase()}|${normalizedFileName(field(record, "Candidate_Name", "Candidate Name", "Name"))}`);
+
+  const strongMatch = (lookup: Map<string, SheetRow[]>, key: string, item: BulkResumeQueueItem) => {
+    const matches = (lookup.get(key.toLowerCase()) || []).filter((record) => applicantRoleMatches(item, record));
+    return matches[0];
+  };
+  const uniqueMatch = (lookup: Map<string, SheetRow[]>, key: string, item: BulkResumeQueueItem) => {
+    const matches = (lookup.get(key.toLowerCase()) || []).filter((record) => applicantRoleMatches(item, record));
+    return matches.length === 1 ? matches[0] : undefined;
+  };
+
+  const matched = new Set<string>();
+  for (const item of queueItems) {
+    const role = text(item.roleId).toLowerCase();
+    const fileName = normalizedFileName(item.driveFileName);
+    const email = text(item.candidateEmail).toLowerCase();
+    const name = normalizedFileName(item.candidateName);
+    const sha = queueResumeSha(item);
+    const result =
+      strongMatch(byJobId, item.jobId || "", item)
+      || strongMatch(byApplicationId, item.applicationId, item)
+      || uniqueMatch(byResumeSha, sha, item)
+      || uniqueMatch(byDriveFileId, item.driveFileId, item)
+      || uniqueMatch(byRoleAndFileName, `${role}|${fileName}`, item)
+      || uniqueMatch(byRoleAndEmail, `${role}|${email}`, item)
+      || uniqueMatch(byRoleAndName, `${role}|${name}`, item);
+    if (result) matched.add(bulkQueueKey(item));
+  }
+  return matched;
 }
 
 export async function getApplicantById(id: string): Promise<ApplicantDetails | null> {
