@@ -19,6 +19,7 @@ const userSchema = z.object({
   canApproveRole: z.boolean(),
   canEditSettings: z.boolean(),
   canManageUsers: z.boolean(),
+  canReviewDepartmentRole: z.boolean().default(false),
   active: z.boolean(),
 });
 
@@ -85,6 +86,7 @@ async function saveAccount(request: Request, originalEmail?: string) {
       canApproveRole: user.canApproveRole,
       canEditSettings: user.canEditSettings,
       canManageUsers: user.canManageUsers,
+      canReviewDepartmentRole: user.canReviewDepartmentRole,
       active: user.active,
     };
     const users = await getDirectoryUsers();

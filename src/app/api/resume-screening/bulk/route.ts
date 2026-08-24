@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
+import { canManagePipeline } from "@/lib/access-control";
 import { getBulkResumeQueue } from "@/lib/candidate-applications";
 import { getRoleRequests, isPublishedRoleForIntake } from "@/lib/google-sheets";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
@@ -14,7 +15,7 @@ function errorResponse(error: string, status: number) {
 export async function GET(request: Request) {
   const user = verifySessionToken((await cookies()).get(COOKIE_NAME)?.value);
   if (!user) return errorResponse("Authentication required.", 401);
-  if (user.canReviewRole !== true && user.canApproveRole !== true) return errorResponse("Only HR reviewers can view bulk screening status.", 403);
+  if (!canManagePipeline(user)) return errorResponse("Only HR reviewers can view bulk screening status.", 403);
 
   const roleId = new URL(request.url).searchParams.get("roleId")?.trim() || "";
   try {

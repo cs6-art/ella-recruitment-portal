@@ -168,6 +168,7 @@ export async function POST(request: Request, context: Context) {
       eventType: "recruitment_setup_updated",
       roleId: role.roleId,
       Role_ID: role.roleId,
+      Job_Title: role.jobTitle,
       actionRequestId,
       expectedCurrentStatus: role.status,
       setupAction,

@@ -8,7 +8,7 @@ import ActionFeedback from "@/components/ActionFeedback";
 import { useConfirmation } from "@/components/ConfirmationModal";
 import UiIcon from "@/components/UiIcon";
 
-export default function ApplicantDetailActions({ applicationId, candidateName }: { applicationId: string; candidateName: string }) {
+export default function ApplicantDetailActions({ applicationId, candidateName, canManage = true }: { applicationId: string; candidateName: string; canManage?: boolean }) {
   const router = useRouter();
   const { confirm } = useConfirmation();
   const [deleting, setDeleting] = useState(false);
@@ -29,5 +29,6 @@ export default function ApplicantDetailActions({ applicationId, candidateName }:
     }
   }
 
+  if (!canManage) return null;
   return <div className="applicant-record-actions"><Link className="btn btn-secondary" href={`/applicants/${encodeURIComponent(applicationId)}/edit`}><UiIcon name="edit" size={15} />Edit applicant</Link><button className="btn btn-danger-outline" type="button" disabled={deleting} onClick={() => void deleteRecord()}><UiIcon name="trash" size={15} />{deleting ? "Deleting..." : "Delete applicant"}</button>{error && <ActionFeedback kind="error" className="applicant-record-action-error">{error}</ActionFeedback>}</div>;
 }

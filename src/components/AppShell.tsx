@@ -18,6 +18,7 @@ type AppShellUser = {
   canApproveRole?: boolean;
   canEditSettings?: boolean;
   canManageUsers?: boolean;
+  canReviewDepartmentRole?: boolean;
   active?: boolean;
 };
 
@@ -40,7 +41,12 @@ export default function AppShell({ user, children }: AppShellProps) {
   const userName = user.name?.trim() || "McLink User";
   const userEmail = user.email?.trim() || "";
   const initials = getInitials(userName, userEmail);
-  const showRoleRequests = user.canReviewRole === true || user.canApproveRole === true || user.canCreateRole === true;
+  const showRoleRequests = user.canReviewRole === true || user.canApproveRole === true || user.canCreateRole === true || user.canReviewDepartmentRole === true;
+  // Resume Screening and Bookings are HR operational tools (recruitment
+  // setup, scheduling). Management (decision-only) and HOD (department
+  // read-only) do not manage the pipeline, so they don't see these.
+  const showOperationalTools = user.canReviewRole === true;
+  const showApplicants = user.canReviewRole === true || user.canApproveRole === true || user.canReviewDepartmentRole === true;
   const isDashboard = pathname === "/dashboard";
   const isRoleList = pathname === "/roles";
   const isRoleCreate = pathname === "/roles/new";
@@ -87,11 +93,11 @@ export default function AppShell({ user, children }: AppShellProps) {
         <nav className={styles.navigation} aria-label="Main navigation">
           <Link href="/dashboard" onClick={closeSidebar} className={`${styles.navLink} ${isDashboard ? styles.navLinkActive : ""}`}><span className={styles.navIcon}><UiIcon name="dashboard" /></span><span>Dashboard</span></Link>
           {showRoleRequests && <Link href="/roles" onClick={closeSidebar} className={`${styles.navLink} ${isRoleList || isRoleDetails || isRoleCreate ? styles.navLinkActive : ""}`}><span className={styles.navIcon}><UiIcon name="roles" /></span><span>Role Requests</span></Link>}
-          {showRoleRequests && <Link href="/resume-screening" onClick={closeSidebar} className={`${styles.navLink} ${isResumeScreening ? styles.navLinkActive : ""}`}><span className={styles.navIcon}><UiIcon name="document" /></span><span>Resume Screening</span></Link>}
-          {showRoleRequests && <div className={styles.applicantBookingGroup}>
-            <Link href="/applicants" onClick={closeSidebar} className={`${styles.navLink} ${isApplicants ? styles.navLinkActive : ""}`}><span className={styles.navIcon}><UiIcon name="applicants" /></span><span>Applicants</span></Link>
+          {showOperationalTools && <Link href="/resume-screening" onClick={closeSidebar} className={`${styles.navLink} ${isResumeScreening ? styles.navLinkActive : ""}`}><span className={styles.navIcon}><UiIcon name="document" /></span><span>Resume Screening</span></Link>}
+          {(showApplicants || showOperationalTools) && <div className={styles.applicantBookingGroup}>
+            {showApplicants && <Link href="/applicants" onClick={closeSidebar} className={`${styles.navLink} ${isApplicants ? styles.navLinkActive : ""}`}><span className={styles.navIcon}><UiIcon name="applicants" /></span><span>Applicants</span></Link>}
             <button type="button" className={styles.collapseButton} onClick={() => setSidebarCollapsed((current) => !current)} aria-label={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"} aria-expanded={!sidebarCollapsed}><UiIcon name={sidebarCollapsed ? "chevron-right" : "chevron-left"} /></button>
-            <Link href="/bookings" onClick={closeSidebar} className={`${styles.navLink} ${isBookings ? styles.navLinkActive : ""}`}><span className={styles.navIcon}><UiIcon name="calendar" /></span><span>Bookings</span></Link>
+            {showOperationalTools && <Link href="/bookings" onClick={closeSidebar} className={`${styles.navLink} ${isBookings ? styles.navLinkActive : ""}`}><span className={styles.navIcon}><UiIcon name="calendar" /></span><span>Bookings</span></Link>}
           </div>}
           {/* Calendar connection status is organization-wide read-only context;
               the Settings page keeps edits and OAuth controls admin-only. */}

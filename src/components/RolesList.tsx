@@ -49,6 +49,9 @@ type RolesApiResponse = {
 type RolesListProps = {
   canCreateRole: boolean;
   creatorOnly: boolean;
+  // HOD-tier: view-only, scoped to the user's own department (not just their
+  // own requests, and not the whole company). Distinct from creatorOnly.
+  departmentOnly?: boolean;
   userEmail: string;
   canReviewRole: boolean;
   canApproveRole: boolean;
@@ -57,6 +60,7 @@ type RolesListProps = {
 export default function RolesList({
   canCreateRole,
   creatorOnly,
+  departmentOnly = false,
   userEmail,
   canReviewRole,
   canApproveRole,
@@ -191,7 +195,7 @@ export default function RolesList({
   }
 
   function canEditRole(role: RoleRequest) {
-    return canEditRoleRequest({ email: userEmail, canReviewRole, canApproveRole }, role);
+    return canEditRoleRequest({ email: userEmail, canReviewRole }, role);
   }
 
   async function deleteRoles(rolesToDelete: RoleRequest[]) {
@@ -259,12 +263,14 @@ export default function RolesList({
     <main className="container page">
       <div className="hero-row roles-page-header">
         <div className="roles-page-heading">
-          <h1>{creatorOnly ? "My Role Requests" : "All Role Requests"}</h1>
+          <h1>{creatorOnly ? "My Role Requests" : departmentOnly ? "Department Role Requests" : "All Role Requests"}</h1>
 
           <p>
             {creatorOnly
               ? "Track the Role Requests You Submitted."
-              : "Review Submitted Staff Addition and Replacement Requests."}
+              : departmentOnly
+                ? "Review role requests submitted for your department."
+                : "Review Submitted Staff Addition and Replacement Requests."}
           </p>
         </div>
 

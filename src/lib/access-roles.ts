@@ -9,6 +9,11 @@ export type AccessRolePermissions = {
   canApproveRole: boolean;
   canEditSettings: boolean;
   canManageUsers: boolean;
+  // HOD-tier: view (not edit) roles, candidates, and interviews limited to
+  // the holder's own department. Distinct from canReviewRole, which grants
+  // company-wide pipeline management (recruitment setup, applicants,
+  // bookings). See src/lib/access-control.ts for the enforcement.
+  canReviewDepartmentRole: boolean;
 };
 
 export type AccessRoleOption = AccessRolePermissions & {
@@ -27,6 +32,7 @@ export const ACCESS_ROLE_OPTIONS: AccessRoleOption[] = [
     canApproveRole: true,
     canEditSettings: true,
     canManageUsers: true,
+    canReviewDepartmentRole: true,
   },
   {
     value: "HR",
@@ -37,26 +43,29 @@ export const ACCESS_ROLE_OPTIONS: AccessRoleOption[] = [
     canApproveRole: false,
     canEditSettings: false,
     canManageUsers: false,
+    canReviewDepartmentRole: false,
   },
   {
     value: "Management",
     label: "Management",
-    description: "Approve or reject role requests as the management decision-maker.",
+    description: "Review role requests and candidates, and approve, reject, or return them as the management decision-maker. Does not edit recruitment setup, applicant records, or interview scheduling.",
     canCreateRole: false,
-    canReviewRole: true,
+    canReviewRole: false,
     canApproveRole: true,
     canEditSettings: false,
     canManageUsers: false,
+    canReviewDepartmentRole: false,
   },
   {
     value: "HOD",
     label: "HOD / Department Head",
-    description: "Review department hiring needs and participate in interviews.",
+    description: "Create role requests and view hiring activity for your own department. Read-only for roles and candidates; does not edit recruitment setup, applicant records, or other departments' work.",
     canCreateRole: true,
-    canReviewRole: true,
+    canReviewRole: false,
     canApproveRole: false,
     canEditSettings: false,
     canManageUsers: false,
+    canReviewDepartmentRole: true,
   },
   {
     value: "Recruiter",
@@ -67,6 +76,7 @@ export const ACCESS_ROLE_OPTIONS: AccessRoleOption[] = [
     canApproveRole: false,
     canEditSettings: false,
     canManageUsers: false,
+    canReviewDepartmentRole: false,
   },
   {
     value: "Interviewer",
@@ -77,6 +87,7 @@ export const ACCESS_ROLE_OPTIONS: AccessRoleOption[] = [
     canApproveRole: false,
     canEditSettings: false,
     canManageUsers: false,
+    canReviewDepartmentRole: false,
   },
   {
     value: "Hiring Manager",
@@ -87,6 +98,7 @@ export const ACCESS_ROLE_OPTIONS: AccessRoleOption[] = [
     canApproveRole: true,
     canEditSettings: false,
     canManageUsers: false,
+    canReviewDepartmentRole: false,
   },
   {
     value: "Finance Reviewer",
@@ -97,6 +109,7 @@ export const ACCESS_ROLE_OPTIONS: AccessRoleOption[] = [
     canApproveRole: false,
     canEditSettings: false,
     canManageUsers: false,
+    canReviewDepartmentRole: false,
   },
   {
     value: "Auditor",
@@ -107,6 +120,7 @@ export const ACCESS_ROLE_OPTIONS: AccessRoleOption[] = [
     canApproveRole: false,
     canEditSettings: false,
     canManageUsers: false,
+    canReviewDepartmentRole: false,
   },
   {
     value: "Requester",
@@ -117,6 +131,7 @@ export const ACCESS_ROLE_OPTIONS: AccessRoleOption[] = [
     canApproveRole: false,
     canEditSettings: false,
     canManageUsers: false,
+    canReviewDepartmentRole: false,
   },
 ];
 

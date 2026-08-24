@@ -183,6 +183,19 @@ export async function POST(
       return jsonError("Role request not found.", 404);
     }
 
+    // The "create" permission tier (e.g. submitting a draft for HR review) is
+    // intentionally broad — HOD, HR, and every other requester-tier account
+    // share it — but it must still be scoped to the role's own requester.
+    // Without this, any account holding canCreateRole could act on someone
+    // else's draft role in another department just by knowing its ID.
+    if (
+      transition.permission === "create" &&
+      user.canReviewRole !== true &&
+      role.requesterEmail.trim().toLowerCase() !== user.email.trim().toLowerCase()
+    ) {
+      return jsonError("You do not have permission to perform this action.", 403);
+    }
+
     if (action === "send_for_management_approval" || action === "submit_draft_for_hr") {
       const missingFields: string[] = [];
       if (!role.jobDescription?.trim()) missingFields.push("Job_Description");

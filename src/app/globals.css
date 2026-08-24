@@ -906,7 +906,9 @@ a { color: inherit; text-decoration: none; }
 .user-account-stats .stat-card { display: grid; gap: 6px; padding: 18px 20px; }
 .user-account-stats .stat-card span { color: var(--muted); font-size: 12px; }
 .user-account-stats .stat-card strong { color: var(--navy); font-size: 28px; line-height: 1; }
-.user-account-form-card, .user-account-list-card { margin-top: 22px; }
+.user-account-modal-backdrop { position: fixed; z-index: 1000; inset: 0; display: grid; place-items: center; padding: 20px; background: rgba(10, 31, 50, .48); backdrop-filter: blur(3px); }
+.user-account-modal-backdrop .user-account-form-card { width: min(720px, 100%); max-height: calc(100vh - 40px); overflow-y: auto; margin-top: 0; box-shadow: 0 24px 80px rgba(5, 37, 68, .28); }
+.user-account-list-card { margin-top: 22px; }
 .user-account-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 22px; padding: 22px; }
 .user-account-permissions { display: grid; grid-column: 1 / -1; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 20px; margin: 0; padding: 16px; border: 1px solid #dce6f0; border-radius: 10px; }
 .user-account-permissions legend { padding: 0 5px; color: var(--navy); font-size: 13px; font-weight: 800; }
@@ -5145,6 +5147,24 @@ textarea:focus-visible {
 .bulk-status-skipped { color: #5f4a93; background: #f2edff; }
 .bulk-screening-error { display: block; max-width: 250px; margin-top: 5px; color: var(--danger-accent); line-height: 1.35; }
 .bulk-screening-empty { margin: 0; padding: 18px; border: 1px dashed #c8d9e8; border-radius: 10px; color: var(--muted); text-align: center; }
+
+/* --- Resume screening application links -------------------------------- */
+.resume-invite-generator { display: grid; gap: 18px; margin: 0 auto 28px; padding: 24px 28px; background: linear-gradient(135deg, #f3f8fd 0%, #fff 72%); }
+.resume-invite-generator h2 { margin: 5px 0 7px; color: var(--navy); font-size: 22px; }
+.resume-invite-generator p { max-width: 680px; margin: 0; color: var(--muted); line-height: 1.5; }
+.resume-invite-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) auto; align-items: end; gap: 14px; }
+.resume-invite-fields select, .resume-invite-fields input { min-height: 44px; }
+.resume-invite-result { display: grid; gap: 8px; }
+.resume-invite-link-row { display: flex; gap: 10px; }
+.resume-invite-link-row input { flex: 1 1 auto; min-height: 42px; padding: 0 12px; border: 1px solid #bce4d4; border-radius: 8px; color: var(--navy); background: #fff; font-size: 13px; }
+
+@media (max-width: 900px) {
+  .resume-invite-fields { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 640px) {
+  .resume-invite-link-row { flex-direction: column; }
+}
 
 /* Candidate booking presents dates first, then the smaller set of times for
    the selected date. This keeps large recurring schedules readable. */

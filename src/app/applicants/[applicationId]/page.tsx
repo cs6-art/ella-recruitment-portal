@@ -6,6 +6,7 @@ import AppShell from "@/components/AppShell";
 import ApplicantDetailActions from "@/components/ApplicantDetailActions";
 import ApplicantDecisionPanel from "@/components/ApplicantDecisionPanel";
 import UiIcon, { type UiIconName } from "@/components/UiIcon";
+import { canDecideApplicant, canEditApplicant, canViewApplicant } from "@/lib/access-control";
 import {
   applicantStageClass,
   getApplicantById,
@@ -171,22 +172,25 @@ function HistoryTimeline({ history }: { history: CandidateStatusHistoryEntry[] }
 export default async function ApplicantDetailsPage({ params }: { params: Promise<{ applicationId: string }> }) {
   const user = verifySessionToken((await cookies()).get(COOKIE_NAME)?.value);
   if (!user) redirect("/");
-  if (user.canReviewRole !== true && user.canApproveRole !== true) redirect("/dashboard");
+  if (user.canReviewRole !== true && user.canApproveRole !== true && user.canReviewDepartmentRole !== true) redirect("/dashboard");
 
   const applicationId = decodeURIComponent((await params).applicationId);
   const [applicant, history] = await Promise.all([getApplicantById(applicationId), getCandidateStatusHistory(applicationId)]);
-  if (!applicant) return <AppShell user={user}><main className="container page"><section className="card"><div className="empty"><p>Applicant Not Found.</p><Link className="btn btn-secondary" href="/applicants">Back to Applicants</Link></div></section></main></AppShell>;
+  // A department-scoped (HOD-tier) account outside this applicant's
+  // department gets the same "not found" response as a missing record,
+  // rather than a 403 that would confirm the record exists elsewhere.
+  if (!applicant || !canViewApplicant(user, applicant)) return <AppShell user={user}><main className="container page"><section className="card"><div className="empty"><p>Applicant Not Found.</p><Link className="btn btn-secondary" href="/applicants">Back to Applicants</Link></div></section></main></AppShell>;
   const role = applicant.voiceDecision.toLowerCase() === "approve" ? applicant.roleDetails || null : null;
   const resumeComments = applicant.resumeComments || latestDecisionComment(history, "resume");
   const voiceComments = applicant.voiceComments || latestDecisionComment(history, "voice");
   const finalComments = applicant.finalComments || latestDecisionComment(history, "final");
 
   return <AppShell user={user}><main className="container page applicant-details-page">
-    <header className="applicant-detail-header"><Link href="/applicants" className="portal-back-link applicant-back-link"><UiIcon name="arrow-left" size={15} />Back to Applicants</Link><div className="applicant-detail-title-row"><div><span className="eyebrow-dark">APPLICANT PROFILE</span><h1>{applicant.candidateName || "Unnamed Candidate"}</h1><p>{applicant.applicationId} · {applicant.email || "No Email Provided"}</p></div><span className={applicantStageClass(applicant.currentStage)}>{applicant.currentStage}</span></div><div className="applicant-detail-actions"><Link className="btn btn-secondary" href={`/roles/${encodeURIComponent(applicant.roleId)}`}><UiIcon name="briefcase" size={15} />View Role</Link><Link className="btn btn-secondary" href={`/roles/${encodeURIComponent(applicant.roleId)}/applicants`}><UiIcon name="applicants" size={15} />Role Applicants</Link><ApplicantDetailActions applicationId={applicant.applicationId} candidateName={applicant.candidateName} /></div></header>
+    <header className="applicant-detail-header"><Link href="/applicants" className="portal-back-link applicant-back-link"><UiIcon name="arrow-left" size={15} />Back to Applicants</Link><div className="applicant-detail-title-row"><div><span className="eyebrow-dark">APPLICANT PROFILE</span><h1>{applicant.candidateName || "Unnamed Candidate"}</h1><p>{applicant.applicationId} · {applicant.email || "No Email Provided"}</p></div><span className={applicantStageClass(applicant.currentStage)}>{applicant.currentStage}</span></div><div className="applicant-detail-actions"><Link className="btn btn-secondary" href={`/roles/${encodeURIComponent(applicant.roleId)}`}><UiIcon name="briefcase" size={15} />View Role</Link><Link className="btn btn-secondary" href={`/roles/${encodeURIComponent(applicant.roleId)}/applicants`}><UiIcon name="applicants" size={15} />Role Applicants</Link><ApplicantDetailActions applicationId={applicant.applicationId} candidateName={applicant.candidateName} canManage={canEditApplicant(user)} /></div></header>
     <div className="applicant-detail-summary"><DetailField label="Selected Role" value={applicant.selectedRole} /><DetailField label="Department" value={applicant.department} /><DetailField label="Applied" value={dateValue(applicant.appliedAt)} /><DetailField label="Match Score" value={formatMatchScore(applicant.matchScore)} /><DetailField label="Recommendation" value={applicant.recommendation} /><DetailField label="Next Action" value={applicant.nextAction} /></div>
     <div className="applicant-detail-grid"><div className="applicant-detail-main">
       <CombinedScreeningEvidence applicant={applicant} />
-      <ApplicantDecisionPanel applicationId={applicant.applicationId} resumeDecision={applicant.resumeDecision} resumeComments={resumeComments} voiceDecision={applicant.voiceDecision} voiceComments={voiceComments} voiceStatus={applicant.voiceStatus} finalInterviewStatus={applicant.finalInterviewStatus} finalStatus={applicant.finalStatus} finalComments={finalComments} finalBookingLink={applicant.finalBookingLink} canReview={user.canReviewRole === true || user.canApproveRole === true} />
+      <ApplicantDecisionPanel applicationId={applicant.applicationId} resumeDecision={applicant.resumeDecision} resumeComments={resumeComments} voiceDecision={applicant.voiceDecision} voiceComments={voiceComments} voiceStatus={applicant.voiceStatus} finalInterviewStatus={applicant.finalInterviewStatus} finalStatus={applicant.finalStatus} finalComments={finalComments} finalBookingLink={applicant.finalBookingLink} canReview={canDecideApplicant(user)} />
       <section className="card applicant-detail-card"><DetailCardHeader icon="document" title="Resume / CV" description="The candidate's submitted resume document." /><ResumeResource value={applicant.resumeText} fileId={applicant.resumeFileId} fileName={applicant.resumeFileName} expiresAt={applicant.resumeFileExpiresAt} /></section>
       <section className="card applicant-detail-card"><DetailCardHeader icon="microphone" title="Interview Questions" description="Questions prepared for the candidate's interview." /><InterviewQuestions value={applicant.interviewQuestions} /></section>
       <HistoryTimeline history={history} />

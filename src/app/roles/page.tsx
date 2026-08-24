@@ -27,7 +27,10 @@ export default async function RolesPage() {
   const canApproveRole =
     user.canApproveRole === true;
 
-  if (!user.canCreateRole && !canReviewRole && !canApproveRole) {
+  const canReviewDepartmentRole =
+    user.canReviewDepartmentRole === true;
+
+  if (!user.canCreateRole && !canReviewRole && !canApproveRole && !canReviewDepartmentRole) {
     redirect("/dashboard");
   }
 
@@ -39,6 +42,12 @@ export default async function RolesPage() {
         }
         creatorOnly={
           user.canCreateRole === true &&
+          !canReviewRole &&
+          !canApproveRole &&
+          !canReviewDepartmentRole
+        }
+        departmentOnly={
+          canReviewDepartmentRole &&
           !canReviewRole &&
           !canApproveRole
         }

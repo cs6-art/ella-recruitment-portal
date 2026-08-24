@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 
 import AppShell from "@/components/AppShell";
 import CandidateApplicationForm from "@/components/CandidateApplicationForm";
+import ResumeScreeningInviteGenerator from "@/components/ResumeScreeningInviteGenerator";
+import { canManagePipeline } from "@/lib/access-control";
 import { getRoleRequests, isPublishedRoleForIntake } from "@/lib/google-sheets";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
 
@@ -11,7 +13,7 @@ export const dynamic = "force-dynamic";
 export default async function ResumeScreeningPage() {
   const user = verifySessionToken((await cookies()).get(COOKIE_NAME)?.value);
   if (!user) redirect("/");
-  if (user.canReviewRole !== true && user.canApproveRole !== true) redirect("/dashboard");
+  if (!canManagePipeline(user)) redirect("/dashboard");
 
   // Intake must use the live role sheet even in demo mode so every currently
   // published role is available, not just the synthetic catalogue roles.
@@ -46,6 +48,7 @@ export default async function ResumeScreeningPage() {
             <span className="resume-drive-unavailable">Google Drive upload is not configured.</span>
           )}
         </section>
+        <ResumeScreeningInviteGenerator roleOptions={roleOptions} />
         <CandidateApplicationForm
           submitUrl="/api/applicants"
           title="CV Analysis"

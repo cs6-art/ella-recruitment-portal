@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import BookingsList from "@/components/BookingsList";
 import { getActiveBookingLinkRoleIds, getInterviewBookings } from "@/lib/candidate-applications";
-import { canManageInterviewAvailability } from "@/lib/access-control";
+import { canManageInterviewAvailability, canManagePipeline } from "@/lib/access-control";
 import { getRoleRequests } from "@/lib/google-sheets";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
 
@@ -51,6 +51,6 @@ async function BookingsData() {
 export default async function BookingsPage() {
   const user = verifySessionToken((await cookies()).get(COOKIE_NAME)?.value);
   if (!user) redirect("/");
-  if (user.canReviewRole !== true && user.canApproveRole !== true) redirect("/dashboard");
+  if (!canManagePipeline(user)) redirect("/dashboard");
   return <AppShell user={user}><Suspense fallback={<BookingsLoading />}><BookingsData /></Suspense></AppShell>;
 }

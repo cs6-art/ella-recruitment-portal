@@ -19,6 +19,7 @@ type DirectoryUser = {
   canApproveRole: boolean;
   canEditSettings: boolean;
   canManageUsers: boolean;
+  canReviewDepartmentRole: boolean;
   active: boolean;
 };
 
@@ -34,6 +35,7 @@ const emptyForm: AccountForm = {
   canApproveRole: false,
   canEditSettings: false,
   canManageUsers: false,
+  canReviewDepartmentRole: false,
   active: true,
 };
 
@@ -53,6 +55,7 @@ function permissionLabels(user: DirectoryUser) {
   return [
     user.canCreateRole && "Create roles",
     user.canReviewRole && "Review roles",
+    user.canReviewDepartmentRole && "Review own department",
     user.canApproveRole && "Approve roles",
     user.canEditSettings && "Edit settings",
     user.canManageUsers && "Manage users",
@@ -132,6 +135,7 @@ export default function UserAccountsEditor({ currentEmail }: { currentEmail: str
         canApproveRole: preset.canApproveRole,
         canEditSettings: preset.canEditSettings,
         canManageUsers: preset.canManageUsers,
+        canReviewDepartmentRole: preset.canReviewDepartmentRole,
       } : {}),
     }));
     setError("");
@@ -147,6 +151,16 @@ export default function UserAccountsEditor({ currentEmail }: { currentEmail: str
     setSaveError("");
     setFieldErrors({});
   }
+
+  useEffect(() => {
+    if (!showForm) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeForm();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showForm]);
 
   async function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -240,18 +254,20 @@ export default function UserAccountsEditor({ currentEmail }: { currentEmail: str
         <div className="stat-card"><span>Settings administrators</span><strong>{adminCount}</strong></div>
       </section>
 
-      {showForm && <section className="card user-account-form-card">
-        <div className="card-header"><div><h2>{originalEmail ? "Edit user account" : "Add user account"}</h2><p>Set the account identity, department, and allowed actions.</p></div><button type="button" className="btn btn-secondary" onClick={closeForm}>Cancel</button></div>
-        <form className="user-account-form" noValidate onSubmit={(event) => void save(event)}>
-          <div className="field"><label htmlFor="user-full-name">Full name</label><input id="user-full-name" value={form.fullName} onChange={(event) => updateForm("fullName", event.target.value)} required aria-invalid={Boolean(fieldErrors.fullName)} />{fieldErrors.fullName && <small className="field-error">{fieldErrors.fullName}</small>}</div>
-          <div className="field"><label htmlFor="user-email">Email address</label><input id="user-email" type="email" value={form.email} onChange={(event) => updateForm("email", event.target.value)} required aria-invalid={Boolean(fieldErrors.email)} />{fieldErrors.email && <small className="field-error">{fieldErrors.email}</small>}</div>
-          <div className="field"><label htmlFor="user-access-role">Access role</label><select id="user-access-role" value={form.accessRole} onChange={(event) => updateAccessRole(event.target.value)} required aria-invalid={Boolean(fieldErrors.accessRole)}>{form.accessRole && !getAccessRolePreset(form.accessRole) && <option value={form.accessRole}>{form.accessRole} (existing)</option>}{ACCESS_ROLE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>{getAccessRolePreset(form.accessRole) && <small className="field-hint">{getAccessRolePreset(form.accessRole)?.description} Selecting a role applies recommended permissions; you can adjust them below.</small>}{fieldErrors.accessRole && <small className="field-error">{fieldErrors.accessRole}</small>}</div>
-          <div className="field"><label htmlFor="user-department">Department</label><select id="user-department" value={form.department} onChange={(event) => updateForm("department", event.target.value)}><option value="">Select a department</option>{form.department && !isKnownDepartment(form.department) && <option value={form.department}>{form.department} (existing)</option>}{DEPARTMENT_OPTIONS.map((department) => <option key={department} value={department}>{department}</option>)}</select></div>
-          <fieldset className="user-account-permissions"><legend>Permissions</legend><label><input type="checkbox" checked={form.canCreateRole} onChange={(event) => updateForm("canCreateRole", event.target.checked)} /> Create role requests</label><label><input type="checkbox" checked={form.canReviewRole} onChange={(event) => updateForm("canReviewRole", event.target.checked)} /> Review role requests</label><label><input type="checkbox" checked={form.canApproveRole} onChange={(event) => updateForm("canApproveRole", event.target.checked)} /> Approve role requests</label><label><input type="checkbox" checked={form.canEditSettings} onChange={(event) => updateForm("canEditSettings", event.target.checked)} /> Edit settings</label><label><input type="checkbox" checked={form.canManageUsers} onChange={(event) => updateForm("canManageUsers", event.target.checked)} /> Manage user accounts and roles</label></fieldset>
-          <label className="user-account-active"><input type="checkbox" checked={form.active} onChange={(event) => updateForm("active", event.target.checked)} /> Account is active</label>
-          <div className="user-account-form-actions"><button type="submit" className="btn btn-primary" disabled={saving}>{saving ? "Saving…" : "Save account"}</button></div>
-        </form>
-      </section>}
+      {showForm && <div className="user-account-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeForm(); }}>
+        <section className="card user-account-form-card" role="dialog" aria-modal="true" aria-labelledby="user-account-form-title" onMouseDown={(event) => event.stopPropagation()}>
+          <div className="card-header"><div><h2 id="user-account-form-title">{originalEmail ? "Edit user account" : "Add user account"}</h2><p>Set the account identity, department, and allowed actions.</p></div><button type="button" className="btn btn-secondary" onClick={closeForm}>Cancel</button></div>
+          <form className="user-account-form" noValidate onSubmit={(event) => void save(event)}>
+            <div className="field"><label htmlFor="user-full-name">Full name</label><input id="user-full-name" value={form.fullName} onChange={(event) => updateForm("fullName", event.target.value)} required aria-invalid={Boolean(fieldErrors.fullName)} />{fieldErrors.fullName && <small className="field-error">{fieldErrors.fullName}</small>}</div>
+            <div className="field"><label htmlFor="user-email">Email address</label><input id="user-email" type="email" value={form.email} onChange={(event) => updateForm("email", event.target.value)} required aria-invalid={Boolean(fieldErrors.email)} />{fieldErrors.email && <small className="field-error">{fieldErrors.email}</small>}</div>
+            <div className="field"><label htmlFor="user-access-role">Access role</label><select id="user-access-role" value={form.accessRole} onChange={(event) => updateAccessRole(event.target.value)} required aria-invalid={Boolean(fieldErrors.accessRole)}>{form.accessRole && !getAccessRolePreset(form.accessRole) && <option value={form.accessRole}>{form.accessRole} (existing)</option>}{ACCESS_ROLE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>{getAccessRolePreset(form.accessRole) && <small className="field-hint">{getAccessRolePreset(form.accessRole)?.description} Selecting a role applies recommended permissions; you can adjust them below.</small>}{fieldErrors.accessRole && <small className="field-error">{fieldErrors.accessRole}</small>}</div>
+            <div className="field"><label htmlFor="user-department">Department</label><select id="user-department" value={form.department} onChange={(event) => updateForm("department", event.target.value)}><option value="">Select a department</option>{form.department && !isKnownDepartment(form.department) && <option value={form.department}>{form.department} (existing)</option>}{DEPARTMENT_OPTIONS.map((department) => <option key={department} value={department}>{department}</option>)}</select></div>
+            <fieldset className="user-account-permissions"><legend>Permissions</legend><label><input type="checkbox" checked={form.canCreateRole} onChange={(event) => updateForm("canCreateRole", event.target.checked)} /> Create role requests</label><label><input type="checkbox" checked={form.canReviewRole} onChange={(event) => updateForm("canReviewRole", event.target.checked)} /> Review role requests (company-wide: recruitment setup, applicants, bookings)</label><label><input type="checkbox" checked={form.canReviewDepartmentRole} onChange={(event) => updateForm("canReviewDepartmentRole", event.target.checked)} /> Review own department only (HOD: read-only roles and candidates)</label><label><input type="checkbox" checked={form.canApproveRole} onChange={(event) => updateForm("canApproveRole", event.target.checked)} /> Approve role requests and hiring decisions</label><label><input type="checkbox" checked={form.canEditSettings} onChange={(event) => updateForm("canEditSettings", event.target.checked)} /> Edit settings</label><label><input type="checkbox" checked={form.canManageUsers} onChange={(event) => updateForm("canManageUsers", event.target.checked)} /> Manage user accounts and roles</label></fieldset>
+            <label className="user-account-active"><input type="checkbox" checked={form.active} onChange={(event) => updateForm("active", event.target.checked)} /> Account is active</label>
+            <div className="user-account-form-actions"><button type="submit" className="btn btn-primary" disabled={saving}>{saving ? "Saving…" : "Save account"}</button></div>
+          </form>
+        </section>
+      </div>}
 
       <section className="card user-account-list-card">
         <div className="card-header"><div><h2>Directory accounts</h2><p>These accounts are read from the <code>User_Directory</code> sheet.</p></div><button type="button" className="btn btn-secondary" onClick={() => void loadUsers()} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button></div>

@@ -183,6 +183,11 @@ export default async function DashboardPage() {
               </div>
 
               <div className="detail-item">
+                <span className="detail-label">Can Review Own Department</span>
+                <div className="detail-value">{user.canReviewDepartmentRole ? "Allowed" : "Not allowed"}</div>
+              </div>
+
+              <div className="detail-item">
                 <span className="detail-label">Can Approve Role</span>
                 <div className="detail-value">{user.canApproveRole ? "Allowed" : "Not allowed"}</div>
               </div>

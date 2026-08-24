@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
+import { canManagePipeline } from "@/lib/access-control";
 import { getBulkResumeQueue } from "@/lib/candidate-applications";
 import { getRoleRequestById, isPublishedRoleForIntake } from "@/lib/google-sheets";
 import { consumeRateLimit, rateLimitHeaders, requestClientKey } from "@/lib/rate-limit";
@@ -30,7 +31,7 @@ function legacyQueueIdForHash(sha256: string) {
 export async function POST(request: Request) {
   const user = verifySessionToken((await cookies()).get(COOKIE_NAME)?.value);
   if (!user) return responseError("Authentication required.", 401);
-  if (user.canReviewRole !== true && user.canApproveRole !== true) return responseError("Only HR reviewers can upload bulk resumes.", 403);
+  if (!canManagePipeline(user)) return responseError("Only HR reviewers can upload bulk resumes.", 403);
 
   const rate = consumeRateLimit(`bulk-resume-upload:${user.email}:${requestClientKey(request)}`, 5, 15 * 60 * 1000);
   if (!rate.allowed) return NextResponse.json({ success: false, error: "Too many bulk uploads. Try again later." }, { status: 429, headers: rateLimitHeaders(rate) });

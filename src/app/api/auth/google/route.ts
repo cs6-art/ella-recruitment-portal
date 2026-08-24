@@ -161,6 +161,7 @@ export async function POST(request: Request) {
       canApproveRole: directoryUser.canApproveRole,
       canEditSettings: directoryUser.canEditSettings,
       canManageUsers: directoryUser.canManageUsers,
+      canReviewDepartmentRole: directoryUser.canReviewDepartmentRole,
     });
 
     const response = NextResponse.json({
@@ -175,6 +176,7 @@ export async function POST(request: Request) {
         canApproveRole: directoryUser.canApproveRole,
         canEditSettings: directoryUser.canEditSettings,
         canManageUsers: directoryUser.canManageUsers,
+        canReviewDepartmentRole: directoryUser.canReviewDepartmentRole,
         active: directoryUser.active,
       },
     });
