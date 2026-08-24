@@ -16,13 +16,20 @@ const candidateWorkbook = '1J6qadoB07aliQWtV8uykEYW7ENjNOf0nsZ_iTt9g8KM';
 const sheetsCredentials = { googleApi: newCredential('Google Sheets Service Account') };
 const driveCredentials = { googleApi: newCredential('Google Drive Service Account') };
 
+const queueSchema = [
+  'driveFileId', 'driveFileName', 'driveFileUrl', 'driveFileMimeType', 'roleId',
+  'candidateName', 'candidateEmail', 'preferredMobile', 'applicantCountry', 'status',
+  'applicationId', 'errorMessage', 'discoveredAt', 'processingStartedAt', 'processedAt',
+  'attemptCount', 'lastUpdated', 'environment', 'is_uat', 'batchId', 'jobId',
+].map((id) => ({ id, displayName: id, type: id === 'is_uat' ? 'boolean' : 'string', canBeUsedToMatch: id === 'jobId' }));
+
 const queueAppendParameters = {
   resource: 'sheet',
-  operation: 'append',
+  operation: 'appendOrUpdate',
   authentication: 'serviceAccount',
   documentId: { __rl: true, mode: 'id', value: candidateWorkbook },
   sheetName: { __rl: true, mode: 'name', value: 'Bulk_Resume_Queue' },
-  columns: { mappingMode: 'autoMapInputData', value: {} },
+  columns: { mappingMode: 'autoMapInputData', value: {}, matchingColumns: ['jobId'], schema: queueSchema },
   options: {
     cellFormat: 'USER_ENTERED',
     handlingExtraData: 'ignoreIt',
@@ -371,6 +378,10 @@ for (const file of files) {
     errorMessage: '',
     attemptCount: String(previousAttempt + 1),
     lastUpdated: new Date().toISOString(),
+    environment: 'production',
+    is_uat: false,
+    batchId: '',
+    jobId: 'DRIVE-' + roleId + '-' + id,
   });
 }
 due.sort((a, b) => a.submittedAt.localeCompare(b.submittedAt) || a.driveFileName.localeCompare(b.driveFileName));
@@ -599,13 +610,12 @@ const submit = node({
       url: 'https://n8n.srv1457709.hstgr.cloud/webhook/candidate-application',
       sendHeaders: true,
       headerParameters: { parameters: [
-        { name: 'X-Webhook-Secret', value: '__WEBHOOK_SECRET__' },
         { name: 'X-Idempotency-Key', value: expr('{{ $json.applicationId }}') },
       ] },
       sendBody: true,
       contentType: 'json',
       specifyBody: 'json',
-      jsonBody: expr('{{ JSON.stringify({ eventType: "candidate_application_submitted", applicationId: $json.applicationId, roleId: $json.roleId, Role_ID: $json.roleId, jobTitle: $json.roleName, department: "", candidate: { name: $json.candidateName, email: $json.candidateEmail, phone: $json.preferredMobile, preferredMobile: $json.preferredMobile, applicantCountry: $json.applicantCountry, resumeText: $json.resumeText, salaryExpectation: "", noticePeriod: "", availability: "", skillsAssessment: "", roleExpectations: "", applicationSource: "HR Drive Bulk Upload", consent: false }, submittedAt: $json.submittedAt, source: "JD Role Folder Google Drive Resume", applicationSource: "HR Drive Bulk Upload" }) }}'),
+      jsonBody: expr('{{ JSON.stringify({ eventType: "candidate_application_submitted", applicationId: $json.applicationId, roleId: $json.roleId, Role_ID: $json.roleId, jobTitle: $json.roleName, department: "", candidate: { name: $json.candidateName, email: $json.candidateEmail, phone: $json.preferredMobile, preferredMobile: $json.preferredMobile, applicantCountry: $json.applicantCountry, resumeText: $json.resumeText, salaryExpectation: "", noticePeriod: "", availability: "", skillsAssessment: "", roleExpectations: "", applicationSource: "HR Drive Bulk Upload", consent: false }, submittedAt: $json.submittedAt, source: "JD Role Folder Google Drive Resume", applicationSource: "HR Drive Bulk Upload", environment: $json.environment || "production", is_uat: $json.is_uat === true, batchId: $json.batchId || "", jobId: $json.jobId || ("DRIVE-" + $json.roleId + "-" + $json.driveFileId) }) }}'),
       options: {
         timeout: 120000,
         response: { response: { fullResponse: true, neverError: true, responseFormat: 'json' } },
@@ -634,7 +644,7 @@ return { json: {
   ...base,
   status: accepted ? 'Screened' : 'Failed',
   submissionAccepted: accepted,
-  errorMessage: accepted ? '' : String($json.error?.message || response.error || response.message || ('Screening workflow returned HTTP ' + statusCode)),
+  errorMessage: accepted ? '' : String($json.error?.message || response.error || response.message || 'Candidate Foundation handoff failed before a response was received.'),
   processedAt: accepted ? now : '',
   lastUpdated: now,
 } };`,

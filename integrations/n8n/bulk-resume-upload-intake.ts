@@ -133,6 +133,16 @@ return { json: { ...base, status: accepted ? 'Screened' : 'Failed', submissionAc
 const accepted = ifElse({ version: 2.3, config: { name: 'Screening Workflow Accepted', parameters: { conditions: { options: { caseSensitive: false, leftValue: '', typeValidation: 'strict' }, conditions: [{ leftValue: expr('{{ $json.submissionAccepted }}'), operator: { type: 'boolean', operation: 'true' }, rightValue: true }], combinator: 'and' } }, position: [3040, 300] } });
 const saveScreened = node({ type: 'n8n-nodes-base.googleSheets', version: 4.7, config: { name: 'Record Resume Screened', parameters: queueParameters, credentials: queueCredentials, position: [3320, 200] }, output: [{ queueId: 'BULK-example', roleId: 'AC01', status: 'Screened' }] });
 const saveFailed = node({ type: 'n8n-nodes-base.googleSheets', version: 4.7, config: { name: 'Record Screening Failure', parameters: queueParameters, credentials: queueCredentials, position: [3320, 420] }, output: [{ queueId: 'BULK-example', roleId: 'AC01', status: 'Failed' }] });
+const respond = node({
+  type: 'n8n-nodes-base.respondToWebhook',
+  version: 1.4,
+  config: {
+    name: 'Respond Bulk Resume Upload',
+    parameters: { respondWith: 'json', responseBody: expr('{{ { success: true, queueId: $json.queueId || "", environment: $json.environment || "production", is_uat: $json.is_uat === true, batchId: $json.batchId || "", jobId: $json.jobId || $json.queueId || "", applicationId: $json.applicationId || "", status: $json.status || ($json.skip ? "Skipped" : "Processing"), errorMessage: $json.errorMessage || "" } }}'), options: { responseCode: 200 } },
+    position: [3600, 300],
+  },
+  output: [{ success: true, queueId: 'BULK-example', status: 'Screened' }],
+});
 
 export default workflow('bulk-resume-upload-intake', 'Bulk Resume Upload Intake')
   .add(webhook)
@@ -140,6 +150,7 @@ export default workflow('bulk-resume-upload-intake', 'Bulk Resume Upload Intake'
   .to(normalize)
   .to(shouldProcess
     .onTrue(claim.to(extractCandidate).to(prepareCandidate).to(validCandidate
-      .onTrue(submit.to(evaluate.to(accepted.onTrue(saveScreened).onFalse(saveFailed))))
-      .onFalse(missing.to(saveMissing)))
+      .onTrue(submit.to(evaluate.to(accepted.onTrue(saveScreened.to(respond)).onFalse(saveFailed.to(respond)))))
+      .onFalse(missing.to(saveMissing.to(respond))))
+    .onFalse(respond)
   ));

@@ -70,6 +70,19 @@ test("queue state writes upsert by stable jobId instead of racing append row pos
   assert.match(intake, /Candidate Foundation handoff failed before a response was received/);
 });
 
+test("Google Drive folder screening uses the same stable queue contract for every role", () => {
+  const drive = read("integrations/n8n/jd-role-folder-bulk-resume-screening.ts");
+  const submit = drive.slice(drive.indexOf("const submit = node"), drive.indexOf("const evaluate"));
+  assert.match(drive, /operation: 'appendOrUpdate'/);
+  assert.match(drive, /matchingColumns: \['jobId'\]/);
+  assert.match(drive, /jobId: 'DRIVE-' \+ roleId \+ '-' \+ id/);
+  assert.match(drive, /environment: 'production'/);
+  assert.match(drive, /is_uat: false/);
+  assert.doesNotMatch(submit, /__WEBHOOK_SECRET__/);
+  assert.match(drive, /candidate-application/);
+  assert.match(drive, /Candidate Foundation handoff failed before a response was received/);
+});
+
 test("live bulk status reads are fresh and expose the downstream queue as the source of truth", () => {
   const queue = read("src/lib/candidate-applications.ts");
   const cache = read("src/lib/sheets-cache.ts");
