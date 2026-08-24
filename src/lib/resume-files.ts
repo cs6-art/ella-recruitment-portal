@@ -46,6 +46,7 @@ export type ResumeFileRecord = {
 export type StoredResume = {
   record: ResumeFileRecord;
   extractedText: string;
+  reused: boolean;
 };
 
 function accessSecret() {
@@ -261,7 +262,7 @@ export async function storeResumeFile(file: File, options: { environment?: BulkR
   const existingRecord = (existing.data.files || [])
     .map(recordFromDriveFile)
     .find((record): record is ResumeFileRecord => Boolean(record && new Date(record.expiresAt).getTime() > Date.now()));
-  if (existingRecord) return { record: existingRecord, extractedText };
+  if (existingRecord) return { record: existingRecord, extractedText, reused: true };
 
   const response = await drive().files.create({
     // Upload into a Shared Drive folder rather than the service account's
@@ -278,7 +279,7 @@ export async function storeResumeFile(file: File, options: { environment?: BulkR
 
   const record = recordFromDriveFile(response.data);
   if (!record) throw new Error("Unable to store the uploaded resume.");
-  return { record, extractedText };
+  return { record, extractedText, reused: false };
 }
 
 export async function getResumeFileRecord(fileId: string) {

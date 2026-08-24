@@ -131,7 +131,7 @@ export async function POST(request: Request) {
           previousStatus !== "processing" || previousProcessingIsFresh || previousHasSavedResult
         );
         if (shouldSkip) {
-          await deleteResumeFile(stored.record);
+          if (!stored.reused) await deleteResumeFile(stored.record);
           results.push({ fileName: file.name, queueId: resolvedQueueId, status: previousHasSavedResult ? "Screened" : previous?.status || "Queued", skipped: true, message: previousHasSavedResult || previousStatus === "screened" ? "This resume was already screened for this role." : previousStatus === "queued" ? "This resume is already queued for this role." : "This resume is already being screened for this role." });
           return;
         }

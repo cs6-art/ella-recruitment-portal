@@ -30,7 +30,9 @@ test("re-uploading a historical hash reuses the existing Drive object", () => {
   const files = read("src/lib/resume-files.ts");
   assert.match(files, /properties has \{ key='sha256' and value='/);
   assert.match(files, /existingRecord/);
-  assert.match(files, /return \{ record: existingRecord, extractedText \}/);
+  assert.match(files, /reused: true/);
+  const upload = read("src/app/api/resume-screening/bulk/upload/route.ts");
+  assert.match(upload, /if \(!stored\.reused\) await deleteResumeFile/);
 });
 
 test("bulk completion emails default to disabled but remain configurable", () => {
