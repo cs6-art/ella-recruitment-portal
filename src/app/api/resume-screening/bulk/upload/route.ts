@@ -71,6 +71,11 @@ export async function POST(request: Request) {
     const formData = await request.formData();
     const roleId = String(formData.get("roleId") || "").trim();
     const files = formData.getAll("resumes").filter((value): value is File => value instanceof File);
+    // This is an operator-controlled escape hatch for the marked Production
+    // UAT batch only. It is intentionally not a general stale-timeout change:
+    // the operator may set it only after checking n8n execution history and
+    // confirming that the listed terminal/orphaned attempts are dead.
+    const immediateUatRecovery = isUat && Boolean(configuredUatBatchId) && String(formData.get("uatRecovery") || "").trim() === configuredUatBatchId;
     if (!roleId) return responseError("Select a published role before uploading resumes.", 422);
     // Keep the API contract explicit: legacy binary DOC is accepted alongside
     // the PDF/DOCX formats supported by the shared extractor.
@@ -127,7 +132,8 @@ export async function POST(request: Request) {
         const previousUpdatedAt = Date.parse(previous?.lastUpdated || previous?.processingStartedAt || previous?.discoveredAt || "");
         const previousRunIsFresh = Number.isFinite(previousUpdatedAt) && Date.now() - previousUpdatedAt < STALE_PROCESSING_MS;
         const previousIsActive = previousStatus === "queued" || previousStatus === "screened" || previousStatus === "processing";
-        const shouldSkip = previousIsActive && (previousHasSavedResult || previousRunIsFresh);
+        const recoveryMayBypassTerminalState = immediateUatRecovery && !previousHasSavedResult && previousStatus === "screened";
+        const shouldSkip = previousIsActive && !recoveryMayBypassTerminalState && (previousHasSavedResult || previousRunIsFresh);
         if (shouldSkip) {
           if (!stored.reused) await deleteResumeFile(stored.record);
           results.push({ fileName: file.name, queueId: resolvedQueueId, status: previousHasSavedResult ? "Screened" : previous?.status || "Queued", skipped: true, message: previousHasSavedResult || previousStatus === "screened" ? "This resume was already screened for this role." : previousStatus === "queued" ? "This resume is already queued for this role." : "This resume is already being screened for this role." });
