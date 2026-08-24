@@ -1,0 +1,126 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
+import test from "node:test";
+
+const root = path.dirname(fileURLToPath(import.meta.url));
+function read(relativePath) {
+  return readFileSync(path.join(root, "..", relativePath), "utf8");
+}
+
+test("bulk resume upload processes files with bounded, configurable concurrency instead of one at a time", () => {
+  const route = read("src/app/api/resume-screening/bulk/upload/route.ts");
+  assert.match(route, /BULK_RESUME_UPLOAD_CONCURRENCY/);
+  assert.match(route, /MAX_CONCURRENCY = 10/);
+  // The old implementation awaited each n8n round trip inside a plain
+  // `for...of` loop, which is exactly what capped bulk screening at
+  // roughly one resume per minute. That pattern must not come back.
+  assert.doesNotMatch(route, /for \(const file of files\)/);
+  assert.match(route, /Array\.from\(\{ length: concurrency \}, worker\)/);
+});
+
+test("same-batch duplicate files are reserved by content hash before any Drive/n8n work starts", () => {
+  const route = read("src/app/api/resume-screening/bulk/upload/route.ts");
+  assert.match(route, /claimedInBatch/);
+  assert.match(route, /Duplicate file selected in this same upload\./);
+});
+
+test("bulk completion emails default to disabled but remain configurable", () => {
+  const route = read("src/app/api/resume-screening/bulk/upload/route.ts");
+  assert.match(route, /BULK_RESUME_NOTIFY_ON_SUCCESS/);
+  assert.match(route, /notifyOnSuccess \? "not_requested" : "disabled"/);
+  assert.match(route, /notificationResponse\.ok \? "sent" : "failed"/);
+  assert.match(route, /notificationStatus = "failed"/);
+  assert.match(route, /allResultsTerminal/);
+});
+
+test("an accepted asynchronous intake request cannot be presented as completed", () => {
+  const route = read("src/app/api/resume-screening/bulk/upload/route.ts");
+  assert.match(route, /active intake webhook uses an immediate acknowledgement/);
+  assert.match(route, /reportedStatus/);
+  assert.match(route, /reportedStatus\) \? reportedStatus : "Queued"/);
+  assert.doesNotMatch(route, /String\(workflowResult\.status \|\| "Screened"\)/);
+});
+
+test("the intake contract records Screened only after the candidate workflow accepts", () => {
+  const intake = read("integrations/n8n/bulk-resume-upload-intake.ts");
+  assert.match(intake, /responseMode: 'onReceived'/);
+  assert.match(intake, /accepted \? 'Screened' : 'Failed'/);
+  assert.match(intake, /saveScreened/);
+});
+
+test("live bulk status reads are fresh and expose the downstream queue as the source of truth", () => {
+  const queue = read("src/lib/candidate-applications.ts");
+  const cache = read("src/lib/sheets-cache.ts");
+  const route = read("src/app/api/resume-screening/bulk/route.ts");
+  assert.match(queue, /getBulkResumeQueue\(roleId = "", options: \{ fresh\?: boolean \} = \{\}\)/);
+  assert.match(queue, /freshSheetsRead/);
+  assert.match(queue, /getBulkResumeScreeningEvidence/);
+  assert.match(cache, /export async function freshSheetsRead/);
+  assert.match(route, /saved applicant screening result/);
+  assert.match(route, /getBulkResumeQueue\(roleId, \{ fresh: true \}\)/);
+  assert.match(route, /productionUatActive/);
+  assert.match(route, /configuredProductionUatBatchId/);
+});
+
+test("uploaded resumes keep a traceable Drive link back to the candidate/application", () => {
+  const route = read("src/app/api/resume-screening/bulk/upload/route.ts");
+  assert.match(route, /function driveFileUrl/);
+  assert.match(route, /drive\.google\.com\/file\/d\//);
+});
+
+test("the bulk panel supports drag-and-drop, live auto-refresh, and retrying only failed files", () => {
+  const panel = read("src/components/BulkResumeScreeningPanel.tsx");
+  assert.match(panel, /onDrop=/);
+  assert.match(panel, /setInterval\(\(\) => \{ void refreshStatus\(\); \}, POLL_INTERVAL_MS\)/);
+  assert.match(panel, /Retry failed/);
+  assert.match(panel, /failedFiles/);
+  assert.match(panel, /Bulk Resume Processing/);
+  assert.match(panel, /Bulk screening completed/);
+  assert.match(panel, /View Processed Applicants/);
+  assert.match(panel, /Retry \{failedFiles\.length\} Failed/);
+  assert.match(panel, /refreshInFlight/);
+  assert.match(panel, /AbortController/);
+  assert.match(panel, /successful completion must come from the queue-backed status API/);
+});
+
+test("bulk upload is wired into the live Resume Screening page", () => {
+  const screening = read("src/app/resume-screening/page.tsx");
+  assert.match(screening, /BulkResumeScreeningPanel/);
+});
+
+test("invite links can use a separate candidate page origin without breaking portal API CORS", () => {
+  const inviteRoute = read("src/app/api/roles/[roleId]/resume-screening/invite/route.ts");
+  const publicCors = read("src/lib/public-cors.ts");
+  const envExample = read(".env.example");
+  const homePage = read("src/app/page.tsx");
+  assert.match(inviteRoute, /RESUME_SCREENING_INVITE_BASE_URL/);
+  assert.match(inviteRoute, /N8N_BULK_RESUME_PORTAL_BASE_URL/);
+  assert.match(publicCors, /RESUME_SCREENING_INVITE_BASE_URL/);
+  assert.match(envExample, /RESUME_SCREENING_INVITE_BASE_URL=https:\/\/ellai\.mclinkgroup\.com/);
+  assert.match(homePage, /candidatePageUrl\.searchParams\.set\("invite", inviteValue\)/);
+});
+
+test("bulk UAT mode is fail-closed and carries environment correlation metadata", () => {
+  const config = read("src/lib/bulk-resume-config.ts");
+  const files = read("src/lib/resume-files.ts");
+  const upload = read("src/app/api/resume-screening/bulk/upload/route.ts");
+  const queue = read("src/lib/candidate-applications.ts");
+  const page = read("src/app/resume-screening/page.tsx");
+  assert.match(config, /BULK_RESUME_UAT_DRIVE_FOLDER_ID/);
+  assert.match(config, /BULK_RESUME_UAT_SPREADSHEET_ID/);
+  assert.match(config, /N8N_BULK_RESUME_UPLOAD_UAT_WEBHOOK_URL/);
+  assert.match(config, /N8N_BULK_RESUME_UAT_WEBHOOK_SECRET/);
+  assert.match(config, /BULK_RESUME_PRODUCTION_UAT_BATCH_ID/);
+  assert.match(config, /Do not fall back to Production IDs/);
+  assert.match(files, /storeResumeFile\(file: File, options/);
+  assert.match(files, /environment === "uat"/);
+  assert.match(upload, /environment/);
+  assert.match(upload, /is_uat/);
+  assert.match(upload, /jobId/);
+  assert.match(upload, /bulkResumeIsUatMarked/);
+  assert.match(upload, /!isUat/);
+  assert.match(queue, /bulkResumeSpreadsheetId\(\)/);
+  assert.match(page, /UAT MODE/);
+});

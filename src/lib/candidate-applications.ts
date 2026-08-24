@@ -1,6 +1,7 @@
 import { google } from "googleapis";
 import { getGoogleServiceAccountPrivateKey } from "@/lib/google-service-account";
-import { cachedSheetsRead } from "@/lib/sheets-cache";
+import { bulkResumeSpreadsheetId } from "@/lib/bulk-resume-config";
+import { cachedSheetsRead, freshSheetsRead } from "@/lib/sheets-cache";
 import { demoActiveBookingLinkRoleIds, demoApplicantRows, demoInterviewBookings } from "@/lib/demo-data";
 import { isDemoMode, isDemoWindowRecord } from "@/lib/demo-mode";
 import { getRoleRequestById, type RoleRequestDetails } from "@/lib/google-sheets";
@@ -207,11 +208,12 @@ function configuredEvaluationValues(
     });
 }
 
-async function readTab(tabName: string, endColumn: string, options: { fresh?: boolean } = {}): Promise<{ headers: string[]; rows: SheetRow[] }> {
+async function readTab(tabName: string, endColumn: string, options: { fresh?: boolean; spreadsheetId?: string } = {}): Promise<{ headers: string[]; rows: SheetRow[] }> {
   const escapedTabName = tabName.replace(/'/g, "''");
+  const targetSpreadsheetId = options.spreadsheetId || spreadsheetId;
   const fetchValues = async () => {
     const response = await sheets.spreadsheets.values.get({
-      spreadsheetId,
+      spreadsheetId: targetSpreadsheetId,
       // Google Sheets rejects mixed open-ended ranges such as A1:R. Use
       // whole-column notation so newly appended queue rows are included.
       range: `'${escapedTabName}'!A:${endColumn}`,
@@ -223,8 +225,8 @@ async function readTab(tabName: string, endColumn: string, options: { fresh?: bo
   // the write request cannot reach that second instance, so detail reads must
   // bypass the short-lived cache and show the decision that was just saved.
   const values = options.fresh
-    ? await fetchValues()
-    : await cachedSheetsRead(`${tabName}:${endColumn}:${spreadsheetId}`, fetchValues);
+    ? await freshSheetsRead(fetchValues)
+    : await cachedSheetsRead(`${tabName}:${endColumn}:${targetSpreadsheetId}`, fetchValues);
   const headers = (values[0] ?? []).map((value) => text(value));
   const rows = values.slice(1)
     .filter((row) => row.some((value) => text(value) !== ""))
@@ -680,8 +682,8 @@ export async function getActiveBookingLinkRoleIds() {
   return { voice: [...voice], final: [...final] };
 }
 
-export async function getBulkResumeQueue(roleId = ""): Promise<BulkResumeQueueItem[]> {
-  const { rows } = await readTab("Bulk_Resume_Queue", "R");
+export async function getBulkResumeQueue(roleId = "", options: { fresh?: boolean } = {}): Promise<BulkResumeQueueItem[]> {
+  const { rows } = await readTab("Bulk_Resume_Queue", "R", { ...options, spreadsheetId: bulkResumeSpreadsheetId() });
   const normalizedRoleId = roleId.trim().toLowerCase();
   const latestByFile = new Map<string, BulkResumeQueueItem>();
   const eventTimestamp = (item: BulkResumeQueueItem) => {
@@ -718,6 +720,28 @@ export async function getBulkResumeQueue(roleId = ""): Promise<BulkResumeQueueIt
       }
     });
   return [...latestByFile.values()].sort((left, right) => eventTimestamp(right) - eventTimestamp(left));
+}
+
+/**
+ * Return application IDs for which the candidate sheet contains the minimum
+ * persisted AI-screening result. The queue's Screened event is written by n8n
+ * after the screening workflow responds, but this second check protects the
+ * portal from showing a false completion if that workflow or its sheet write
+ * is only partially successful. This read is cached because the bulk queue
+ * itself is the fresh/polling source and the candidate record changes less
+ * often than the queue status.
+ */
+export async function getBulkResumeScreeningEvidence(applicationIds: string[]): Promise<Set<string>> {
+  const wanted = new Set(applicationIds.map((id) => text(id).toLowerCase()).filter(Boolean));
+  if (wanted.size === 0) return new Set();
+  const { rows } = await readTab("High_Match_Profile", "CZ", { spreadsheetId: bulkResumeSpreadsheetId() });
+  return new Set(rows.filter((record) => {
+    const id = applicationId(record).toLowerCase();
+    const resumeStatus = field(record, "Status (Resume Processing)").toLowerCase();
+    return wanted.has(id)
+      && ["processed", "for hr review", "pending hr review"].includes(resumeStatus)
+      && Boolean(field(record, "Recommendation"));
+  }).map(applicationId));
 }
 
 export async function getApplicantById(id: string): Promise<ApplicantDetails | null> {

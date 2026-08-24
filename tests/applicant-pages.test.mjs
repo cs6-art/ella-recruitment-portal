@@ -88,6 +88,7 @@ test("resume extraction uses the supported PDF parser entrypoint", () => {
 test("applicant routes are protected and render populated sheet data", () => {
   const list = read("src/app/applicants/page.tsx");
   const screening = read("src/app/resume-screening/page.tsx");
+  const bulkPanel = read("src/components/BulkResumeScreeningPanel.tsx");
   const detail = read("src/app/applicants/[applicationId]/page.tsx");
   assert.match(list, /verifySessionToken/);
   assert.match(list, /getApplicants/);
@@ -97,8 +98,10 @@ test("applicant routes are protected and render populated sheet data", () => {
   assert.match(screening, /\/api\/applicants/);
   assert.match(screening, /isPublishedRoleForIntake/);
   assert.match(screening, /Resume Screening/);
-  assert.doesNotMatch(screening, /BulkResumeScreeningPanel/);
-  assert.match(screening, /Upload from Google Drive/);
+  // Bulk upload is a first-class portal feature (drag-and-drop, live status),
+  // not excluded in favor of the Drive-folder poller as it was previously.
+  assert.match(screening, /BulkResumeScreeningPanel/);
+  assert.match(bulkPanel, /Upload from Google Drive/);
   assert.match(screening, /GOOGLE_BULK_RESUME_DRIVE_URL/);
   assert.match(screening, /sort\(\(left, right\) => left\.label\.localeCompare\(right\.label/);
   assert.match(detail, /verifySessionToken/);

@@ -2,10 +2,12 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import AppShell from "@/components/AppShell";
+import BulkResumeScreeningPanel from "@/components/BulkResumeScreeningPanel";
 import CandidateApplicationForm from "@/components/CandidateApplicationForm";
 import ResumeScreeningInviteGenerator from "@/components/ResumeScreeningInviteGenerator";
 import { canManagePipeline } from "@/lib/access-control";
 import { getRoleRequests, isPublishedRoleForIntake } from "@/lib/google-sheets";
+import { isBulkResumeUatMode } from "@/lib/bulk-resume-config";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -36,23 +38,13 @@ export default async function ResumeScreeningPage() {
             <p>Start an automated CV analysis for a candidate applying to a published role.</p>
           </div>
         </header>
-        <section className="card resume-drive-option" aria-labelledby="resume-drive-title">
-          <div>
-            <span className="eyebrow-dark">ALTERNATIVE INTAKE</span>
-            <h2 id="resume-drive-title">Upload from Google Drive</h2>
-            <p>Open the shared resume folder to add candidate files for the connected screening workflow.</p>
-          </div>
-          {driveUrl ? (
-            <a className="btn btn-secondary" href={driveUrl} target="_blank" rel="noreferrer">Upload from Google Drive</a>
-          ) : (
-            <span className="resume-drive-unavailable">Google Drive upload is not configured.</span>
-          )}
-        </section>
+        {isBulkResumeUatMode() ? <div className="uat-mode-banner">UAT MODE · Bulk resume data is routed to the configured UAT destinations.</div> : null}
+        <BulkResumeScreeningPanel roleOptions={roleOptions} driveUrl={driveUrl} />
         <ResumeScreeningInviteGenerator roleOptions={roleOptions} />
         <CandidateApplicationForm
           submitUrl="/api/applicants"
           title="CV Analysis"
-          description="Upload the candidate resume to begin the automated screening process."
+          description="Upload a single candidate resume to begin the automated screening process."
           submitLabel="Submit My Application"
           requireConsent={false}
           showRoleSelect

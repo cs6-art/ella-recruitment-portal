@@ -2,7 +2,11 @@
 // is hosted on its own domain, separate from this portal. Only that origin is
 // allowed to call the public, unauthenticated endpoints it depends on.
 function allowedOrigins() {
-  return [process.env.N8N_BULK_RESUME_PORTAL_BASE_URL, process.env.NEXT_PUBLIC_APP_URL]
+  return [
+    process.env.RESUME_SCREENING_INVITE_BASE_URL,
+    process.env.N8N_BULK_RESUME_PORTAL_BASE_URL,
+    process.env.NEXT_PUBLIC_APP_URL,
+  ]
     .map((value) => value?.trim().replace(/\/$/, ""))
     .filter((value): value is string => Boolean(value));
 }

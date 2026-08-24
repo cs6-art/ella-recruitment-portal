@@ -47,10 +47,12 @@ export async function POST(request: Request, context: { params: Promise<{ roleId
   const parsed = bodySchema.safeParse(await request.json().catch(() => ({})));
   if (!parsed.success) return responseError("Enter the candidate's full name and email address.", 422);
 
-  // The static apply page lives on its own domain (see
-  // N8N_BULK_RESUME_PORTAL_BASE_URL); the generated link must point there,
-  // not at this portal's own origin.
-  const configuredBaseUrl = process.env.N8N_BULK_RESUME_PORTAL_BASE_URL?.trim().replace(/\/$/, "");
+  // The static candidate page may live on a separate domain. Keep that page
+  // URL independent from N8N_BULK_RESUME_PORTAL_BASE_URL, which is also used
+  // by n8n to reach this portal for resume extraction.
+  const configuredBaseUrl =
+    process.env.RESUME_SCREENING_INVITE_BASE_URL?.trim().replace(/\/$/, "") ||
+    process.env.N8N_BULK_RESUME_PORTAL_BASE_URL?.trim().replace(/\/$/, "");
   const baseUrl = configuredBaseUrl || getPublicAppBaseUrl(request);
 
   try {

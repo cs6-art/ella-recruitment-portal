@@ -102,6 +102,17 @@ export async function cachedSheetsRead<T>(key: string, fetcher: () => Promise<T>
   return read;
 }
 
+/**
+ * Read through the shared pacing/backoff path while deliberately skipping the
+ * value cache. This is for externally-written, user-visible state such as the
+ * n8n bulk queue, where freshness matters but repeated polling must still
+ * respect Sheets quota.
+ */
+export async function freshSheetsRead<T>(fetcher: () => Promise<T>): Promise<T> {
+  await waitForReadSlot();
+  return withBackoff(fetcher);
+}
+
 /** Call after any write to a tab so the next read reflects it, instead of
  * serving up-to-20s-stale data right after the app itself changed it. */
 export function invalidateSheetsCache(tabPrefix: string): void {

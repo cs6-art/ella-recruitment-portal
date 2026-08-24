@@ -3,8 +3,9 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { canManagePipeline } from "@/lib/access-control";
-import { getBulkResumeQueue } from "@/lib/candidate-applications";
+import { getBulkResumeQueue, type BulkResumeQueueItem } from "@/lib/candidate-applications";
 import { getRoleRequestById, isPublishedRoleForIntake } from "@/lib/google-sheets";
+import { bulkResumeEnvironment, bulkResumeIsUatMarked, bulkResumeWebhookConfig, productionUatBatchId } from "@/lib/bulk-resume-config";
 import { consumeRateLimit, rateLimitHeaders, requestClientKey } from "@/lib/rate-limit";
 import { deleteResumeFile, MAX_RESUME_FILE_BYTES, storeResumeFile } from "@/lib/resume-files";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
@@ -14,6 +15,23 @@ export const dynamic = "force-dynamic";
 
 const MAX_FILES_PER_BATCH = 25;
 const MAX_BULK_REQUEST_BYTES = 100 * 1024 * 1024;
+
+// Each file's pipeline (contact extraction + role-specific AI screening,
+// chained across two n8n workflows) previously ran one at a time from this
+// route, which is why bulk screening topped out around 1 resume/minute even
+// though nothing else in the chain was that slow. Files are independent of
+// each other (distinct content hash, distinct queue row), so running several
+// in flight at once is safe; the concurrency is capped and configurable so
+// it can be tuned to the connected OpenAI/Google Sheets quota instead of
+// guessed. Keep this conservative by default — raise it only after
+// confirming no 429s appear in the n8n executions for this workflow.
+const DEFAULT_CONCURRENCY = 5;
+const MAX_CONCURRENCY = 10;
+function resolveConcurrency(fileCount: number) {
+  const configured = Number(process.env.BULK_RESUME_UPLOAD_CONCURRENCY);
+  const bounded = Number.isFinite(configured) ? Math.min(Math.max(Math.trunc(configured), 1), MAX_CONCURRENCY) : DEFAULT_CONCURRENCY;
+  return Math.max(1, Math.min(bounded, fileCount));
+}
 
 function responseError(error: string, status: number, extra: Record<string, unknown> = {}) {
   return NextResponse.json({ success: false, error, ...extra }, { status });
@@ -28,6 +46,10 @@ function legacyQueueIdForHash(sha256: string) {
   return `BULK-${sha256}`;
 }
 
+function driveFileUrl(fileId: string) {
+  return fileId ? `https://drive.google.com/file/d/${fileId}/view` : "";
+}
+
 export async function POST(request: Request) {
   const user = verifySessionToken((await cookies()).get(COOKIE_NAME)?.value);
   if (!user) return responseError("Authentication required.", 401);
@@ -39,11 +61,12 @@ export async function POST(request: Request) {
   const contentLength = Number(request.headers.get("content-length") || 0);
   if (contentLength > MAX_BULK_REQUEST_BYTES) return responseError("Bulk uploads must be 100 MB or smaller per batch.", 413);
 
-  const webhookUrl = process.env.N8N_BULK_RESUME_UPLOAD_WEBHOOK_URL?.trim();
-  const webhookSecret = process.env.N8N_WEBHOOK_SECRET?.trim();
-  if (!webhookUrl || !webhookSecret) return responseError("The bulk screening workflow is not configured.", 503);
+  const environment = bulkResumeEnvironment();
+  const isUat = bulkResumeIsUatMarked();
+  const configuredUatBatchId = productionUatBatchId();
 
   try {
+    const { url: webhookUrl, secret: webhookSecret } = bulkResumeWebhookConfig();
     const formData = await request.formData();
     const roleId = String(formData.get("roleId") || "").trim();
     const files = formData.getAll("resumes").filter((value): value is File => value instanceof File);
@@ -61,50 +84,86 @@ export async function POST(request: Request) {
     const results: Array<Record<string, unknown>> = [];
     // Keep one correlation id for the complete upload so the internal
     // notification contains a single, auditable batch summary.
-    const batchId = `BATCH-${new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 14)}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+    const batchId = configuredUatBatchId || `${isUat ? "UAT-BATCH" : "BATCH"}-${new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 14)}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
 
-    for (const file of files) {
+    // Concurrent workers below can race on the exact same file content
+    // appearing twice in one batch (e.g. a candidate's resume picked up
+    // from two folders): both could pass the "not already queued" check
+    // before either has written a status. Reserve each content hash
+    // synchronously, up front, so a same-batch duplicate is caught here
+    // instead of being screened twice.
+    const claimedInBatch = new Set<string>();
+    async function hashFile(file: File) {
+      const buffer = Buffer.from(await file.arrayBuffer());
+      const sha256 = crypto.createHash("sha256").update(buffer).digest("hex");
+      return { file, sha256, queueId: queueIdForHash(roleId, sha256) };
+    }
+    const hashed = await Promise.all(files.map(hashFile));
+    const toProcess: typeof hashed = [];
+    for (const item of hashed) {
+      if (claimedInBatch.has(item.queueId)) {
+        results.push({ fileName: item.file.name, queueId: item.queueId, status: "Skipped", skipped: true, message: "Duplicate file selected in this same upload." });
+        continue;
+      }
+      claimedInBatch.add(item.queueId);
+      toProcess.push(item);
+    }
+
+    async function processFile({ file, queueId }: { file: File; sha256: string; queueId: string }) {
       let stored: Awaited<ReturnType<typeof storeResumeFile>> | null = null;
       try {
         if (file.size > MAX_RESUME_FILE_BYTES) throw new Error("Resume files must be 10 MB or smaller.");
-        stored = await storeResumeFile(file);
-        const queueId = queueIdForHash(roleId, stored.record.sha256);
-        const previous = latestByFile.get(queueId) || latestByFile.get(legacyQueueIdForHash(stored.record.sha256));
+        stored = await storeResumeFile(file, { environment });
+        const resolvedQueueId = queueIdForHash(roleId, stored.record.sha256);
+        const previous = latestByFile.get(resolvedQueueId) || latestByFile.get(legacyQueueIdForHash(stored.record.sha256));
         const previousStatus = previous?.status.toLowerCase() || "";
         if (["screened", "processing", "queued"].includes(previousStatus)) {
           await deleteResumeFile(stored.record);
-          results.push({ fileName: file.name, queueId, status: previous?.status || "Queued", skipped: true, message: previousStatus === "screened" ? "This resume was already screened for this role." : previousStatus === "queued" ? "This resume is already queued for this role." : "This resume is already being screened for this role." });
-          continue;
+          results.push({ fileName: file.name, queueId: resolvedQueueId, status: previous?.status || "Queued", skipped: true, message: previousStatus === "screened" ? "This resume was already screened for this role." : previousStatus === "queued" ? "This resume is already queued for this role." : "This resume is already being screened for this role." });
+          return;
         }
 
+        const fileUrl = driveFileUrl(stored.record.fileId);
         const payload = {
           eventType: "bulk_resume_uploaded",
           batchId,
-          queueId,
+          queueId: resolvedQueueId,
           roleId,
-          applicationId: `APP-${crypto.createHash("sha256").update(`${roleId}:${stored.record.sha256}`).digest("hex").slice(0, 24)}`,
+          applicationId: `${isUat ? "UAT-" : ""}APP-${crypto.createHash("sha256").update(`${roleId}:${stored.record.sha256}`).digest("hex").slice(0, 24)}`,
           fileName: stored.record.fileName,
           mimeType: stored.record.mimeType,
           sha256: stored.record.sha256,
           resumeText: stored.extractedText,
           resumeFile: stored.record,
+          driveFileUrl: fileUrl,
           submittedAt: new Date().toISOString(),
-          source: "Portal Bulk Upload",
+          source: isUat ? "Portal Bulk Upload (UAT)" : "Portal Bulk Upload",
+          environment: isUat ? "uat" : environment,
+          isUat,
+          is_uat: isUat,
+          jobId: resolvedQueueId,
         };
         const response = await fetch(webhookUrl, {
           method: "POST",
-          headers: { "Content-Type": "application/json", "X-Webhook-Secret": webhookSecret, "X-Idempotency-Key": queueId },
+          headers: { "Content-Type": "application/json", "X-Webhook-Secret": webhookSecret, "X-Idempotency-Key": resolvedQueueId },
           body: JSON.stringify(payload),
           cache: "no-store",
         });
         if (!response.ok) throw new Error(`The screening workflow returned HTTP ${response.status}.`);
         const workflowResult = await response.json().catch(() => ({})) as Record<string, unknown>;
-        const terminalStatus = String(workflowResult.status || "Screened");
+        // The active intake webhook uses an immediate acknowledgement. A 2xx
+        // response therefore means only that n8n accepted the request; it does
+        // not mean that candidate extraction, AI screening, and applicant
+        // persistence have finished. Only an explicit terminal status from a
+        // synchronous integration may be treated as terminal here. Otherwise
+        // the queue poll remains the source of truth.
+        const reportedStatus = String(workflowResult.status || "").trim();
+        const terminalStatus = /^(screened|processed|failed|skipped)$/i.test(reportedStatus) ? reportedStatus : "Queued";
 
-        latestByFile.set(queueId, {
-          driveFileId: queueId,
+        const queueItem: BulkResumeQueueItem = {
+          driveFileId: resolvedQueueId,
           driveFileName: stored.record.fileName,
-          driveFileUrl: "",
+          driveFileUrl: fileUrl,
           roleId,
           candidateName: "",
           candidateEmail: "",
@@ -113,23 +172,44 @@ export async function POST(request: Request) {
           errorMessage: "",
           discoveredAt: payload.submittedAt,
           processingStartedAt: payload.submittedAt,
-          processedAt: "",
+          processedAt: /^(screened|processed)$/i.test(terminalStatus) ? payload.submittedAt : "",
           attemptCount: String(Number(previous?.attemptCount || 0) + 1),
           lastUpdated: payload.submittedAt,
-        });
-        results.push({ fileName: stored.record.fileName, queueId, applicationId: payload.applicationId, status: terminalStatus });
+        };
+        latestByFile.set(resolvedQueueId, queueItem);
+        results.push({ fileName: stored.record.fileName, queueId: resolvedQueueId, applicationId: payload.applicationId, status: terminalStatus, driveFileUrl: fileUrl });
       } catch (error) {
         if (stored && !results.some((result) => result.queueId === queueIdForHash(roleId, stored?.record.sha256 || ""))) await deleteResumeFile(stored.record).catch(() => undefined);
-        results.push({ fileName: file.name, status: "Failed", error: error instanceof Error ? error.message : "Unable to submit this resume." });
+        results.push({ fileName: file.name, queueId, status: "Failed", error: error instanceof Error ? error.message : "Unable to submit this resume." });
       }
     }
 
-    // The bulk webhook returns after each item has been recorded. The API
-    // emits one internal completion event only after every selected file has
-    // reached a terminal queue status, preserving a single batch summary.
-    let notificationStatus: "sent" | "pending" | "not_configured" = "not_configured";
+    // Controlled-concurrency worker pool: a fixed number of files are ever
+    // in flight at once, each independently going through Drive storage +
+    // the two-stage n8n screening chain. This is what raises throughput
+    // beyond one-resume-at-a-time; it does not change what each file's
+    // pipeline does, only how many run at the same time.
+    const concurrency = resolveConcurrency(toProcess.length);
+    let cursor = 0;
+    async function worker() {
+      while (cursor < toProcess.length) {
+        const index = cursor++;
+        await processFile(toProcess[index]);
+      }
+    }
+    await Promise.all(Array.from({ length: concurrency }, worker));
+
+    // Bulk completion emails are disabled by default while this feature is
+    // rolled out; set BULK_RESUME_NOTIFY_ON_SUCCESS=true to re-enable them.
+    // Keep the notification contract available for a synchronous/terminal
+    // integration, but never emit a completion email for an asynchronous
+    // acknowledgement. The queue remains authoritative for that case.
+    const notifyOnSuccess = String(process.env.BULK_RESUME_NOTIFY_ON_SUCCESS || "").trim().toLowerCase() === "true";
+    let notificationStatus: "sent" | "failed" | "disabled" | "not_requested" = notifyOnSuccess ? "not_requested" : "disabled";
     const notificationUrl = (process.env.N8N_ROLE_REQUEST_WEBHOOK_URL || process.env.N8N_ROLE_WEBHOOK_URL || "").trim();
-    if (notificationUrl && webhookSecret && files.length > 0) {
+    const terminalResults = new Set(["screened", "processed", "failed", "skipped"]);
+    const allResultsTerminal = results.length > 0 && results.every((result) => terminalResults.has(String(result.status || "").toLowerCase()));
+    if (notifyOnSuccess && !isUat && allResultsTerminal && notificationUrl && webhookSecret && files.length > 0) {
       try {
         const notificationResponse = await fetch(notificationUrl, {
           method: "POST",
@@ -150,16 +230,17 @@ export async function POST(request: Request) {
           }),
           cache: "no-store",
         });
-        notificationStatus = notificationResponse.ok ? "sent" : "pending";
+        notificationStatus = notificationResponse.ok ? "sent" : "failed";
       } catch (error) {
         // Upload success must not be rolled back because an internal alert is
         // temporarily unavailable; the queue records remain authoritative.
         console.error("[Bulk Resume Upload] completion notification failed:", error);
-        notificationStatus = "pending";
+        notificationStatus = "failed";
       }
     }
 
-    return NextResponse.json({ success: true, roleId, batchId, results, notificationStatus, submitted: results.filter((result) => ["Screened", "Processed"].includes(String(result.status))).length }, { status: 202 });
+    const submitted = results.filter((result) => !result.skipped && String(result.status || "").toLowerCase() !== "failed").length;
+    return NextResponse.json({ success: true, roleId, batchId, environment: isUat ? "uat" : environment, isUat, results, notificationStatus, concurrency, submitted }, { status: 202 });
   } catch (error) {
     console.error("[Bulk Resume Upload] POST failed:", error);
     return responseError(error instanceof Error ? error.message : "Unable to upload bulk resumes.", 400);

@@ -27,6 +27,6 @@ test("setup is HR-only and status constrained", () => {
   assert.equal(["Approved", "Recruitment Setup"].includes("Pending HR Discussion"), false);
 });
 
-for (const status of ["sent", "pending", "not_configured", "failed"]) {
-  test(`notification status ${status} is represented`, () => assert.ok(["sent", "pending", "not_configured", "failed"].includes(status)));
+for (const status of ["sent", "pending", "not_configured", "failed", "disabled", "not_requested"]) {
+  test(`notification status ${status} is represented`, () => assert.ok(["sent", "pending", "not_configured", "failed", "disabled", "not_requested"].includes(status)));
 }

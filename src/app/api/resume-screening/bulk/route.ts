@@ -2,7 +2,8 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { canManagePipeline } from "@/lib/access-control";
-import { getBulkResumeQueue } from "@/lib/candidate-applications";
+import { getBulkResumeQueue, getBulkResumeScreeningEvidence } from "@/lib/candidate-applications";
+import { bulkResumeEnvironment, bulkResumeIsUatMarked, productionUatBatchId } from "@/lib/bulk-resume-config";
 import { getRoleRequests, isPublishedRoleForIntake } from "@/lib/google-sheets";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
 
@@ -19,6 +20,7 @@ export async function GET(request: Request) {
 
   const roleId = new URL(request.url).searchParams.get("roleId")?.trim() || "";
   try {
+    const configuredProductionUatBatchId = productionUatBatchId();
     const roles = await getRoleRequests({ liveOnly: true });
     const publishedRoleIds = new Set(
       roles
@@ -27,7 +29,24 @@ export async function GET(request: Request) {
     );
     if (roleId && !publishedRoleIds.has(roleId.toLowerCase())) return errorResponse("The selected role is not published.", 409);
 
-    const items = (await getBulkResumeQueue(roleId)).filter((item) => publishedRoleIds.has(item.roleId.toLowerCase()));
+    // n8n is the writer for this tab, so a cached read can hide a completed
+    // screening for the entire 20-second Sheets cache TTL. This endpoint is
+    // polled while work is active; read the queue fresh so the UI never turns
+    // a stale snapshot into a misleading completion state.
+    const queueItems = (await getBulkResumeQueue(roleId, { fresh: true })).filter((item) => publishedRoleIds.has(item.roleId.toLowerCase()));
+    const terminalItems = queueItems.filter((item) => ["screened", "processed"].includes(item.status.toLowerCase()));
+    const screeningEvidence = await getBulkResumeScreeningEvidence(terminalItems.map((item) => item.applicationId));
+    const items = queueItems.map((item) => {
+      if (!["screened", "processed"].includes(item.status.toLowerCase())) return item;
+      if (item.applicationId && screeningEvidence.has(item.applicationId.toLowerCase())) return item;
+      // Do not expose a terminal-looking queue event as Completed until the
+      // corresponding applicant row contains the saved AI result.
+      return {
+        ...item,
+        status: "Processing",
+        errorMessage: "Waiting for the saved applicant screening result.",
+      };
+    });
     const counts = items.reduce<Record<string, number>>((result, item) => {
       const status = item.status || "Queued";
       result[status] = (result[status] || 0) + 1;
@@ -37,6 +56,13 @@ export async function GET(request: Request) {
     return NextResponse.json({
       success: true,
       configured: true,
+      // This is an authenticated, non-secret readiness signal for the
+      // controlled Production canary. It lets operators verify the active
+      // deployment without uploading a resume just to inspect its config.
+      productionUatActive: Boolean(configuredProductionUatBatchId),
+      batchId: configuredProductionUatBatchId,
+      environment: bulkResumeIsUatMarked() ? "uat" : bulkResumeEnvironment(),
+      isUat: bulkResumeIsUatMarked(),
       counts,
       items: items.slice(0, 50),
       updatedAt: new Date().toISOString(),

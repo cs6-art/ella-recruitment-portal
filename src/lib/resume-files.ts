@@ -7,6 +7,7 @@ import mammoth from "mammoth";
 import WordExtractor from "word-extractor";
 
 import { getGoogleServiceAccountPrivateKey } from "@/lib/google-service-account";
+import { requireBulkResumeUatConfig, type BulkResumeEnvironment } from "@/lib/bulk-resume-config";
 import { createPdfTextParser } from "@/lib/pdf-text-parser";
 
 // This module is the single server-side boundary for resume validation,
@@ -65,7 +66,11 @@ function drive() {
   return driveClient;
 }
 
-function resumeFolderId() {
+function resumeFolderId(environment: BulkResumeEnvironment = "production") {
+  if (environment === "uat") {
+    requireBulkResumeUatConfig();
+    return process.env.BULK_RESUME_UAT_DRIVE_FOLDER_ID!.trim();
+  }
   const folderId = process.env.RESUME_STORAGE_DRIVE_FOLDER_ID?.trim();
   if (!folderId) throw new Error("RESUME_STORAGE_DRIVE_FOLDER_ID is not configured.");
   return folderId;
@@ -226,7 +231,7 @@ async function cleanupIfDue() {
   return cleanupInFlight;
 }
 
-export async function storeResumeFile(file: File): Promise<StoredResume> {
+export async function storeResumeFile(file: File, options: { environment?: BulkResumeEnvironment } = {}): Promise<StoredResume> {
   await cleanupIfDue().catch(() => undefined);
   const fileName = safeFileName(file.name || "resume");
   const kind = detectKind(fileName, file.type);
@@ -249,7 +254,7 @@ export async function storeResumeFile(file: File): Promise<StoredResume> {
     supportsAllDrives: true,
     requestBody: {
       name: fileName,
-      parents: [resumeFolderId()],
+      parents: [resumeFolderId(options.environment)],
       properties: { kind, sha256, expiresAt },
     },
     media: { mimeType, body: Readable.from(buffer) },

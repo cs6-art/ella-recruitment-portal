@@ -7,6 +7,7 @@ import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
 type HomePageProps = {
   searchParams?: Promise<{
     next?: string | string[];
+    invite?: string | string[];
   }>;
 };
 
@@ -14,6 +15,20 @@ export default async function Home({ searchParams }: HomePageProps) {
   const cookieStore = await cookies();
   const user = verifySessionToken(cookieStore.get(COOKIE_NAME)?.value);
   const query = searchParams ? await searchParams : undefined;
+  const inviteValue = Array.isArray(query?.invite) ? query.invite[0] : query?.invite;
+  const candidatePageBaseUrl = process.env.RESUME_SCREENING_INVITE_BASE_URL?.trim();
+  if (inviteValue && candidatePageBaseUrl) {
+    let candidatePageUrl: URL | null = null;
+    try {
+      candidatePageUrl = new URL(candidatePageBaseUrl);
+    } catch {
+      // Ignore malformed optional configuration and render the normal portal.
+    }
+    if (candidatePageUrl) {
+      candidatePageUrl.searchParams.set("invite", inviteValue);
+      redirect(candidatePageUrl.toString());
+    }
+  }
   const nextValue = Array.isArray(query?.next) ? query.next[0] : query?.next;
   const redirectTo = safeAuthRedirect(nextValue);
 
