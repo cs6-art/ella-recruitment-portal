@@ -248,6 +248,21 @@ export async function storeResumeFile(file: File, options: { environment?: BulkR
   const sha256 = crypto.createHash("sha256").update(buffer).digest("hex");
   const expiresAt = retentionExpiry(uploadedAt);
 
+  // Queue history can predate the current jobId contract. Reuse a matching
+  // non-expired Drive object when it is already present, so re-submitting a
+  // resume after a lost historical queue write does not create another file.
+  const existing = await drive().files.list({
+    q: `'${resumeFolderId(options.environment)}' in parents and trashed = false and properties has { key='sha256' and value='${sha256}' }`,
+    fields: "files(id, name, mimeType, size, createdTime, properties)",
+    pageSize: 10,
+    includeItemsFromAllDrives: true,
+    supportsAllDrives: true,
+  });
+  const existingRecord = (existing.data.files || [])
+    .map(recordFromDriveFile)
+    .find((record): record is ResumeFileRecord => Boolean(record && new Date(record.expiresAt).getTime() > Date.now()));
+  if (existingRecord) return { record: existingRecord, extractedText };
+
   const response = await drive().files.create({
     // Upload into a Shared Drive folder rather than the service account's
     // quota-less personal Drive space.

@@ -26,6 +26,13 @@ test("same-batch duplicate files are reserved by content hash before any Drive/n
   assert.match(route, /Duplicate file selected in this same upload\./);
 });
 
+test("re-uploading a historical hash reuses the existing Drive object", () => {
+  const files = read("src/lib/resume-files.ts");
+  assert.match(files, /properties has \{ key='sha256' and value='/);
+  assert.match(files, /existingRecord/);
+  assert.match(files, /return \{ record: existingRecord, extractedText \}/);
+});
+
 test("bulk completion emails default to disabled but remain configurable", () => {
   const route = read("src/app/api/resume-screening/bulk/upload/route.ts");
   assert.match(route, /BULK_RESUME_NOTIFY_ON_SUCCESS/);
