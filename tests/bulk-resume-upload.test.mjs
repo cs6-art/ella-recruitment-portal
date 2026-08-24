@@ -45,9 +45,29 @@ test("an accepted asynchronous intake request cannot be presented as completed",
 
 test("the intake contract records Screened only after the candidate workflow accepts", () => {
   const intake = read("integrations/n8n/bulk-resume-upload-intake.ts");
-  assert.match(intake, /responseMode: 'onReceived'/);
+  assert.match(intake, /responseMode: 'responseNode'/);
   assert.match(intake, /accepted \? 'Screened' : 'Failed'/);
   assert.match(intake, /saveScreened/);
+});
+
+test("the intake handoff uses the verified Production Foundation webhook and preserves UAT metadata", () => {
+  const intake = read("integrations/n8n/bulk-resume-upload-intake.ts");
+  assert.match(intake, /candidate-application/);
+  assert.doesNotMatch(intake, /__CANDIDATE_WEBHOOK_URL__/);
+  assert.match(intake, /environment: \$json\.environment/);
+  assert.match(intake, /is_uat: \$json\.is_uat/);
+  assert.match(intake, /batchId: \$json\.batchId/);
+  assert.match(intake, /jobId: \$json\.jobId/);
+  assert.match(intake, /fullResponse: true/);
+  assert.match(intake, /neverError: true/);
+});
+
+test("queue state writes upsert by stable jobId instead of racing append row positions", () => {
+  const intake = read("integrations/n8n/bulk-resume-upload-intake.ts");
+  assert.match(intake, /operation: 'appendOrUpdate'/);
+  assert.match(intake, /matchingColumns: \['jobId'\]/);
+  assert.match(intake, /schema: queueSchema/);
+  assert.match(intake, /Candidate Foundation handoff failed before a response was received/);
 });
 
 test("live bulk status reads are fresh and expose the downstream queue as the source of truth", () => {

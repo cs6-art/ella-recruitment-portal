@@ -1,16 +1,24 @@
 import { workflow, node, trigger, newCredential, languageModel, outputParser, ifElse, expr } from '@n8n/workflow-sdk';
 
 const sheetDocument = '1J6qadoB07aliQWtV8uykEYW7ENjNOf0nsZ_iTt9g8KM';
-const candidateWebhookUrl = '__CANDIDATE_WEBHOOK_URL__';
-const webhookSecret = '__WEBHOOK_SECRET__';
+// The hosted n8n runtime denies workflow access to $env. Keep this aligned
+// with the portal's N8N_CANDIDATE_APPLICATION_WEBHOOK_URL and the published
+// Production webhook on McLink - Candidate Application Foundation.
+const candidateWebhookUrl = 'https://n8n.srv1457709.hstgr.cloud/webhook/candidate-application';
+const queueSchema = [
+  'driveFileId', 'driveFileName', 'driveFileUrl', 'driveFileMimeType', 'roleId',
+  'candidateName', 'candidateEmail', 'preferredMobile', 'applicantCountry', 'status',
+  'applicationId', 'errorMessage', 'discoveredAt', 'processingStartedAt', 'processedAt',
+  'attemptCount', 'lastUpdated', 'environment', 'is_uat', 'batchId', 'jobId',
+].map((id) => ({ id, displayName: id, type: id === 'is_uat' ? 'boolean' : 'string', canBeUsedToMatch: id === 'jobId' }));
 
 const queueParameters = {
   resource: 'sheet',
-  operation: 'append',
+  operation: 'appendOrUpdate',
   authentication: 'serviceAccount',
   documentId: { __rl: true, mode: 'id', value: sheetDocument },
   sheetName: { __rl: true, mode: 'name', value: 'Bulk_Resume_Queue' },
-  columns: { mappingMode: 'autoMapInputData', value: {} },
+  columns: { mappingMode: 'autoMapInputData', value: {}, matchingColumns: ['jobId'], schema: queueSchema },
   options: { handlingExtraData: 'ignoreIt', cellFormat: 'USER_ENTERED', locationDefine: { values: { headerRow: 1 } } },
 };
 const queueCredentials = { googleApi: newCredential('Google Sheets Service Account') };
@@ -18,7 +26,7 @@ const queueCredentials = { googleApi: newCredential('Google Sheets Service Accou
 const webhook = trigger({
   type: 'n8n-nodes-base.webhook',
   version: 2.1,
-  config: { name: 'Bulk Resume Upload Webhook', parameters: { httpMethod: 'POST', path: 'bulk-resume-upload', responseMode: 'onReceived', options: { allowedOrigins: '*' } }, position: [240, 300] },
+  config: { name: 'Bulk Resume Upload Webhook', parameters: { httpMethod: 'POST', path: 'bulk-resume-upload', responseMode: 'responseNode', options: { allowedOrigins: '*' } }, position: [240, 300] },
   output: [{ body: { eventType: 'bulk_resume_uploaded', queueId: 'BULK-example', roleId: 'AC01', fileName: 'AC01 - Candidate.pdf', resumeText: 'Candidate resume text...' } }],
 });
 
@@ -60,9 +68,9 @@ if (!queueId || !text(body.roleId) || !text(body.resumeText)) throw new Error('B
 const roleKey = text(body.roleId).toLowerCase();
 const queueState = latest.get(`${roleKey}|${queueId}`) || latest.get(`|${queueId}`);
 const previousStatus = queueState?.status || '';
-if (['screened', 'processing', 'queued'].includes(previousStatus)) return [{ json: { skip: true, queueId, roleId: text(body.roleId), status: 'Skipped', lastUpdated: new Date().toISOString(), errorMessage: previousStatus === 'screened' ? 'Resume was already screened for this role.' : 'Resume is already queued or being screened for this role.' } }];
+if (['screened', 'processing', 'queued'].includes(previousStatus)) return [{ json: { skip: true, queueId, roleId: text(body.roleId), environment, is_uat: isUat, batchId, jobId, status: 'Skipped', lastUpdated: new Date().toISOString(), errorMessage: previousStatus === 'screened' ? 'Resume was already screened for this role.' : 'Resume is already queued or being screened for this role.' } }];
 const now = new Date().toISOString();
-return [{ json: { skip: false, queueId, driveFileId: queueId, driveFileName: text(body.fileName), driveFileUrl: '', driveFileMimeType: text(body.mimeType), roleId: text(body.roleId), resumeText: text(body.resumeText), resumeFile: body.resumeFile || {}, applicationId: text(body.applicationId), status: 'Processing', discoveredAt: text(body.submittedAt) || now, processingStartedAt: now, processedAt: '', attemptCount: String(Number(body.attemptCount || 0) + 1), lastUpdated: now } }];`,
+return [{ json: { skip: false, queueId, driveFileId: queueId, driveFileName: text(body.fileName), driveFileUrl: '', driveFileMimeType: text(body.mimeType), roleId: text(body.roleId), resumeText: text(body.resumeText), resumeFile: body.resumeFile || {}, applicationId: text(body.applicationId), environment, is_uat: isUat, batchId, jobId, status: 'Processing', discoveredAt: text(body.submittedAt) || now, processingStartedAt: now, processedAt: '', attemptCount: String(Number(body.attemptCount || 0) + 1), lastUpdated: now } }];`,
     },
     position: [800, 300],
   },
@@ -111,7 +119,7 @@ const submit = node({
   version: 4.4,
   config: {
     name: 'Submit Candidate to Screening Workflow',
-    parameters: { method: 'POST', url: candidateWebhookUrl, sendHeaders: true, specifyHeaders: 'keypair', headerParameters: { parameters: [{ name: 'X-Webhook-Secret', value: webhookSecret }, { name: 'X-Idempotency-Key', value: expr('{{ $json.applicationId }}') }] }, sendBody: true, contentType: 'json', specifyBody: 'json', jsonBody: expr('{{ JSON.stringify({ eventType: "candidate_application_submitted", applicationId: $json.applicationId, roleId: $json.roleId, Role_ID: $json.roleId, jobTitle: "", department: "", candidate: { name: $json.candidateName, email: $json.candidateEmail, phone: $json.preferredMobile, preferredMobile: $json.preferredMobile, applicantCountry: $json.applicantCountry, resumeText: $json.resumeText, salaryExpectation: "", noticePeriod: "", availability: "", skillsAssessment: "", roleExpectations: "", applicationSource: "HR Manual Intake", consent: false }, resumeFile: $json.resumeFile, submittedAt: $now.toISO(), source: "Portal Bulk Upload", applicationSource: "HR Manual Intake" }) }}'), response: { fullResponse: true, responseFormat: 'json', neverError: true } },
+    parameters: { method: 'POST', url: candidateWebhookUrl, sendHeaders: true, specifyHeaders: 'keypair', headerParameters: { parameters: [{ name: 'X-Idempotency-Key', value: expr('{{ $json.applicationId }}') }] }, sendBody: true, contentType: 'json', specifyBody: 'json', jsonBody: expr('{{ JSON.stringify({ eventType: "candidate_application_submitted", applicationId: $json.applicationId, roleId: $json.roleId, environment: $json.environment || "production", is_uat: $json.is_uat === true, batchId: $json.batchId || "", jobId: $json.jobId || $json.queueId, Role_ID: $json.roleId, jobTitle: "", department: "", candidate: { name: $json.candidateName, email: $json.candidateEmail, phone: $json.preferredMobile, preferredMobile: $json.preferredMobile, applicantCountry: $json.applicantCountry, resumeText: $json.resumeText, salaryExpectation: "", noticePeriod: "", availability: "", skillsAssessment: "", roleExpectations: "", applicationSource: "HR Manual Intake", consent: false }, resumeFile: $json.resumeFile, submittedAt: $now.toISO(), source: "Portal Bulk Upload", applicationSource: "HR Manual Intake" }) }}'), options: { response: { response: { fullResponse: true, neverError: true, responseFormat: 'json' } } } },
     position: [2480, 300],
   },
   output: [{ statusCode: 201, body: { success: true, applicationId: 'APP-BULK-example' } }],
@@ -120,7 +128,8 @@ const evaluate = node({ type: 'n8n-nodes-base.code', version: 2, config: { name:
 const code = Number($json.statusCode || 0);
 const base = $('Prepare Candidate Screening').item.json;
 const accepted = code >= 200 && code < 300 && response.success !== false;
-return { json: { ...base, status: accepted ? 'Screened' : 'Failed', submissionAccepted: accepted, errorMessage: accepted ? '' : String(response.error || 'Candidate screening workflow rejected the resume.'), processedAt: accepted ? new Date().toISOString() : '', lastUpdated: new Date().toISOString() } };` }, position: [2760, 300] }, output: [{ queueId: 'BULK-example', roleId: 'AC01', status: 'Screened', submissionAccepted: true }] });
+const errorMessage = response.error || response.message || $json.error?.message || 'Candidate Foundation handoff failed before a response was received.';
+return { json: { ...base, status: accepted ? 'Screened' : 'Failed', submissionAccepted: accepted, errorMessage: accepted ? '' : String(errorMessage), processedAt: accepted ? new Date().toISOString() : '', lastUpdated: new Date().toISOString() } };` }, position: [2760, 300] }, output: [{ queueId: 'BULK-example', roleId: 'AC01', status: 'Screened', submissionAccepted: true }] });
 const accepted = ifElse({ version: 2.3, config: { name: 'Screening Workflow Accepted', parameters: { conditions: { options: { caseSensitive: false, leftValue: '', typeValidation: 'strict' }, conditions: [{ leftValue: expr('{{ $json.submissionAccepted }}'), operator: { type: 'boolean', operation: 'true' }, rightValue: true }], combinator: 'and' } }, position: [3040, 300] } });
 const saveScreened = node({ type: 'n8n-nodes-base.googleSheets', version: 4.7, config: { name: 'Record Resume Screened', parameters: queueParameters, credentials: queueCredentials, position: [3320, 200] }, output: [{ queueId: 'BULK-example', roleId: 'AC01', status: 'Screened' }] });
 const saveFailed = node({ type: 'n8n-nodes-base.googleSheets', version: 4.7, config: { name: 'Record Screening Failure', parameters: queueParameters, credentials: queueCredentials, position: [3320, 420] }, output: [{ queueId: 'BULK-example', roleId: 'AC01', status: 'Failed' }] });
