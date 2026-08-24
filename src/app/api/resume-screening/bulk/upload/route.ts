@@ -125,11 +125,9 @@ export async function POST(request: Request) {
         const evidenceKey = `${roleId.toLowerCase()}|${resolvedQueueId.toLowerCase()}`;
         const previousHasSavedResult = savedScreeningEvidence.has(evidenceKey);
         const previousUpdatedAt = Date.parse(previous?.lastUpdated || previous?.processingStartedAt || previous?.discoveredAt || "");
-        const previousProcessingIsFresh = Number.isFinite(previousUpdatedAt) && Date.now() - previousUpdatedAt < STALE_PROCESSING_MS;
+        const previousRunIsFresh = Number.isFinite(previousUpdatedAt) && Date.now() - previousUpdatedAt < STALE_PROCESSING_MS;
         const previousIsActive = previousStatus === "queued" || previousStatus === "screened" || previousStatus === "processing";
-        const shouldSkip = previousIsActive && (
-          previousStatus !== "processing" || previousProcessingIsFresh || previousHasSavedResult
-        );
+        const shouldSkip = previousIsActive && (previousHasSavedResult || previousRunIsFresh);
         if (shouldSkip) {
           if (!stored.reused) await deleteResumeFile(stored.record);
           results.push({ fileName: file.name, queueId: resolvedQueueId, status: previousHasSavedResult ? "Screened" : previous?.status || "Queued", skipped: true, message: previousHasSavedResult || previousStatus === "screened" ? "This resume was already screened for this role." : previousStatus === "queued" ? "This resume is already queued for this role." : "This resume is already being screened for this role." });

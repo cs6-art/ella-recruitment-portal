@@ -123,6 +123,13 @@ test("bulk status reconciliation supports historical identifiers and expires sta
   assert.match(route, /Screening did not produce a saved result within 30 minutes/);
 });
 
+test("bulk retries stale queue states only when no saved applicant evidence exists", () => {
+  const upload = read("src/app/api/resume-screening/bulk/upload/route.ts");
+  assert.match(upload, /const savedScreeningEvidence = await getBulkResumeScreeningEvidence\(queue\)/);
+  assert.match(upload, /const shouldSkip = previousIsActive && \(previousHasSavedResult \|\| previousRunIsFresh\)/);
+  assert.match(upload, /const STALE_PROCESSING_MS = 30 \* 60 \* 1000/);
+});
+
 test("uploaded resumes keep a traceable Drive link back to the candidate/application", () => {
   const route = read("src/app/api/resume-screening/bulk/upload/route.ts");
   assert.match(route, /function driveFileUrl/);
