@@ -71,6 +71,9 @@ test("the intake handoff uses the verified Production Foundation webhook and pre
 
 test("queue state writes upsert by stable jobId instead of racing append row positions", () => {
   const intake = read("integrations/n8n/bulk-resume-upload-intake.ts");
+  assert.doesNotMatch(intake, /Read Bulk Resume Queue/);
+  assert.doesNotMatch(intake, /Record Resume Processing/);
+  assert.match(intake, /const environment = text\(body\.environment\)/);
   assert.match(intake, /operation: 'appendOrUpdate'/);
   assert.match(intake, /matchingColumns: \['jobId'\]/);
   assert.match(intake, /schema: queueSchema/);

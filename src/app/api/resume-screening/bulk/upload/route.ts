@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { canManagePipeline } from "@/lib/access-control";
-import { getBulkResumeQueue, type BulkResumeQueueItem } from "@/lib/candidate-applications";
+import { getBulkResumeQueue, getBulkResumeScreeningEvidence, type BulkResumeQueueItem } from "@/lib/candidate-applications";
 import { getRoleRequestById, isPublishedRoleForIntake } from "@/lib/google-sheets";
 import { bulkResumeEnvironment, bulkResumeIsUatMarked, bulkResumeWebhookConfig, productionUatBatchId } from "@/lib/bulk-resume-config";
 import { consumeRateLimit, rateLimitHeaders, requestClientKey } from "@/lib/rate-limit";
@@ -15,6 +15,7 @@ export const dynamic = "force-dynamic";
 
 const MAX_FILES_PER_BATCH = 25;
 const MAX_BULK_REQUEST_BYTES = 100 * 1024 * 1024;
+const STALE_PROCESSING_MS = 30 * 60 * 1000;
 
 // Each file's pipeline (contact extraction + role-specific AI screening,
 // chained across two n8n workflows) previously ran one at a time from this
@@ -79,8 +80,12 @@ export async function POST(request: Request) {
     const role = await getRoleRequestById(roleId);
     if (!role || !isPublishedRoleForIntake(role)) return responseError("The selected role is not available for bulk screening.", 409);
 
-    const queue = await getBulkResumeQueue(roleId);
+    // This is the duplicate gate for the portal endpoint. Bypass the short
+    // process-local Sheets cache so a successful prior upload is not missed
+    // by a retry from another serverless instance.
+    const queue = await getBulkResumeQueue(roleId, { fresh: true });
     const latestByFile = new Map(queue.map((item) => [item.driveFileId, item]));
+    const savedScreeningEvidence = await getBulkResumeScreeningEvidence(queue);
     const results: Array<Record<string, unknown>> = [];
     // Keep one correlation id for the complete upload so the internal
     // notification contains a single, auditable batch summary.
@@ -117,9 +122,17 @@ export async function POST(request: Request) {
         const resolvedQueueId = queueIdForHash(roleId, stored.record.sha256);
         const previous = latestByFile.get(resolvedQueueId) || latestByFile.get(legacyQueueIdForHash(stored.record.sha256));
         const previousStatus = previous?.status.toLowerCase() || "";
-        if (["screened", "processing", "queued"].includes(previousStatus)) {
+        const evidenceKey = `${roleId.toLowerCase()}|${resolvedQueueId.toLowerCase()}`;
+        const previousHasSavedResult = savedScreeningEvidence.has(evidenceKey);
+        const previousUpdatedAt = Date.parse(previous?.lastUpdated || previous?.processingStartedAt || previous?.discoveredAt || "");
+        const previousProcessingIsFresh = Number.isFinite(previousUpdatedAt) && Date.now() - previousUpdatedAt < STALE_PROCESSING_MS;
+        const previousIsActive = previousStatus === "queued" || previousStatus === "screened" || previousStatus === "processing";
+        const shouldSkip = previousIsActive && (
+          previousStatus !== "processing" || previousProcessingIsFresh || previousHasSavedResult
+        );
+        if (shouldSkip) {
           await deleteResumeFile(stored.record);
-          results.push({ fileName: file.name, queueId: resolvedQueueId, status: previous?.status || "Queued", skipped: true, message: previousStatus === "screened" ? "This resume was already screened for this role." : previousStatus === "queued" ? "This resume is already queued for this role." : "This resume is already being screened for this role." });
+          results.push({ fileName: file.name, queueId: resolvedQueueId, status: previousHasSavedResult ? "Screened" : previous?.status || "Queued", skipped: true, message: previousHasSavedResult || previousStatus === "screened" ? "This resume was already screened for this role." : previousStatus === "queued" ? "This resume is already queued for this role." : "This resume is already being screened for this role." });
           return;
         }
 

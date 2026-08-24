@@ -30,19 +30,6 @@ const webhook = trigger({
   output: [{ body: { eventType: 'bulk_resume_uploaded', queueId: 'BULK-example', roleId: 'AC01', fileName: 'AC01 - Candidate.pdf', resumeText: 'Candidate resume text...' } }],
 });
 
-const readQueue = node({
-  type: 'n8n-nodes-base.googleSheets',
-  version: 4.7,
-  config: {
-    name: 'Read Bulk Resume Queue',
-    parameters: { resource: 'sheet', operation: 'read', authentication: 'serviceAccount', documentId: { __rl: true, mode: 'id', value: sheetDocument }, sheetName: { __rl: true, mode: 'name', value: 'Bulk_Resume_Queue' }, returnAllMatches: 'returnAllMatches', options: { dataLocationOnSheet: { values: { rangeDefinition: 'detectAutomatically', readRowsUntil: 'lastRowInSheet' } } } },
-    alwaysOutputData: true,
-    credentials: { googleApi: newCredential('Google Sheets Service Account') },
-    position: [520, 300],
-  },
-  output: [{ driveFileId: 'BULK-example', status: 'Screened' }],
-});
-
 const normalize = node({
   type: 'n8n-nodes-base.code',
   version: 2,
@@ -54,31 +41,18 @@ const normalize = node({
       jsCode: `const body = $('Bulk Resume Upload Webhook').item.json.body || $('Bulk Resume Upload Webhook').item.json;
 const text = (value) => String(value ?? '').trim();
 const queueId = text(body.queueId);
-const rows = $('Read Bulk Resume Queue').all().map((item) => item.json);
-const latest = new Map();
-const eventTime = (row) => Date.parse(String(row.Last_Updated || row.lastUpdated || row.Processed_At || row.processedAt || row.Discovered_At || row.discoveredAt || '')) || 0;
-for (const row of rows) {
-  const id = text(row.Drive_File_ID || row.driveFileId);
-  const roleId = text(row.Role_ID || row.roleId).toLowerCase();
-  const key = `${roleId}|${id}`;
-  const previous = latest.get(key);
-  if (id && (!previous || eventTime(row) >= previous.time)) latest.set(key, { status: text(row.Status || row.status).toLowerCase(), time: eventTime(row) });
-}
+const environment = text(body.environment) || 'production';
+const isUat = body.is_uat === true || text(body.is_uat).toLowerCase() === 'true';
+const batchId = text(body.batchId);
+const jobId = text(body.jobId) || queueId;
 if (!queueId || !text(body.roleId) || !text(body.resumeText)) throw new Error('Bulk resume payload is incomplete.');
-const roleKey = text(body.roleId).toLowerCase();
-const queueState = latest.get(`${roleKey}|${queueId}`) || latest.get(`|${queueId}`);
-const previousStatus = queueState?.status || '';
-if (['screened', 'processing', 'queued'].includes(previousStatus)) return [{ json: { skip: true, queueId, roleId: text(body.roleId), environment, is_uat: isUat, batchId, jobId, status: 'Skipped', lastUpdated: new Date().toISOString(), errorMessage: previousStatus === 'screened' ? 'Resume was already screened for this role.' : 'Resume is already queued or being screened for this role.' } }];
 const now = new Date().toISOString();
-return [{ json: { skip: false, queueId, driveFileId: queueId, driveFileName: text(body.fileName), driveFileUrl: '', driveFileMimeType: text(body.mimeType), roleId: text(body.roleId), resumeText: text(body.resumeText), resumeFile: body.resumeFile || {}, applicationId: text(body.applicationId), environment, is_uat: isUat, batchId, jobId, status: 'Processing', discoveredAt: text(body.submittedAt) || now, processingStartedAt: now, processedAt: '', attemptCount: String(Number(body.attemptCount || 0) + 1), lastUpdated: now } }];`,
+return [{ json: { skip: false, queueId, driveFileId: queueId, driveFileName: text(body.fileName), driveFileUrl: text(body.driveFileUrl), driveFileMimeType: text(body.mimeType), roleId: text(body.roleId), resumeText: text(body.resumeText), resumeFile: body.resumeFile || {}, applicationId: text(body.applicationId), environment, is_uat: isUat, batchId, jobId, status: 'Processing', discoveredAt: text(body.submittedAt) || now, processingStartedAt: now, processedAt: '', attemptCount: String(Number(body.attemptCount || 0) + 1), lastUpdated: now } }];`,
     },
     position: [800, 300],
   },
   output: [{ skip: false, queueId: 'BULK-example', driveFileId: 'BULK-example', driveFileName: 'AC01 - Candidate.pdf', roleId: 'AC01', resumeText: 'Candidate resume text...', status: 'Processing', attemptCount: '1' }],
 });
-
-const shouldProcess = ifElse({ version: 2.3, config: { name: 'Process New Resume', parameters: { conditions: { options: { caseSensitive: false, leftValue: '', typeValidation: 'strict' }, conditions: [{ leftValue: expr('{{ $json.skip }}'), operator: { type: 'boolean', operation: 'false' }, rightValue: false }], combinator: 'and' } }, position: [1080, 300] } });
-const claim = node({ type: 'n8n-nodes-base.googleSheets', version: 4.7, config: { name: 'Record Resume Processing', parameters: queueParameters, credentials: queueCredentials, position: [1360, 300] }, output: [{ driveFileId: 'BULK-example', roleId: 'AC01', status: 'Processing', resumeText: 'Candidate resume text...', applicationId: 'APP-BULK-example' }] });
 
 const parser = outputParser({ type: '@n8n/n8n-nodes-langchain.outputParserStructured', version: 1.3, config: { name: 'Candidate Metadata Parser', parameters: { schemaType: 'fromJson', jsonSchemaExample: '{ "candidate_name": "Alex Chen", "candidate_email": "alex@example.com", "preferred_mobile": "+639171234567", "applicant_country": "PH" }' }, position: [1720, 560] } });
 const model = languageModel({ type: '@n8n/n8n-nodes-langchain.lmChatOpenAi', version: 1.3, config: { name: 'Bulk Upload AI Model', parameters: { model: { __rl: true, mode: 'list', value: 'gpt-5-mini', cachedResultName: 'gpt-5-mini' }, options: { responseFormat: 'json_object' } }, credentials: { openAiApi: newCredential('OpenAI') }, position: [1720, 760] } });
@@ -146,11 +120,10 @@ const respond = node({
 
 export default workflow('bulk-resume-upload-intake', 'Bulk Resume Upload Intake')
   .add(webhook)
-  .to(readQueue)
   .to(normalize)
-  .to(shouldProcess
-    .onTrue(claim.to(extractCandidate).to(prepareCandidate).to(validCandidate
-      .onTrue(submit.to(evaluate.to(accepted.onTrue(saveScreened.to(respond)).onFalse(saveFailed.to(respond)))))
-      .onFalse(missing.to(saveMissing.to(respond))))
-    .onFalse(respond)
-  ));
+  .to(extractCandidate)
+  .to(prepareCandidate)
+  .to(validCandidate
+    .onTrue(submit.to(evaluate.to(accepted.onTrue(saveScreened.to(respond)).onFalse(saveFailed.to(respond)))))
+    .onFalse(missing.to(saveMissing.to(respond)))
+  );
