@@ -235,7 +235,10 @@ export async function POST(request: Request) {
         accessRole: user.accessRole,
         department: user.department,
       }, finalInterviewCalendar.email);
-      if (await getRoleRequestById(roleId)) await updateRoleRequestFields(roleId, fields);
+      // A draft may be created by one Vercel instance and submitted to
+      // another. Bypass the process-local role cache for this write-then-read
+      // check so a just-appended draft cannot look missing.
+      if (await getRoleRequestById(roleId, { fresh: true })) await updateRoleRequestFields(roleId, fields);
       else await appendRoleRequestDraft(fields);
       return NextResponse.json({ success: true, draft: true, roleId, status: "Draft", message: "Draft saved." }, { status: 201 });
     }

@@ -48,6 +48,20 @@ test("role forms autosave drafts without invoking the creation workflow", () => 
   assert.match(form, /draft: true/);
 });
 
+test("draft writes use fresh role reads across app instances", () => {
+  const sheets = fs.readFileSync("src/lib/google-sheets.ts", "utf8");
+  const createRoute = fs.readFileSync("src/app/api/roles/route.ts", "utf8");
+  const detailsRoute = fs.readFileSync("src/app/api/roles/[roleId]/route.ts", "utf8");
+  const statusRoute = fs.readFileSync("src/app/api/roles/[roleId]/status/route.ts", "utf8");
+  const form = fs.readFileSync("src/components/RoleRequestForm.tsx", "utf8");
+  assert.match(sheets, /freshSheetsRead/);
+  assert.match(sheets, /options: \{ fresh\?: boolean \} = \{\}/);
+  assert.match(createRoute, /getRoleRequestById\(roleId, \{ fresh: true \}\)/);
+  assert.match(detailsRoute, /getRoleRequestById\(roleId, \{ fresh: true \}\)/);
+  assert.match(statusRoute, /getRoleRequestById\(roleId, \{ fresh: true \}\)/);
+  assert.match(form, /await draftSaveInFlight\.current/);
+});
+
 test("draft submission has an audited transition into HR review", () => {
   const source = fs.readFileSync("src/app/api/roles/[roleId]/status/route.ts", "utf8");
   assert.match(source, /submit_draft_for_hr/);

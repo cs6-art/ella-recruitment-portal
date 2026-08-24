@@ -36,7 +36,7 @@ export default async function EditRolePage({ params }: EditRolePageProps) {
 
   const { roleId: encodedRoleId } = await params;
   const roleId = decodeURIComponent(encodedRoleId);
-  const role = await getRoleRequestById(roleId);
+  const role = await getRoleRequestById(roleId, { fresh: true });
   if (!role || !canViewRole(user, role) || !canEditRoleRequest(user, role)) redirect(`/roles/${encodeURIComponent(roleId)}`);
 
   const initialValues: Partial<RoleRequestFormValues> = {

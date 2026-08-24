@@ -1,6 +1,6 @@
 import { google } from "googleapis";
 
-import { cachedSheetsRead, invalidateSheetsCache } from "@/lib/sheets-cache";
+import { cachedSheetsRead, freshSheetsRead, invalidateSheetsCache } from "@/lib/sheets-cache";
 import { BASELINE_EVALUATION_FIELDS, EVALUATION_FIELD_CATALOG } from "@/lib/recruitment-setup-schema";
 import { getGoogleServiceAccountPrivateKey } from "@/lib/google-service-account";
 import { demoRoleSummaries } from "@/lib/demo-data";
@@ -673,14 +673,14 @@ function mapRoleRequest(
   };
 }
 
-async function getRoleRequestRecords(): Promise<
+async function getRoleRequestRecords(options: { fresh?: boolean } = {}): Promise<
   Record<string, string>[]
 > {
   console.log(
     "[Role Requests] Reading Role_Requests sheet",
   );
 
-  const rows = await cachedSheetsRead(`Role_Requests:ZZ:${spreadsheetId}`, async () => {
+  const readRows = async () => {
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId,
       // Role_Requests contains workflow and requester fields beyond column
@@ -689,7 +689,10 @@ async function getRoleRequestRecords(): Promise<
       range: "Role_Requests!A1:ZZ",
     });
     return response.data.values ?? [];
-  });
+  };
+  const rows = options.fresh
+    ? await freshSheetsRead(readRows)
+    : await cachedSheetsRead(`Role_Requests:ZZ:${spreadsheetId}`, readRows);
 
   if (rows.length === 0) {
     console.log(
@@ -1022,6 +1025,7 @@ export async function getRoleRequests(options: { liveOnly?: boolean } = {}): Pro
 
 export async function getRoleRequestById(
   roleId: string,
+  options: { fresh?: boolean } = {},
 ): Promise<RoleRequestDetails | null> {
   const normalizedRoleId = decodeURIComponent(
     roleId,
@@ -1035,7 +1039,7 @@ export async function getRoleRequestById(
   );
 
   const records =
-    await getRoleRequestRecords();
+    await getRoleRequestRecords(options);
 
   for (const record of records) {
     const role = mapRoleRequest(record);

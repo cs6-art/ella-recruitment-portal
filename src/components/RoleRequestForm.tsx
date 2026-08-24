@@ -321,6 +321,10 @@ export default function RoleRequestForm({ user, roleId, status = "", initialValu
     try {
       let response: Response;
       if (isDraftRole) {
+        // Do not submit while the initial autosave is still being persisted.
+        // Otherwise the PATCH can race the POST that created this draft.
+        if (draftSaveInFlight.current) await draftSaveInFlight.current;
+
         // Save the final form snapshot first, then use the audited status
         // transition so submitting a draft cannot create a duplicate role.
         response = await fetch(`/api/roles/${encodeURIComponent(effectiveRoleId)}`, {

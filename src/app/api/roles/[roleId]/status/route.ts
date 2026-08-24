@@ -178,7 +178,10 @@ export async function POST(
       return jsonError("You do not have permission to perform this action.", 403);
     }
 
-    const role = await getRoleRequestById(roleId);
+    // Status submission immediately follows the draft PATCH. Do not use the
+    // process-local role cache here: the two requests may hit different
+    // instances and the second instance may not know about the new draft yet.
+    const role = await getRoleRequestById(roleId, { fresh: true });
     if (!role) {
       return jsonError("Role request not found.", 404);
     }
