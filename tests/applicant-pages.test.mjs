@@ -96,6 +96,8 @@ test("applicant routes are protected and render populated sheet data", () => {
   assert.match(list, /publishedRoles/);
   assert.match(screening, /CandidateApplicationForm/);
   assert.match(screening, /\/api\/applicants/);
+  assert.match(screening, /successRedirectTo="\/applicants"/);
+  assert.match(read("src/components/CandidateApplicationForm.tsx"), /if \(successRedirectTo\) router\.push\(successRedirectTo\)/);
   assert.match(screening, /isPublishedRoleForIntake/);
   assert.match(screening, /Resume Screening/);
   // Bulk upload is a first-class portal feature (drag-and-drop, live status),

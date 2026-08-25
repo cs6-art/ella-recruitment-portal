@@ -22,6 +22,7 @@ type Props = {
   submitLabel?: string;
   requireConsent?: boolean;
   showRoleSelect?: boolean;
+  successRedirectTo?: string;
 };
 
 type FormState = {
@@ -84,6 +85,7 @@ export default function CandidateApplicationForm({
   submitLabel = "Submit My Application",
   requireConsent = true,
   showRoleSelect = false,
+  successRedirectTo,
 }: Props) {
   const router = useRouter();
   const [form, setForm] = useState<FormState>({
@@ -187,7 +189,8 @@ export default function CandidateApplicationForm({
       setFileInputKey((value) => value + 1);
       if (fileInput.current) fileInput.current.value = "";
       setFieldErrors({});
-      router.refresh();
+      if (successRedirectTo) router.push(successRedirectTo);
+      else router.refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to submit application.");
     } finally {

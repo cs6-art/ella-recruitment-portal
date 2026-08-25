@@ -49,6 +49,7 @@ export default async function ResumeScreeningPage() {
           requireConsent={false}
           showRoleSelect
           roleOptions={roleOptions}
+          successRedirectTo="/applicants"
         />
       </main>
     </AppShell>
