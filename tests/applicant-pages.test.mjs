@@ -27,6 +27,12 @@ test("voice interview completion uses one canonical display label", () => {
   assert.match(source, /AI Voice Interview Completed/);
 });
 
+test("provider question counts cannot exceed the five-question maximum", async () => {
+  const { normalizeInterviewQuestionCount } = await import("../src/lib/interview-question-count.ts");
+  assert.equal(normalizeInterviewQuestionCount("Interview outcome: Completed (9 of 5 questions answered)."), "Interview outcome: Completed (5 of 5 questions answered).");
+  assert.equal(normalizeInterviewQuestionCount("Answer completeness: 2 out of 3 questions answered."), "Answer completeness: 2 out of 3 questions answered.");
+});
+
 test("every generated applicant shown in demo mode has a viewable profile", () => {
   const source = read("src/lib/candidate-applications.ts");
   assert.match(source, /const demoRecord = isDemoMode\(\)/);

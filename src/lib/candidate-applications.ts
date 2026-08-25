@@ -6,6 +6,7 @@ import { demoActiveBookingLinkRoleIds, demoApplicantRows, demoInterviewBookings 
 import { isDemoMode, isDemoWindowRecord } from "@/lib/demo-mode";
 import { getRoleRequestById, type RoleRequestDetails } from "@/lib/google-sheets";
 import { evaluationFieldsForSetup, type EvaluationField } from "@/lib/recruitment-setup-schema";
+import { normalizeInterviewQuestionCount } from "@/lib/interview-question-count";
 
 export {
   getCandidateStatusHistory,
@@ -894,6 +895,15 @@ export async function getApplicantById(id: string): Promise<ApplicantDetails | n
     ? await getRoleRequestById(summary.roleId)
     : null;
   const configuredEvaluationFields = evaluationFieldsForSetup(role?.evaluationFieldToggles, role?.customEvaluationFields);
+  const voiceSummary = normalizeInterviewQuestionCount(
+    field(voiceResult ?? {}, "AI_Voice_Summary", "AI Voice Summary")
+      || field(callLog ?? {}, "AI_Voice_Summary", "AI Voice Summary")
+      || (isGeneratedDemoRecord && summary.voiceStatus ? "Historical voice interview activity is represented by the status and outcome recorded for this demonstration applicant." : ""),
+  );
+  const voiceAnswerCompleteness = normalizeInterviewQuestionCount(
+    field(voiceResult ?? {}, "Answer_Completeness", "Answer Completeness")
+      || field(callLog ?? {}, "Answer_Completeness", "Answer Completeness"),
+  );
 
   return {
     ...displaySummary,
@@ -924,14 +934,13 @@ export async function getApplicantById(id: string): Promise<ApplicantDetails | n
       || (isGeneratedDemoRecord && summary.voiceStatus ? summary.matchScore : ""),
     voiceRecommendation: field(voiceResult ?? {}, "Voice_Recommendation", "Voice Recommendation") || field(callLog ?? {}, "Voice_Recommendation", "Voice Recommendation")
       || (isGeneratedDemoRecord && summary.voiceStatus ? summary.recommendation : ""),
-    voiceSummary: field(voiceResult ?? {}, "AI_Voice_Summary", "AI Voice Summary") || field(callLog ?? {}, "AI_Voice_Summary", "AI Voice Summary")
-      || (isGeneratedDemoRecord && summary.voiceStatus ? "Historical voice interview activity is represented by the status and outcome recorded for this demonstration applicant." : ""),
+    voiceSummary,
     voiceStrengths: field(voiceResult ?? {}, "Voice_Strengths", "Voice Strengths") || field(callLog ?? {}, "Voice_Strengths", "Voice Strengths")
       || (isGeneratedDemoRecord && summary.voiceStatus ? "Clear responses and relevant examples." : ""),
     voiceConcerns: field(voiceResult ?? {}, "Voice_Concerns", "Voice Concerns") || field(callLog ?? {}, "Voice_Concerns", "Voice Concerns")
       || (isGeneratedDemoRecord && summary.voiceStatus ? "Role-specific details should be validated by HR." : ""),
     voiceCommunicationQuality: field(voiceResult ?? {}, "Communication_Quality", "Communication Quality") || field(callLog ?? {}, "Communication_Quality", "Communication Quality"),
-    voiceAnswerCompleteness: field(voiceResult ?? {}, "Answer_Completeness", "Answer Completeness") || field(callLog ?? {}, "Answer_Completeness", "Answer Completeness"),
+    voiceAnswerCompleteness,
     voiceFollowUpQuestions: field(voiceResult ?? {}, "Recommended_Follow_Up_Questions", "Recommended Follow Up Questions") || field(callLog ?? {}, "Recommended_Follow_Up_Questions", "Recommended Follow Up Questions"),
     // Communication Quality and Answer Completeness have dedicated voice
     // evidence rows above; do not render those same keys a second time from
