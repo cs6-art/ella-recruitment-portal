@@ -7,7 +7,18 @@ function allowedOrigins() {
     process.env.N8N_BULK_RESUME_PORTAL_BASE_URL,
     process.env.NEXT_PUBLIC_APP_URL,
   ]
-    .map((value) => value?.trim().replace(/\/$/, ""))
+    .map((value) => {
+      const cleanValue = value?.trim();
+      if (!cleanValue) return "";
+      try {
+        // The invite setting may contain the full candidate page path, such
+        // as /application/index.html. CORS compares origins, so keep only
+        // scheme + host + port here.
+        return new URL(cleanValue).origin;
+      } catch {
+        return cleanValue.replace(/\/$/, "");
+      }
+    })
     .filter((value): value is string => Boolean(value));
 }
 

@@ -53,6 +53,11 @@ export async function POST(request: Request) {
         return responseError(request, "This application link has expired or was already used.", 410, { code: "INVITE_INVALID" });
       }
       intake.body.roleId = invitation.roleId;
+      // The invitation identifies the intended candidate. The page displays
+      // these values as a convenience, but the server must remain the source
+      // of truth if somebody edits the form before submitting it.
+      intake.body.candidateName = invitation.candidateName;
+      intake.body.candidateEmail = invitation.candidateEmail;
       intake.body.applicationSource = "HR Invitation";
     }
 

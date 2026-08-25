@@ -47,6 +47,22 @@ function hashToken(token: string) {
   return crypto.createHash("sha256").update(token).digest("hex");
 }
 
+/**
+ * Build the candidate-facing URL used by HR-generated application links.
+ *
+ * The candidate experience is a static `index.html` page. Keeping the page
+ * path here means the HR button continues to work when the page is hosted at
+ * the root of its own site, while also supporting a full URL such as
+ * `https://careers.example.com/index.html`.
+ */
+export function applicationInviteLink(baseUrl: string, token: string) {
+  const url = new URL(baseUrl.trim());
+  if (!url.pathname || url.pathname === "/") url.pathname = "/index.html";
+  url.search = "";
+  url.searchParams.set("invite", token);
+  return url.toString();
+}
+
 let ensureTabPromise: Promise<void> | null = null;
 
 // The tab is created on first use instead of requiring a human to
@@ -144,7 +160,7 @@ export async function createResumeScreeningInvitation(input: {
     insertDataOption: "INSERT_ROWS",
     requestBody: { values: [row] },
   });
-  const link = `${input.baseUrl.replace(/\/$/, "")}/?invite=${encodeURIComponent(token)}`;
+  const link = applicationInviteLink(input.baseUrl, token);
   return { invitationId, token, link, expiresAt };
 }
 
