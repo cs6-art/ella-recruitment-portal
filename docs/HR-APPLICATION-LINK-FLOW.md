@@ -51,17 +51,18 @@ Applicant appears for HR review
 
 ## Candidate page setup
 
-The supplied design is included in the portal at:
+The supplied `index.html` and its image are included in the portal unchanged.
+The candidate page is available at:
 
 ```text
-/application/index.html
+/index.html
 ```
 
 Set `RESUME_SCREENING_INVITE_BASE_URL` to the full public address of that page.
 For example:
 
 ```text
-https://recruitment.example.com/application/index.html
+https://recruitment.example.com/index.html
 ```
 
 The page already reads the `invite` value from the URL, checks the link, and

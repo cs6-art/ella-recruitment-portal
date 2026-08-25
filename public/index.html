@@ -1,5 +1,2843 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>McLink Careers</title></head>
-  <body><main><h1>McLink Careers</h1><div id="roles">Loading published roles...</div></main><script>fetch('/api/public/roles').then(r=>r.json()).then(data=>{const root=document.getElementById('roles');if(!data.success||!data.roles.length){root.textContent='No published roles are currently accepting applications.';return;}root.innerHTML=data.roles.map(role=>`<article><h2>${role.jobTitle}</h2><p>${role.department}</p><a href="${role.applicationLink}">View and apply</a></article>`).join('');}).catch(()=>{document.getElementById('roles').textContent='Unable to load published roles.';});</script></body>
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Ella AI | HR AI Screening &amp; Outbound Recruiter Agent</title>
+<meta name="description" content="Apply for open roles and get screened instantly by Ella AI, MPS Solutions Pte Ltd's recruitment assistant." />
+<link rel="icon" type="image/jpeg" href="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST0ZJTEUAAQEAAAHIAAAAAAQwAABtbnRyUkdCIFhZWiAH4AABAAEAAAAAAABhY3NwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAA9tYAAQAAAADTLQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAlkZXNjAAAA8AAAACRyWFlaAAABFAAAABRnWFlaAAABKAAAABRiWFlaAAABPAAAABR3dHB0AAABUAAAABRyVFJDAAABZAAAAChnVFJDAAABZAAAAChiVFJDAAABZAAAAChjcHJ0AAABjAAAADxtbHVjAAAAAAAAAAEAAAAMZW5VUwAAAAgAAAAcAHMAUgBHAEJYWVogAAAAAAAAb6IAADj1AAADkFhZWiAAAAAAAABimQAAt4UAABjaWFlaIAAAAAAAACSgAAAPhAAAts9YWVogAAAAAAAA9tYAAQAAAADTLXBhcmEAAAAAAAQAAAACZmYAAPKnAAANWQAAE9AAAApbAAAAAAAAAABtbHVjAAAAAAAAAAEAAAAMZW5VUwAAACAAAAAcAEcAbwBvAGcAbABlACAASQBuAGMALgAgADIAMAAxADb/2wBDAAMCAgICAgMCAgIDAwMDBAYEBAQEBAgGBgUGCQgKCgkICQkKDA8MCgsOCwkJDRENDg8QEBEQCgwSExIQEw8QEBD/2wBDAQMDAwQDBAgEBAgQCwkLEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBD/wAARCABgALQDASIAAhEBAxEB/8QAHQABAAICAwEBAAAAAAAAAAAAAAcIBgkDBAUCAf/EAD8QAAEDBAEDAgQDBgQCCwAAAAECAwQABQYRBwgSIRMxIkFRYQkUIxUyQnGBkRYzUnIkYhdDU3OSlKGiscHw/8QAGwEBAAMBAQEBAAAAAAAAAAAAAAQFBgMBAgf/xAAyEQABAwMBAwoGAwEAAAAAAAABAAIDBAURIRIxQQYTIlFhcYGx0fAUMkKRofEVUuGS/9oADAMBAAIRAxEAPwDZ7SlKIlKUoiUpSiKjf4jGXTmr1h2JQri6y2ww/c3mm3CApanEoaWQPmn03NH5bOqt3xVPlXXjDELnOkuSJMuxQH3nnFdynFqjoKlE/MkkkmtdXW/lDWR8/wB3YjrKm7JHj2xKt+CpCO9ev5LcUP6Vf/p+lGZwfgb5OycdgJP80spT/wDVaq7U/MWmlGNd/wD0MrK2mo5+7VRzpoP+dFn9KUrKrVJSlKIlKUoiUpSiJSlKIlKUoiUpSiJSlKIlKUoiUpSiJXTvN1h2K0Tb1cHQ3Ft8dyU+s+yW20lSj/YGu5VeeuDkVGGcNSMfivpTcMrdFubTv4hHGlPq19O0JQf+8qVQ0zqyoZA36jj1+wUWuqm0VO+d30jPoPErXXl90u2Z5Bfc4lR3FCdcFyZLnultx9a1pST99K1/tNbPuky4JufTxhb4V3FuEuOft6bziNf+2qdxOJV2nolveeSoakzbve4c9BKfiERpxTDZ+wKnnT9wRVjegK/IuvA6bYF7XZrvKilJPkJX2vA/3cV/atnyjkZVUJ5rdG/Z+w9ThYzk3E+lrRzu+Rm19z6DKsnSlfi1JQkrWoJSkbJJ0APrWCW9UScudUPFvCuV2bD8ylTvz93Sl4/lWA4iIypZQl17agQkqCvCQpXwk69ty2lSVpCkkEEbBHzrUdy5nSebeqFy7tLDsCdfotrgAEFJiodQy2R/uAK/5rNbcUgAaA0B41Vvc7eygjh/s4ZP4VTba91dJL/VpwPyv2lKxO38s8b3TN5XG9uzO1SMmhJUp+2NvgvI7RtQ17FSR5KQdj5gVVNY52dkZwrQua3GTvWWUpSvlfSUrilSo0JhcqW+hllsbUtagEgfzNYVduXcfhKU3b2HpqwSO4fpoP8AU+f/AEqmu/KG12FodcZ2x53AnU9zRknwCm0luqq84p2F3l99yzqlYhg+bT8vkye+1ojR46ASsLKj3E+B7aPgH+1ZfXaz3ekvtI2toiTG7OCQRnBwdCAd651dJLQymCcYcN+oPklKUqzUZKUpREpSlESlKURK1zc5X+49T3UlCwfFn1O2yHJFnguJG0JQlRMmT7e2ws7+aUJqyPWJzw1xlha8PsEwDJsiZU0jsPxRIp2lbx+ij5Sj79x/hrFuhXhBzGLA/wAs5FE7LjfWvRtjax5ahb2XNfIuEDX/ACpB/irV2iMWqjfdZR0j0Yx1k8ffAFZO7yG61jLVF8o6Uh6gNw98cdqm/kXji33Hg698aWOGER0WByBb2Up3pTTX6I+57kJ/rVVfw48xEa+Zbx/JdSDKYaukdB8HubV6buh89hxv/wANXsNa1uTYd36T+qlvMrdCcVZpExV0iNoOkvwnyQ+wD7bT3LSAfbSD8xXGzn42mqKFx6ThtDvHrp+V3vDfgqmnrmjotOyewH01/C2U1AXWnzE3xVw5OhQJQbvmUJXa4CQfiQhSf13R/tQdA/JS01ITvOPFbGAJ5NdzS2px9bPqpkF4dxOv8sI/eLu/Hp67t+NVr7uUnMuujqHaZiR5MLH4xCE/NNttiFfEtXy9VZP9VqA9hsRbTby+YzVAxHHqc9Y4ev8Aql3WvDIhDTnL5NBjqPH0ULcSMuweYMDensOMtryC2PJLiSnub/NI+Ib9x4Pmt1A9q1u9eHGbnFef4bm+JQDGsqLbEt8XtTtEeRC8IQT92w2R8z2rPyNZFyt+JHNu2NNWbiPFZVtu81hKJNxuAQsxXCB3CO2kkLOydLX9vg+lrc4JbyIZ6caEHPZrxVZbJo7Q6aCc6gjHbpwUv9ZHVvA4Ysj2D4TNZk5xcWtbQQoWppQ/zl/L1CP3EH28KPjQVr7wK+ZtwXyxhHK2W2m5sCU83fEOSN+pPgurW284CfJK0+r5Pk7B9iCbQ9LvRPkGZXtvl/qEjylsvPfnY1onqUqTPdJ7vWl93kI357D8S/4tJ8Ksd1Y9M9v6hMCZgWtcaBkti7nbNKcTpvRAC46yBsNr7U+QPhKUnWtg8I6mjtxFI3pA6Pd74eXepT4KqvHxTuiR8rffvwU1We722/WqHe7PMalwZ7CJMZ9tW0OtLSFJUD9CCK5Zs+DbYj1wuMxiLFjoLjz7zgQ22ke6lKPgD7mtWmK5x12dPNvPGVmxTJREZWr8oy5YTcW2tk7/AC7oQpJQT50CU7OwBs12JPCnXj1My0RuQXL3DtalBxRvz4t8JvzsERUAEkfLTZP3qvdaQx206VoZ151x3f6rFlwLxgRnaWxzE89405hs813D8mtOSwIz5jSjEfDgbcHkA68j6g/MeQTUY5niRsWSC025LjrckJXHT7q0o67fv5BH9q7HSr0s2Ppnx64x2b8/er3fSyu5TFI9Jn9IK7G2m9khIK1+SSTv5e1TM9Zbc/dmb08wFymGy02o+yRsnYH18nz96/MeX3Iql5VxsZBgPa5vTI12PqHbvJAOmerVazk/e5rUS6TcQejwzw/3sXSw7HGsZsjMAAF5X6j6x/E4ff8AoPb+le3SlaqgoYLbSx0dM3DGAADsHvXrKqp531MrppDlzjkpSlKlrklKUoiUpXFLmRIEZyZOktR47KStx11YQhCR7lSj4A/nQDOgXhIGpXLUW88c/YtwjjypMxxqbfZSD+zrWlfxun2C3NeUNg+5+etDz7RRzZ1vY7jrT9g4oDV7uhBQq5rT/wAGwfqgHy8ofXwj2O1e1Rlw70y57zlff+knmSdcGbTLcEhRkqIl3IfIJH/Vta8d2h40EDXkaugsDYI/jrsdiIbm/U7sxvHn3DVZOv5QuqJPgbQOclO930t7c7j5d50XncFcQ5f1NcjSeVeTluvWFuV6sp1Y7ROdTrtjND5NpGgoj2SAkeTsbBGGGYzLceO0hpppIQhCEhKUpA0AAPAAHyrq2Wy2rHbVFsdjt7EGBCbDMeOwgJQ2gewA/wD2z5ru1VXe6vukwdjZY3Rreoev6VtZ7Uy1wkE7T3audxJ9P2lR/wA0cKYdzjipxrKmnG3GFF2DOY0HojpGipO/BB8BST4I+hAIkClVsUr4HiSM4I3FWcsTJ2GOQZB3hUER+Gtl67p6D3JtoFr7/LyYbpf7d/8AZb7d6/56t7w3wphHB+LjGsOhr7nSHJs58hUiY6BruWQNADzpI0Bv6kk59Sp1ZdquuaGTO06tB98KFSWmkoXbcLcHr3+a8fLcOxfO7G/jWYWKHd7ZJ0XI0psLQSDsKHzCgfYjRHyNYXhHTXwZx1dE3zEeN7VDuDZKm5TnfIdaP1Qp5Sig/dOqynJOSOP8Ou1ssOV5tY7Pcbyv07fEnT2mHZStgabStQKvJA8fMge9d3KcuxbB7K9keZZFbbJa45AdmXCShhlBJ0AVrIGyfAHuahNnlY0sa4gHhnRTXQxvcHuaCRxxqvW9qV07NerPkdqi3ywXSJcrdOaD0aXEeS6y82fZSFpJCgfqDWO57y9xfxc007yHn1ix78x/kouE5DS3fuhBPcofcCuS6LLtU0KxvBuScA5Mtq7xx/mVnyGG0rscdt0xD4bV/pWEnaT9iAa7NizjDcnud2suOZVabpcLE8I9ziw5jbzsJ070h1KSSg+D4P0I+Roi9uleff8AILFilml5Fk14hWq1wGy7KmTH0ssso9u5S1EADZA8/WkDIbDdLG1k9tvUGVaH4/5tqe1IQqOtjt7vUDgPaU68929aoi9CleRiuYYrnNmayLDMjtl8tb6lJbmW6UiQyopOlALQSNg+4+VcbOcYbIyyRgbGVWlzJIsZMx+0pmNmW2wrWnFNb7gk7HnXzH1FEXt0rxLjnGG2jJbdht0yq0xL9eELdt9sfmNolSkJ33KbbJ7lgaPsPkfoa+7zmWJY7crXZr9k1qt0+9vGPbY0qY207MdA2UNIUQXFfZO/lRF7FKUoip/yP18s2+ZNtHHeHCSthxbSJ9ycIQopJHcGUaVo+42oH6ge1RmjE+qfqglIkXtU5myrUHELnbhW5seNFDYH6n2KUqP1NXihcU8bW++ycmh4NZG7pMcLr0sQmy4Vk7KgSPhJPkka2fJrKgAPatZHf6O3sH8bTAP/ALOO0fD9juWRk5PVtxef5KpJZn5WDZHj+j3qAeHOjvjzjVbN6yDWTXxvS0vSmgIzChogts+RsH+JRJ+YCan4DVKVnqyuqLhJztS8uPvcNw8FoqKgprdHzVMwNHZx7zvPilKUqIpiUpSiJQnQ39KUO/lRFqV62LZdea+qrkaLZJrqkca4kJg7dnSIjbbryR9NLkLOx801m3UhyHdOqrAeAeL8dnqcumS2iTkl4CD3BD0SM42pSh9lMTPepv6d+lHkLG+dOZ+SOW49vXBzYTrfALMoPKkxZchS3F6HlsBsNp7VaOyfGh5xXop6JORuGeXL1mXKYivQLRb5Fpx305iH0vpfdPe8EDZbT6fcO1WiS8rxRfWV7f4bnI6j0l3dDqVPuYRcLklLRV+80WhKSB9NqWsVBXRbwrj/AFmZ3nnMnUFLl5G9ElMITA/NONNuOvBaviKCFhttKEpQhJA1/LVWT6GumvkzgF7kuw5/Ftv+H73cWVWhDMlLxfbR6yVuFI/cSptbY7VaV4Pga8xQelPqu6VuSb3lHSZLtd/xi+na7RcHWgpDYUVIadQ6pAWW+4hLjawojewNkEitlw10tcNcA3u837jHH5NtkXxttmQlye8+hDaFFQQgOE6GzvySfuB4qpX4eSlHqk53BUTuXJJ8+5/aTtWM6ZGusSbeb5fupeVYIVsksNotdlgNslxh4K2pzva7tI7djSlrJJH7uvNZsf6bOuPhTl/Ps14Zt+JvR8quMlwSJUthYcjLkreb0hwgoV8Q2Nf396IrBfiPkjpHy7R95FsB/wDOtV4HDZI/DRUQTv8AwDfPP9JVezy5xX1C829HFywDO4+OHkicph5TFue9OK4GZaHEoK1HtS4W0+SD2d3zArJuNuFMwx3o0b4Mu5htZI5idwtKwl7vZbkyEvdqSse4BdSCRseDrYovOC149H/MHJXTFbYPLE+3yblxLlF3csl7bj7WYktpCFB4J9kO9jgI86cSlST5SkiZeJchs2V/ilXjJMcujFxtd0hPSYkqOvvbeZVamilQP0+3yI0dEVPvSV0t3PDOmS7cLc62CBIF/ucyTLgIkJeSllxDSEfqIOgsFrvSpJ2k9p2CKizpn6FuSuAOq5WYevDuOC2+LOTBuZkoEh1LzZQ20tkfEHE93xHXYe3YPnVF6SFgHXNnbnGfXbgufos8m7qx+xQJ6YLCtLf9N+UewHR0PqdHQ2aybo4wNvq25KndUnNeawr7d7DcEJteMxnCEWtTau9hbjZ8oaSdltI2FKClKUSCDLnM3TNyTm/WrxzzdZGYDmLWKLFRcnXJKUOMqYdfWU+mfiX3hxIGtj33oe+M8n9GnJfGXMVv5w6OZkC0ypkkJvGPSXwxCKFK24QD4LCv4mvdB0pv5BJM6K7tK+GPW9FH5gIDvaO8IJKQrXnRPkjdKL5X3SlKIlKUoiUpSiJSlKIlKUNEXB+fhfrD84x/wxCXv1E/pk+wV58f1r6/NRu4p/MN7CPUI7x+7/q/l96qNf8ApW5Ju2N8oY/a4uO2+FlOQ268QIr1xElyQpmeuRIW7KVE7kocQoBDLyJAQrv8lBCayNHSzfZ/NzXIt+ds71glWVFhmWxlzsfbYNpVEcKXUNJ70d6lJDOkNkKDoCVICSXqsx6zXeG/UR3HwB3Dftv/AOK4hcICkLcExgpbc9JZ9VOkr/0nz4P296rjhnTZyHZ4uMy79mceTfol5uMq63Rpa/U/Lfsd6128sjXlaGvQcUDod5dOz4rGV9LueyuKsUwhrBsCs07F8lt8+c5b7gSnIG48R1hcx9TsNYDy1uJX2uIdP73xg9poit2paEdvcpKe49o2dbP0r5D7JCFB1BDh0k9w+I/b6+xqGOpTiXkPlSLjJ4/v0G0zcYmSL5FekvOIAuTbBRDJCEnaApbvdv5EeD7VFqeljmu0Y5g+OY1mWPNR+M7hOulkMsyHVy3l3AOshwggNERfVaKiHB+u4An2UCK3CZDClOJS8glr98BQ+H+f0r9RIYcZ/MNvIU1onvCgU6Hv59qqovpY5AkZZyJemX8ZtSMjiZYxGmxZDxlXb9q9v5VuaPTSENxu0lOi4rZ+HtG9yPYeH7vD6YDw5drNb3p6rI/bnYca6flmXVLKjoSWIzfp9299wY8E+QvySRTC1NhvtJfZlMuNLQXErS4Cko/1Ajxr71+qlRkJU4t9sJQAVErAAB9t/SqtROmrlORgkLH7hcsdjSVYNesTfbjH0m2kzrlHeSP0WW21qTFbdStxLaO5w7CQFE14sTo95Ocx/J8fu+W2eSMllY+XXne6QhEe1XBSWQWXUFDh/ZyGAUqHatwKSrY+IkVwg62fZxPhPd7/AC+v8q40zIiw2USWlB0kI0sHuI99fX+lV9Y6fcyxJ+Vi+HToc/HJ3Gwwr89dLk4idGkNGYtt700NFDiVKlJGgpHYlJ0DoA4O70i59LsfEzC3cfiucfR1pmw0PpIluG5RXz6MhuM16Ci2y4fVQ2F70hRWFrXRFcClBSi8X//Z" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+
+<style>
+:root {
+  --primary: #0e4471;
+  --primary-dark: #082f50;
+  --primary-light: #1a6397;
+  --primary-soft: #eaf3fb;
+  --primary-soft-2: #dbe9f6;
+  --text: #142235;
+  --text-secondary: #45566b;
+  --muted: #68778c;
+  --border: #e3eaf2;
+  --surface: #ffffff;
+  --surface-alt: #f7fbff;
+  --success: #168447;
+  --success-soft: #eaf8f0;
+  --warning: #c77a13;
+  --warning-soft: #fff7e8;
+  --danger: #c23a3a;
+  --danger-soft: #fff1f2;
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-full: 999px;
+  --shadow-sm: 0 6px 16px rgba(14, 68, 113, 0.07);
+  --shadow-md: 0 16px 36px rgba(14, 68, 113, 0.09);
+  --shadow-lg: 0 26px 60px rgba(14, 68, 113, 0.12);
+  --transition: 0.2s ease;
+  --container: 1180px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body { overflow-x: hidden; }
+
+html { scroll-behavior: smooth; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+body {
+  min-height: 100vh;
+  font-family: Inter, sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 12% 8%, rgba(14, 68, 113, 0.13), transparent 24%),
+    radial-gradient(circle at 88% 20%, rgba(70, 142, 193, 0.10), transparent 26%),
+    linear-gradient(180deg, #f7fbff 0%, #ffffff 58%);
+  padding: 22px;
+  line-height: 1.5;
+}
+
+h1, h2, h3 { color: var(--text); font-weight: 800; letter-spacing: -0.4px; font-family: "Outfit", Inter, sans-serif; }
+
+a { color: var(--primary); }
+
+button, input, select { font: inherit; }
+button { border: 0; }
+
+.skip-link {
+  position: absolute;
+  left: -999px;
+  top: auto;
+  background: var(--primary);
+  color: #fff;
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  z-index: 999;
+}
+.skip-link:focus {
+  left: 16px;
+  top: 16px;
+}
+
+:focus-visible {
+  outline: 3px solid rgba(14, 68, 113, 0.35);
+  outline-offset: 2px;
+}
+
+input:not([type="file"]),
+select {
+  width: 100%;
+  border: 1px solid #d6e1eb;
+  border-radius: var(--radius-sm);
+  background: #fff;
+  color: var(--text);
+  padding: 13px 14px;
+  min-height: 46px;
+  outline: none;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+input:not([type="file"]):focus,
+select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(14, 68, 113, 0.12);
+}
+
+.required-mark { color: var(--danger); margin-left: 2px; }
+
+.field-error {
+  display: block;
+  min-height: 16px;
+  margin-top: 6px;
+  color: #c23a3a;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.form-group.has-error > label,
+.form-group.has-error .helper-text { color: #b52f37; }
+
+.form-group.has-error input:not([type="file"]),
+.form-group.has-error select {
+  border-color: #d64b53;
+  background: #fff8f8;
+  box-shadow: 0 0 0 3px rgba(214, 75, 83, 0.10);
+}
+
+.form-group.has-error .file-upload {
+  border-color: #d64b53;
+  background: #fff8f8;
+}
+
+.validation-summary {
+  display: none;
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border: 1px solid #f0b8bc;
+  border-radius: var(--radius-sm);
+  background: #fff1f2;
+  color: #a52831;
+  font-size: 13px;
+  line-height: 1.45;
+  font-weight: 600;
+}
+
+.validation-summary.visible { display: block; }
+
+/* ---------- Layout shell ---------- */
+
+.page-shell { max-width: var(--container); margin: 0 auto; }
+
+.section { margin: 0 auto 26px; }
+
+.section-head {
+  max-width: 640px;
+  margin: 0 auto 38px;
+  text-align: center;
+}
+
+.reveal {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.reveal.is-visible { opacity: 1; transform: none; }
+
+.trust-grid .trust-card:nth-child(2) { transition-delay: 0.08s; }
+.trust-grid .trust-card:nth-child(3) { transition-delay: 0.16s; }
+.trust-grid .trust-card:nth-child(4) { transition-delay: 0.24s; }
+
+.section-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 10px;
+}
+
+.section-head h2 { font-size: clamp(24px, 3vw, 32px); margin-bottom: 10px; }
+.section-head p { color: var(--muted); font-size: 15px; line-height: 1.65; }
+
+/* ---------- Nav ---------- */
+
+.nav {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(227, 234, 242, 0.9);
+  border-radius: 20px;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  position: sticky;
+  top: 12px;
+  z-index: 50;
+}
+
+.brand { display: flex; align-items: center; gap: 12px; }
+
+.logo {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 19px;
+  font-weight: 800;
+  font-family: "Outfit", Inter, sans-serif;
+  background: linear-gradient(145deg, var(--primary), var(--primary-light));
+  box-shadow: 0 10px 22px rgba(14, 68, 113, 0.22);
+  flex-shrink: 0;
+}
+
+.brand-copy { display: flex; flex-direction: column; line-height: 1.15; }
+.brand-copy strong { color: var(--primary); font-size: 17px; font-family: "Outfit", Inter, sans-serif; font-weight: 700; }
+.brand-copy span { color: #8b99aa; font-size: 12px; margin-top: 3px; font-weight: 600; }
+
+.nav-links { display: flex; align-items: center; gap: 22px; }
+.nav-links a {
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.nav-links a:hover { color: var(--primary); }
+
+.nav-button, .btn {
+  color: #fff;
+  background: var(--primary);
+  padding: 12px 20px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform var(--transition), background var(--transition), box-shadow var(--transition);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+  min-height: 44px;
+}
+
+.nav-button:hover, .btn:hover {
+  background: var(--primary-dark);
+  transform: translateY(-1px);
+}
+
+.btn-lg { padding: 15px 26px; font-size: 15px; border-radius: 13px; box-shadow: 0 14px 28px rgba(14, 68, 113, 0.22); }
+.btn-ghost {
+  background: #fff;
+  color: var(--primary);
+  border: 1px solid var(--border);
+  box-shadow: none;
+}
+.btn-ghost:hover { background: var(--primary-soft); color: var(--primary-dark); }
+
+/* ---------- Hero ---------- */
+
+.hero {
+  padding: 58px 6px 20px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  gap: 44px;
+  align-items: center;
+}
+
+.hero-copy { max-width: 560px; }
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-left: 3px solid var(--primary);
+  color: var(--primary);
+  padding: 4px 0 4px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 20px;
+}
+
+.hero h1 {
+  font-size: clamp(36px, 4.6vw, 54px);
+  line-height: 1.06;
+  letter-spacing: -1.6px;
+  margin-bottom: 18px;
+}
+
+.hero h1 .accent { color: var(--primary); }
+
+.hero p {
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1.7;
+  margin-bottom: 28px;
+}
+
+.hero-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+
+.hero-visual { position: relative; }
+
+.hv-glow {
+  position: absolute;
+  inset: -30px;
+  background: radial-gradient(circle at 60% 20%, rgba(14, 68, 113, 0.16), transparent 60%);
+  z-index: 0;
+}
+
+.hv-card {
+  position: relative;
+  z-index: 1;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  max-width: 400px;
+  margin: 0 auto;
+  overflow: hidden;
+}
+
+.hv-card-photo { aspect-ratio: 4 / 5; background: var(--primary-soft); }
+.hv-card-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+.hv-float {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  z-index: 2;
+  background: rgba(8, 26, 43, 0.55);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: #fff;
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  box-shadow: 0 16px 30px rgba(8, 20, 33, 0.35);
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hv-float .icon { width: 16px; height: 16px; flex-shrink: 0; }
+
+/* ---------- Journey / process ---------- */
+
+.journey-band {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 44px 34px 34px;
+}
+
+.journey-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  padding: 38px 34px;
+}
+
+.journey-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 18px;
+  position: relative;
+}
+
+.journey-step {
+  text-align: center;
+  padding: 0 12px;
+  position: relative;
+}
+
+.journey-number {
+  width: 40px;
+  height: 40px;
+  margin: 0 auto 14px;
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--primary);
+  box-shadow: var(--shadow-sm);
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: 14px;
+  font-family: "Outfit", Inter, sans-serif;
+  position: relative;
+  z-index: 1;
+}
+
+.journey-step::after {
+  content: "";
+  position: absolute;
+  top: 20px;
+  right: -9%;
+  width: 18%;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--primary-soft-2), var(--border));
+}
+
+.journey-step:last-child::after { display: none; }
+
+.journey-step-body { transition: margin-top var(--transition); }
+.journey-grid .journey-step:nth-child(even) .journey-step-body { margin-top: 24px; }
+
+.journey-step strong { display: block; font-size: 13.5px; margin-bottom: 5px; }
+.journey-step span { display: block; color: var(--muted); font-size: 12px; line-height: 1.5; }
+
+/* ---------- Trust / benefits ---------- */
+
+.trust-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.trust-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 24px 20px;
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--transition), box-shadow var(--transition);
+}
+
+.trust-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
+
+.trust-card.featured {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  padding: 30px 32px;
+  background: linear-gradient(120deg, var(--primary-soft), var(--primary-soft-2));
+  border-color: transparent;
+}
+
+.trust-card.featured .trust-icon { width: 58px; height: 58px; margin-bottom: 0; background: var(--surface); box-shadow: var(--shadow-sm); flex-shrink: 0; }
+.trust-card.featured .icon { width: 26px; height: 26px; }
+.trust-card.featured strong { font-size: 17px; margin-bottom: 6px; }
+.trust-card.featured p { font-size: 14px; max-width: 480px; }
+
+.trust-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  display: grid;
+  place-items: center;
+  font-size: 19px;
+  margin-bottom: 14px;
+}
+
+.trust-card strong { display: block; font-size: 14.5px; margin-bottom: 6px; }
+.trust-card p { color: var(--muted); font-size: 13px; line-height: 1.55; }
+
+@media (max-width: 640px) {
+  .trust-card.featured { flex-direction: column; align-items: flex-start; gap: 14px; }
+}
+
+.icon { width: 22px; height: 22px; flex-shrink: 0; }
+
+/* ---------- Privacy rows ---------- */
+
+.privacy-rows { display: flex; flex-direction: column; max-width: 640px; margin: 0 auto; text-align: left; }
+.privacy-row { display: flex; align-items: flex-start; gap: 16px; padding: 18px 4px; }
+.privacy-row + .privacy-row { border-top: 1px solid var(--border); }
+.privacy-row .trust-icon { margin-bottom: 0; }
+.privacy-row strong { display: block; font-size: 14.5px; margin-bottom: 4px; }
+.privacy-row p { color: var(--muted); font-size: 13px; line-height: 1.55; margin: 0; }
+
+/* ---------- Application form ---------- */
+
+.workspace {
+  max-width: 930px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(250px, 0.65fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.demo-card, .process-card {
+  background: var(--surface);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+
+.demo-card { overflow: hidden; }
+
+.card-header {
+  padding: 28px 30px 22px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(244, 249, 253, 0.96));
+  border-bottom: 1px solid #edf2f7;
+}
+
+.card-header h2 { font-size: 21px; margin-bottom: 8px; color: #0d1d31; }
+.card-header p { color: var(--muted); font-size: 14px; line-height: 1.6; }
+
+.form-wrap { padding: 26px 30px 30px; }
+.form-group { margin-bottom: 20px; }
+.phone-fields { display: grid; grid-template-columns: minmax(180px, 0.9fr) 1fr; gap: 10px; }
+.phone-fields select { font-weight: 700; color: var(--primary); }
+.phone-fields input { letter-spacing: 0.04em; }
+.phone-fields input::placeholder { color: #9aa8b7; letter-spacing: 0; }
+.phone-fields select, .phone-fields input { min-width: 0; }
+
+.form-group > label:first-child {
+  display: block;
+  margin-bottom: 8px;
+  color: #25384e;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.file-upload {
+  display: block;
+  border: 1px dashed #bdd0df;
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, #fbfdff, #f7fbff);
+  padding: 28px 22px;
+  text-align: center;
+  cursor: pointer;
+  transition: border var(--transition), background var(--transition), transform var(--transition);
+}
+
+.file-upload:hover {
+  border-color: var(--primary);
+  background: #f2f8fd;
+  transform: translateY(-1px);
+}
+
+.file-upload input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+
+.file-icon {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 12px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 22px;
+}
+
+.file-upload strong { display: block; font-size: 14px; color: #223348; margin-bottom: 4px; }
+.file-upload span { display: block; color: #8390a0; font-size: 12px; }
+
+.file-name {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--primary);
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.primary-btn {
+  width: 100%;
+  margin-top: 3px;
+  padding: 15px 18px;
+  border-radius: 13px;
+  background: linear-gradient(135deg, var(--primary), var(--primary-light));
+  color: white;
+  font-size: 14.5px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 12px 24px rgba(14, 68, 113, 0.19);
+  transition: transform var(--transition), box-shadow var(--transition);
+  min-height: 50px;
+}
+
+.primary-btn:hover { transform: translateY(-1px); box-shadow: 0 15px 28px rgba(14, 68, 113, 0.24); }
+.primary-btn:disabled { opacity: 0.65; cursor: wait; transform: none; }
+
+.helper-text { margin-top: 12px; text-align: center; font-size: 11.5px; color: #8a98a9; line-height: 1.55; }
+
+.reassurance-list {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin-top: 4px;
+}
+.reassurance-list li {
+  list-style: none;
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.reassurance-list li::before {
+  content: "✓";
+  color: var(--success);
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.process-card { padding: 26px; }
+
+.process-label {
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 14px;
+}
+
+.process-card h3 { font-size: 17px; line-height: 1.35; margin-bottom: 18px; }
+
+.process-divider { height: 1px; background: #edf1f5; margin: 20px 0; }
+
+#loading, #callWaiting, #errorState {
+  display: none;
+  padding: 40px 30px;
+  text-align: center;
+}
+
+.loader {
+  width: 58px;
+  height: 58px;
+  border: 6px solid #e7edf3;
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+  margin: 0 auto 18px;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+#loading h3, #callWaiting h2, #errorState h2 { font-size: 21px; margin-bottom: 8px; }
+
+#status, #callMessage, #errorState p { color: var(--muted); font-size: 14px; line-height: 1.6; }
+
+.call-visual {
+  width: 78px;
+  height: 78px;
+  margin: 0 auto 18px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 34px;
+  position: relative;
+}
+
+.call-visual::before, .call-visual::after {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border: 2px solid rgba(14, 68, 113, 0.18);
+  border-radius: 50%;
+  animation: pulse 2s ease-out infinite;
+}
+
+.call-visual::after { animation-delay: 1s; }
+
+.call-visual .icon { width: 32px; height: 32px; }
+
+@keyframes pulse {
+  0% { transform: scale(0.88); opacity: 0; }
+  30% { opacity: 1; }
+  100% { transform: scale(1.35); opacity: 0; }
+}
+
+.live-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 8px 12px;
+  border-radius: var(--radius-full);
+  color: var(--warning);
+  background: var(--warning-soft);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.live-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: blink 1.2s ease-in-out infinite;
+}
+
+@keyframes blink { 50% { opacity: 0.35; } }
+
+.status-timeline {
+  margin-top: 24px;
+  padding: 18px;
+  border: 1px solid #e3eaf1;
+  background: #f8fbfd;
+  border-radius: 15px;
+  text-align: left;
+}
+
+.status-step {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 9px 0;
+  color: #8492a3;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.status-step + .status-step { border-top: 1px solid #e9eef3; }
+
+.step-dot {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  border: 2px solid #d7e0e8;
+  background: #fff;
+  font-size: 10px;
+}
+
+.status-step.active { color: var(--primary); }
+.status-step.active .step-dot { border-color: var(--primary); background: var(--primary-soft); }
+
+.status-step.complete { color: var(--success); }
+.status-step.complete .step-dot { border-color: var(--success); background: var(--success-soft); }
+
+.info {
+  margin-top: 20px;
+  background: #f8fbfd;
+  border: 1px solid #e3eaf1;
+  padding: 18px;
+  border-radius: 15px;
+  text-align: left;
+}
+
+.info-row { display: flex; justify-content: space-between; gap: 20px; padding: 9px 0; border-bottom: 1px solid #e9eef3; }
+.info-row:last-child { border-bottom: 0; }
+.info-row span:first-child { color: #7a899b; font-size: 12px; }
+.info-row span:last-child { color: #1f3044; font-size: 12px; font-weight: 700; text-align: right; word-break: break-word; }
+.submission-note { margin: 22px auto 0; max-width: 560px; padding: 16px 18px; border: 1px solid #dce8f2; border-radius: 12px; background: #f7fbfe; text-align: left; }
+.submission-note strong { display: block; color: #123f68; font-size: 13px; margin-bottom: 5px; }
+.submission-note p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+
+.error-icon {
+  width: 66px;
+  height: 66px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 18px;
+  font-size: 32px;
+  color: #c23a3a;
+  background: #fff0f0;
+}
+
+.try-again {
+  margin-top: 18px;
+  padding: 12px 18px;
+  border-radius: 11px;
+  background: #eff5fa;
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  min-height: 44px;
+}
+.try-again:hover { background: var(--primary-soft-2); }
+
+/* ---------- Footer ---------- */
+
+.footer {
+  margin-top: 44px;
+  padding-top: 28px;
+  border-top: 1px solid var(--border);
+  text-align: center;
+}
+
+.footer p { color: #92a0b1; font-size: 12px; margin-top: 6px; }
+.footer strong { color: var(--muted); font-size: 13px; }
+
+@media (max-width: 980px) {
+  .hero { grid-template-columns: 1fr; padding-top: 40px; text-align: center; }
+  .hero-copy { max-width: 100%; margin: 0 auto; }
+  .hero-actions { justify-content: center; }
+  .hv-card { max-width: 340px; }
+  .trust-grid { grid-template-columns: repeat(2, 1fr); }
+  .journey-grid { grid-template-columns: repeat(3, 1fr); }
+  .journey-step:nth-child(3)::after { display: none; }
+}
+
+@media (max-width: 820px) {
+  .workspace { grid-template-columns: 1fr; }
+  .process-card { order: 2; }
+}
+
+@media (max-width: 640px) {
+  body { padding: 14px; }
+  .nav { padding: 12px 13px; border-radius: 16px; position: static; }
+  .nav-links { display: none; }
+  .hero h1 { letter-spacing: -1px; }
+  .card-header, .form-wrap, #loading, #callWaiting, #errorState { padding-left: 22px; padding-right: 22px; }
+  .demo-card, .process-card, .journey-card { border-radius: 20px; }
+  .info-row { flex-direction: column; gap: 4px; }
+  .info-row span:last-child { text-align: left; }
+  .trust-grid { grid-template-columns: 1fr; }
+  .journey-grid { grid-template-columns: 1fr; gap: 10px; }
+  .journey-step::after { display: none; }
+  .journey-step { text-align: left; display: flex; align-items: center; gap: 14px; padding: 12px 6px; }
+  .journey-number { margin: 0; flex-shrink: 0; }
+  .journey-grid .journey-step-body { margin-top: 0; }
+  .journey-band { padding: 20px 18px; }
+  .hv-float { left: 12px; bottom: 12px; }
+}
+
+/* ---------- Client-facing workflow redesign ---------- */
+body {
+  padding: 0;
+  background:
+    radial-gradient(circle at 8% 8%, rgba(159, 202, 255, 0.28), transparent 25%),
+    linear-gradient(180deg, #f9f9ff 0%, #f1f3ff 100%);
+}
+
+.page-shell { max-width: none; }
+
+.page-shell > header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(249, 249, 255, 0.88);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.nav {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 16px 28px;
+  border: 0;
+  border-bottom: 1px solid rgba(194, 199, 208, 0.45);
+  border-radius: 0;
+  box-shadow: none;
+  background: rgba(249, 249, 255, 0.88);
+  position: static;
+}
+
+.logo { border-radius: 50%; background: var(--primary); box-shadow: none; }
+.brand-copy strong { color: var(--primary); }
+.brand-copy span { max-width: 330px; line-height: 1.25; }
+.nav-links { gap: 28px; }
+.nav-links a { color: #42474f; }
+.nav-links a:hover { color: var(--primary); }
+.nav-button, .btn { border-radius: 8px; background: var(--primary); }
+.nav-button:hover, .btn:hover { background: var(--primary-dark); }
+
+.hero {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 106px 28px 82px;
+  grid-template-columns: minmax(0, 1fr) minmax(310px, 420px);
+  gap: 72px;
+}
+
+.hero-copy { max-width: 680px; }
+.badge {
+  border-left: 0;
+  border-radius: 999px;
+  background: #e9edff;
+  border: 1px solid #c7d6ee;
+  padding: 8px 14px;
+  margin-bottom: 22px;
+  color: var(--primary);
+}
+.hero h1 { color: var(--primary); font-size: clamp(40px, 5vw, 64px); letter-spacing: -2px; }
+.hero h1 .accent {
+  background: linear-gradient(135deg, #f47c6c, #f4c96b);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.hero p { color: #42474f; max-width: 600px; }
+.hero-actions { gap: 12px; }
+.btn-lg { border-radius: 8px; }
+.btn-ghost { border: 2px solid #727780; color: var(--primary); }
+.hero .btn-ghost { background: #fff; color: var(--primary); }
+.hero .btn-ghost:hover { background: #e9edff; color: var(--primary-dark); }
+.hero-visual { min-height: 320px; }
+.hv-glow { background: radial-gradient(circle at 50% 50%, rgba(244, 124, 108, 0.18), transparent 62%); }
+.hv-card {
+  max-width: 420px;
+  min-height: 320px;
+  background: linear-gradient(135deg, #0e4471, #002d51);
+  border: 0;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+}
+.hv-card-photo { aspect-ratio: auto; }
+.hv-card-photo img { display: none; }
+.hv-card::before {
+  content: "Ella AI";
+  color: #fff;
+  font: 700 42px/1.1 "Outfit", Inter, sans-serif;
+  letter-spacing: -1px;
+}
+.hv-card::after {
+  content: "From requisition to hire";
+  position: absolute;
+  margin-top: 112px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 14px;
+}
+.hv-float { border-radius: 8px; background: #fff; color: var(--primary); box-shadow: 0 12px 28px rgba(14, 68, 113, 0.25); }
+
+#workflow {
+  max-width: none;
+  margin-top: 0 !important;
+  padding: 88px 28px;
+  border-top: 1px solid rgba(194, 199, 208, 0.4);
+  border-bottom: 1px solid rgba(194, 199, 208, 0.4);
+  background-color: rgba(241, 243, 255, 0.62);
+  background-image: repeating-linear-gradient(-45deg, rgba(14, 68, 113, 0.05), rgba(14, 68, 113, 0.05) 1px, transparent 1px, transparent 14px);
+}
+#workflow > * { max-width: 1280px; margin-left: auto; margin-right: auto; }
+#workflow .section-head { margin-bottom: 38px; }
+#workflow .section-head h2 { color: var(--primary); font-size: clamp(30px, 4vw, 48px); }
+#workflow .section-head p { color: #42474f; }
+.journey-band { padding: 34px; border-radius: 8px; background: #fff; border-color: rgba(194, 199, 208, 0.4); box-shadow: 0 10px 40px -10px rgba(14, 68, 113, 0.1); }
+.journey-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
+.journey-step { padding: 0 8px; }
+.journey-grid .journey-step:nth-child(even) .journey-step-body { margin-top: 0; }
+.journey-number { width: 36px; height: 36px; border-radius: 999px; background: var(--primary); color: #fff; box-shadow: none; }
+.journey-step::after { background: #9fcaff; }
+.journey-step strong { color: var(--primary); }
+.journey-step span { color: #42474f; }
+
+#trust,
+main > .section:last-of-type,
+.demo-card > .form-wrap > .reassurance-list,
+#rolesStatus { display: none !important; }
+
+main > .application-section { margin-top: 0 !important; padding: 88px 28px; }
+.workspace { max-width: 1120px; grid-template-columns: minmax(0, 1fr) 300px; gap: 28px; }
+.demo-card, .process-card { border-radius: 8px; box-shadow: 0 10px 40px -10px rgba(14, 68, 113, 0.1); }
+.card-header { padding: 30px 32px 24px; background: #fff; }
+.card-header h2 { color: var(--primary); font-size: 28px; }
+.card-header p { color: #42474f; }
+.form-wrap { padding: 28px 32px 32px; }
+.form-group > label:first-child { color: var(--primary); }
+input:not([type="file"]), select { border-radius: 8px; border-color: #c2c7d0; }
+.file-upload { border-radius: 8px; border-color: #9fcaff; background: #f1f3ff; }
+.file-upload:hover { background: #e9edff; }
+.primary-btn { border-radius: 8px; background: var(--primary); box-shadow: none; }
+.primary-btn:hover { background: var(--primary-dark); box-shadow: none; }
+.process-card { padding: 28px; background: #fff; }
+.process-label { color: #f47c6c; }
+.process-card h3 { color: var(--primary); font-size: 24px; }
+.reassurance-list li { color: #42474f; }
+.reassurance-list li::before { color: #16a34a; }
+.footer { max-width: 1120px; margin: 0 auto; padding: 24px 28px 30px; border-top: 1px solid rgba(194, 199, 208, 0.45); }
+
+.country-picker { position: relative; min-width: 0; }
+.country-trigger {
+  width: 100%;
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid #c2c7d0;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--primary);
+  font-weight: 700;
+  cursor: pointer;
+}
+.country-trigger:focus-visible,
+.country-trigger[aria-expanded="true"] { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(14, 68, 113, 0.12); }
+.country-trigger-content { display: inline-flex; align-items: center; gap: 9px; min-width: 0; }
+.country-trigger-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.country-chevron { width: 16px; height: 16px; flex: 0 0 16px; transition: transform 0.2s ease; }
+.country-trigger[aria-expanded="true"] .country-chevron { transform: rotate(180deg); }
+.country-flag { width: 25px; height: 17px; flex: 0 0 25px; display: inline-block; overflow: hidden; border-radius: 2px; box-shadow: 0 0 0 1px rgba(14, 68, 113, 0.14); }
+.country-flag svg { display: block; width: 100%; height: 100%; }
+.country-menu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 30;
+  display: grid;
+  gap: 3px;
+  padding: 6px;
+  border: 1px solid #c2c7d0;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 14px 30px rgba(14, 68, 113, 0.18);
+}
+.country-menu[hidden] { display: none; }
+.country-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.country-option:hover, .country-option:focus-visible { background: #e9edff; color: var(--primary); outline: none; }
+.country-option span:last-child { display: flex; align-items: baseline; gap: 7px; }
+.country-option strong { color: var(--primary); }
+.country-native-select { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+
+/* ---------- Animated recruitment hero ---------- */
+.page-shell > header {
+  position: fixed;
+  left: 0;
+  right: 0;
+}
+.nav { width: 100%; }
+.hero { padding-top: 158px; }
+.hero-visual { min-height: 420px; }
+.hv-scene {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 520px);
+  height: 420px;
+  overflow: hidden;
+  margin: 0 auto;
+  border: 6px solid #fff;
+  border-radius: 10px;
+  background: linear-gradient(145deg, #eadbc7 0%, #d9c8b1 48%, #b9a990 100%);
+  box-shadow: 0 18px 42px rgba(14, 68, 113, 0.2);
+}
+.hv-scene::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 68% 14%, rgba(255, 255, 255, 0.75), transparent 24%), linear-gradient(90deg, rgba(255,255,255,.2), transparent 44%);
+  pointer-events: none;
+}
+.hero-human-svg { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; }
+.hero-human-svg { display: none; }
+.hero-image { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; object-fit: cover; object-position: center; }
+.hv-scene > .insight-card, .hv-scene > .ella-mark, .hero-visual > .hv-float { display: none; }
+.human-breathe { transform-box: fill-box; transform-origin: center bottom; animation: humanBreathe 4.5s ease-in-out infinite; }
+.human-blink { animation: humanBlink 5s ease-in-out infinite; }
+.plant-motion { transform-origin: 55px 75px; animation: plantSway 4s ease-in-out infinite; }
+.scene-tint { position: absolute; inset: 0; z-index: 1; background: linear-gradient(90deg, rgba(255, 247, 236, 0.18), transparent 48%, rgba(14, 68, 113, 0.08)); pointer-events: none; }
+.scene-window {
+  position: absolute;
+  top: 28px;
+  left: 18px;
+  width: 52%;
+  height: 43%;
+  border: 10px solid rgba(255, 255, 255, 0.62);
+  background: linear-gradient(135deg, #f3eee5, #c3d4d0 54%, #a8c2c1);
+  box-shadow: inset 0 0 0 3px rgba(14, 68, 113, 0.08);
+}
+.scene-window::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(90deg, transparent 0 28px, rgba(255,255,255,.28) 28px 31px), repeating-linear-gradient(0deg, transparent 0 25px, rgba(255,255,255,.24) 25px 28px);
+}
+.scene-desk {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 26%;
+  background: linear-gradient(180deg, #b88762, #8a6047);
+  box-shadow: 0 -8px 20px rgba(82, 53, 38, 0.16);
+}
+.scene-person { position: absolute; right: 9%; bottom: 12%; width: 48%; height: 78%; z-index: 2; animation: personBreathe 4s ease-in-out infinite; }
+.person-hair { position: absolute; top: 0; right: 5%; width: 54%; height: 39%; border-radius: 52% 48% 43% 42%; background: #3f2922; transform: rotate(8deg); box-shadow: -12px 8px 0 #53332a; }
+.person-head { position: absolute; top: 11%; right: 15%; width: 35%; height: 26%; border-radius: 48% 48% 44% 44%; background: #d99d7d; transform: rotate(7deg); }
+.person-body { position: absolute; left: 12%; bottom: 0; width: 78%; height: 63%; border-radius: 48% 48% 0 0; background: linear-gradient(135deg, #f3e5d3, #d4b99b); transform: rotate(-4deg); }
+.person-tablet { position: absolute; left: 9%; bottom: 14%; width: 51%; height: 25%; border: 7px solid #566b72; border-radius: 5px; background: linear-gradient(135deg, #d9eff1, #91b9bc); transform: rotate(12deg); box-shadow: 0 8px 13px rgba(38, 51, 54, .22); }
+.scene-plant { position: absolute; left: 4%; bottom: 15%; width: 100px; height: 145px; z-index: 3; }
+.scene-plant b { position: absolute; bottom: 0; left: 27px; width: 48px; height: 42px; border-radius: 6px 6px 18px 18px; background: #b27852; }
+.scene-plant i { position: absolute; bottom: 30px; left: 47px; width: 13px; height: 90px; border-radius: 100% 0; background: #4d795d; transform-origin: bottom; }
+.scene-plant i:nth-child(1) { transform: rotate(-30deg); }
+.scene-plant i:nth-child(2) { transform: rotate(3deg); height: 110px; }
+.scene-plant i:nth-child(3) { transform: rotate(33deg); height: 80px; }
+.insight-card { position: absolute; z-index: 5; padding: 11px 13px; border: 1px solid rgba(255,255,255,.78); border-radius: 9px; background: rgba(255,255,255,.82); backdrop-filter: blur(8px); box-shadow: 0 10px 24px rgba(14,68,113,.18); color: var(--primary); animation: cardFloat 4.4s ease-in-out infinite; }
+.mini-label { display: block; margin-bottom: 7px; color: #536274; font-size: 8px; font-weight: 800; letter-spacing: .07em; }
+.profile-card { top: 18%; left: 7%; width: 142px; }
+.profile-line { display: flex; align-items: center; gap: 8px; }
+.profile-avatar { width: 31px; height: 36px; border-radius: 50% 50% 42% 42%; background: radial-gradient(circle at 50% 33%, #3f2922 0 22%, transparent 23%), linear-gradient(135deg, #e4ae8d 0 58%, #d1e0e0 59%); }
+.profile-line b { display: block; width: 53px; height: 4px; margin: 4px 0; border-radius: 4px; background: #b8c2ca; }
+.stars { margin-top: 8px; color: #ef8b6d; font-size: 10px; letter-spacing: 2px; }
+.score-card { top: 48%; left: 12%; width: 112px; animation-delay: .8s; }
+.score-card strong { display: inline-block; color: #5cb38e; font-size: 24px; }
+.score-ring { float: right; width: 27px; height: 27px; border: 4px solid #7bc8aa; border-left-color: #d9eee4; border-radius: 50%; animation: spinRing 5s linear infinite; }
+.ai-card { right: 8%; bottom: 26%; width: 142px; animation-delay: 1.5s; }
+.ai-card > span:not(.mini-label) { display: block; margin-top: 5px; color: #4e6572; font-size: 9px; }
+.ella-mark { position: absolute; top: 15%; right: 22%; z-index: 4; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--primary); color: white; font-weight: 800; font-size: 12px; box-shadow: 0 5px 12px rgba(14,68,113,.25); animation: markPulse 2.6s ease-in-out infinite; }
+.hv-float { z-index: 8; }
+@keyframes personBreathe { 50% { transform: translateY(-5px) rotate(.3deg); } }
+@keyframes cardFloat { 50% { transform: translateY(-7px); } }
+@keyframes spinRing { to { transform: rotate(360deg); } }
+@keyframes markPulse { 50% { box-shadow: 0 0 0 8px rgba(14,68,113,.1), 0 5px 12px rgba(14,68,113,.25); } }
+@keyframes humanBreathe { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-2px) rotate(.25deg); } }
+@keyframes humanBlink { 0%, 46%, 50%, 100% { opacity: 1; } 48% { opacity: 0; } }
+@keyframes plantSway { 0%, 100% { transform: rotate(-1deg); } 50% { transform: rotate(2deg); } }
+
+@media (max-width: 820px) {
+  .nav { padding: 14px 20px; }
+  .hero { padding: 130px 20px 64px; gap: 42px; }
+  .hero-visual { display: block; }
+  #workflow, main > .application-section { padding-left: 20px; padding-right: 20px; }
+  .workspace { grid-template-columns: 1fr; }
+}
+
+@media (min-width: 821px) and (max-width: 980px) {
+  .journey-step:nth-child(3)::after, .journey-step:nth-child(6)::after { display: none; }
+}
+
+@media (max-width: 640px) {
+  body { padding: 0; }
+  .nav { border-radius: 0; }
+  .hero { padding-top: 112px; text-align: left; }
+  .hero-visual { display: none; }
+  .hero-actions { align-items: stretch; flex-direction: column; }
+  .hero-actions .btn { width: 100%; }
+  #workflow, main > .application-section { padding-top: 60px; padding-bottom: 60px; }
+  .journey-band { padding: 20px 18px; }
+  .card-header, .form-wrap, #loading, #callWaiting, #errorState { padding-left: 22px; padding-right: 22px; }
+  .phone-fields { grid-template-columns: minmax(150px, 0.9fr) 1fr; }
+}
+</style>
+</head>
+
+<body>
+<a class="skip-link" href="#demo">Skip to application form</a>
+
+<div class="page-shell">
+  <header>
+    <nav class="nav" aria-label="Primary">
+      <div class="brand">
+        <div class="logo" aria-hidden="true">E</div>
+        <div class="brand-copy">
+          <strong>Ella AI</strong>
+          <span>HR AI Screening &amp; Outbound Recruiter Agent</span>
+        </div>
+      </div>
+
+      <div class="nav-links">
+        <a href="#workflow">The Journey</a>
+        <a href="#demo">Apply</a>
+      </div>
+
+        <button class="nav-button" onclick="document.getElementById('demo').scrollIntoView()">
+        Start your application
+      </button>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="hero-copy reveal">
+        <div class="badge">AI recruitment workflow</div>
+
+        <h1>Start your application.<br /><span class="accent">Meet Ella</span>, your AI recruiter.</h1>
+
+        <p>
+          Submit your resume once. Ella screens your application and guides you through the next steps.
+        </p>
+
+        <div class="hero-actions">
+          <button class="btn btn-lg" onclick="document.getElementById('demo').scrollIntoView()">
+            Start your application
+          </button>
+          <a class="btn btn-lg btn-ghost" href="#workflow">View the journey</a>
+        </div>
+      </div>
+
+      <div class="hero-visual reveal" style="transition-delay: 0.12s;" aria-hidden="true">
+        <div class="hv-glow"></div>
+        <div class="hv-scene">
+          <img class="hero-image" src="hero image.jpg" alt="Ella AI recruiter reviewing a candidate profile" />
+          <svg class="hero-human-svg" viewBox="0 0 520 420" role="img" aria-label="Animated recruiter reviewing a candidate profile">
+            <defs>
+              <linearGradient id="officeWall" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f0e5d5"/><stop offset="1" stop-color="#cdb99d"/></linearGradient>
+              <linearGradient id="windowLight" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f8f2e8"/><stop offset=".55" stop-color="#c5d8d2"/><stop offset="1" stop-color="#9ebbb8"/></linearGradient>
+              <linearGradient id="jacket" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f5e9d8"/><stop offset="1" stop-color="#caa989"/></linearGradient>
+              <linearGradient id="tabletScreen" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e4f4f3"/><stop offset="1" stop-color="#82afb1"/></linearGradient>
+              <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#493a31" flood-opacity=".22"/></filter>
+              <filter id="glow"><feGaussianBlur stdDeviation="3"/></filter>
+            </defs>
+            <rect width="520" height="420" fill="url(#officeWall)"/>
+            <circle cx="375" cy="56" r="82" fill="#fff" opacity=".18" filter="url(#glow)"/>
+            <g opacity=".72">
+              <rect x="26" y="30" width="260" height="190" rx="5" fill="url(#windowLight)" stroke="#fff" stroke-width="12"/>
+              <path d="M112 30v190M198 30v190M26 124h260" stroke="#fff" stroke-width="5" opacity=".45"/>
+              <path d="M34 180c42-38 85-28 126-56 48-32 79-26 118-65v161H34z" fill="#a7c0b4" opacity=".38"/>
+            </g>
+            <g class="human-breathe" filter="url(#softShadow)">
+              <path d="M320 167c20-8 49-3 69 15 21 19 35 52 39 91l-7 91H238c8-63 21-112 38-149 12-26 26-42 44-48z" fill="url(#jacket)"/>
+              <path d="M328 169c4 27 26 41 52 39l-6 52-28-7-23-43z" fill="#e7c9ac"/>
+              <path d="M286 100c3-38 36-64 71-53 31 9 47 42 38 75-7 27-32 47-61 42-34-6-51-31-48-64z" fill="#d89d7b"/>
+              <path d="M278 106c-8-37 5-74 41-84 38-10 76 9 86 48 7 27-3 58-21 72-2-20-7-36-21-45-20 14-46 22-75 20-3 12-2 24 4 35-10-8-12-28-14-46z" fill="#3c2924"/>
+              <path d="M343 113c8-4 14-3 20 1M368 112c7-4 13-3 18 1" stroke="#633b2f" stroke-width="3" stroke-linecap="round"/>
+              <circle class="human-blink" cx="360" cy="127" r="2.3" fill="#382925"/><circle class="human-blink" cx="386" cy="126" r="2.3" fill="#382925"/>
+              <path d="M369 146c7 4 13 4 19-1" stroke="#9a5c54" stroke-width="2" fill="none" stroke-linecap="round"/>
+              <path d="M302 201c-12 31-21 64-20 102M400 202c19 27 29 55 31 85" stroke="#d89d7b" stroke-width="18" stroke-linecap="round"/>
+              <g transform="rotate(11 328 289)">
+                <rect x="271" y="250" width="132" height="82" rx="5" fill="#566a70"/>
+                <rect x="280" y="258" width="114" height="64" rx="2" fill="url(#tabletScreen)"/>
+                <path d="M292 275h54M292 285h76M292 299h39" stroke="#fff" stroke-width="4" stroke-linecap="round" opacity=".65"/>
+                <circle cx="375" cy="275" r="8" fill="#5cb38e" opacity=".85"/>
+              </g>
+            </g>
+            <path d="M0 326h520v94H0z" fill="#a97657"/>
+            <path d="M0 326h520" stroke="#d1a17e" stroke-width="8" opacity=".65"/>
+            <g class="plant-motion" transform="translate(28 255)">
+              <path d="M32 70h50l-7 53H39z" fill="#a86f4d"/>
+              <path d="M55 75V0M55 65C35 52 22 34 24 15M57 56c19-18 30-36 28-55M53 42C39 33 34 20 36 7" stroke="#4f795b" stroke-width="9" stroke-linecap="round" fill="none"/>
+              <path d="M24 15c-12-7-17-3-18 5 10 10 18 8 18-5zM84 1c12-6 17-1 15 8-11 8-17 5-15-8zM36 7c-9-8-15-5-15 4 9 10 16 8 15-4z" fill="#67966d"/>
+            </g>
+            <g opacity=".42"><circle cx="468" cy="88" r="18" fill="#f7c98a"/><circle cx="468" cy="88" r="5" fill="#fff"/></g>
+          </svg>
+          <div class="insight-card profile-card">
+            <span class="mini-label">CANDIDATE PROFILE</span>
+            <div class="profile-line"><span class="profile-avatar"></span><span><b></b><b></b><b></b></span></div>
+            <div class="stars">★★★★★</div>
+          </div>
+          <div class="insight-card score-card">
+            <span class="mini-label">MATCH SCORE</span>
+            <strong>94%</strong><span class="score-ring"></span>
+          </div>
+          <div class="insight-card ai-card">
+            <span class="mini-label">AI INSIGHT</span>
+            <span>✓ Strong role fit</span>
+            <span>✓ Relevant experience</span>
+            <span>✓ Strong skills match</span>
+          </div>
+          <div class="ella-mark">E</div>
+        </div>
+        <div class="hv-float">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h3l2 5-2.2 1.3a11 11 0 005.9 5.9L16 13l5 2v3a2 2 0 01-2 2A16 16 0 014 5a2 2 0 012-2z"/></svg>
+          Ella is ready to call
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="workflow" style="margin-top: 64px;">
+      <div class="section-head reveal">
+        <h2>The recruitment journey</h2>
+        <p>A clear, human-reviewed process from resume submission to final interview.</p>
+      </div>
+
+      <div class="journey-band reveal">
+          <div class="journey-grid">
+            <div class="journey-step">
+              <div class="journey-number">1</div>
+              <div class="journey-step-body">
+                <strong>AI CV Analysis</strong>
+                <span>Ella compares the candidate's resume with the role requirements.</span>
+              </div>
+            </div>
+            <div class="journey-step">
+              <div class="journey-number">2</div>
+              <div class="journey-step-body">
+                <strong>AI Recommendation Report</strong>
+                <span>A structured report highlights the candidate's fit, strengths, and gaps.</span>
+              </div>
+            </div>
+            <div class="journey-step">
+              <div class="journey-number">3</div>
+              <div class="journey-step-body">
+                <strong>AI Email for Phone Interview</strong>
+                <span>Shortlisted candidates receive instructions to select a phone interview time.</span>
+              </div>
+            </div>
+            <div class="journey-step">
+              <div class="journey-number">4</div>
+              <div class="journey-step-body">
+                <strong>AI-Conducted Phone Interview</strong>
+                <span>Ella conducts the phone interview and records the candidate's responses.</span>
+              </div>
+            </div>
+            <div class="journey-step">
+              <div class="journey-number">5</div>
+              <div class="journey-step-body">
+                <strong>AI Recommendation Report</strong>
+                <span>Ella summarizes the interview evidence and recommends the next action.</span>
+              </div>
+            </div>
+            <div class="journey-step">
+              <div class="journey-number">6</div>
+              <div class="journey-step-body">
+                <strong>AI Email for F2F Interview with HOD</strong>
+                <span>Approved candidates receive an email to schedule the face-to-face HOD interview.</span>
+              </div>
+            </div>
+          </div>
+      </div>
+    </section>
+
+    <section class="section" id="trust" style="margin-top: 64px;">
+      <div class="section-head reveal">
+        <div class="section-label">Why apply with Ella</div>
+        <h2>Built for a fair, transparent hiring process</h2>
+      </div>
+
+      <div class="trust-grid">
+        <div class="trust-card featured reveal">
+          <div class="trust-icon" aria-hidden="true">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M4 20v-1a5 5 0 0 1 10 0v1"/><path d="M14 20v-1a4 4 0 0 1 6 0v1"/></svg>
+          </div>
+          <div>
+            <strong>Human oversight, always</strong>
+            <p>Every AI screening result is reviewed by our recruitment team before it moves forward. Ella narrows the pool; people make the calls.</p>
+          </div>
+        </div>
+        <div class="trust-card reveal">
+          <div class="trust-icon" aria-hidden="true">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h6l-1 8 9-12h-6z"/></svg>
+          </div>
+          <strong>Fast turnaround</strong>
+          <p>Get screened within minutes instead of waiting weeks for a response.</p>
+        </div>
+        <div class="trust-card reveal">
+          <div class="trust-icon" aria-hidden="true">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><circle cx="12" cy="15" r="1.4" fill="currentColor" stroke="none"/></svg>
+          </div>
+          <strong>Secure by design</strong>
+          <p>Your resume and contact details are handled with strict access controls.</p>
+        </div>
+        <div class="trust-card reveal">
+          <div class="trust-icon" aria-hidden="true">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-7.2 7-12.5A7 7 0 0 0 5 8.5C5 13.8 12 21 12 21z"/><circle cx="12" cy="8.5" r="2.5"/></svg>
+          </div>
+          <strong>Clear next steps</strong>
+          <p>You always know exactly where your application stands.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section application-section" style="margin-top: 64px;">
+      <div class="workspace">
+        <section class="demo-card reveal" id="demo">
+          <div class="card-header">
+            <h2>Start a resume screening</h2>
+            <p>Upload the candidate resume to begin the automated screening process.</p>
+          </div>
+
+          <form id="demoForm" class="form-wrap" novalidate>
+            <div class="form-group">
+              <label for="candidateName">Full Name<span class="required-mark" aria-hidden="true">*</span></label>
+              <input id="candidateName" name="candidate_name" type="text" autocomplete="name" required />
+              <span class="field-error" id="candidateNameError" role="alert"></span>
+            </div>
+
+            <div class="form-group">
+              <label for="contactNumber">Contact Number<span class="required-mark" aria-hidden="true">*</span></label>
+              <div class="phone-fields">
+                <div class="country-picker" id="countryPicker">
+                  <button class="country-trigger" id="countryTrigger" type="button" aria-haspopup="listbox" aria-expanded="false">
+                    <span class="country-trigger-content">
+                      <span class="country-flag" id="countryFlag" aria-hidden="true"></span>
+                      <span class="country-trigger-label" id="countryTriggerLabel">Country code</span>
+                    </span>
+                    <svg class="country-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+                  </button>
+                  <div class="country-menu" id="countryMenu" role="listbox" hidden>
+                    <button class="country-option" type="button" data-country="PH" role="option"><span class="country-flag" data-flag="PH" aria-hidden="true"></span><span><strong>+63</strong> Philippines</span></button>
+                    <button class="country-option" type="button" data-country="SG" role="option"><span class="country-flag" data-flag="SG" aria-hidden="true"></span><span><strong>+65</strong> Singapore</span></button>
+                    <button class="country-option" type="button" data-country="MY" role="option"><span class="country-flag" data-flag="MY" aria-hidden="true"></span><span><strong>+60</strong> Malaysia</span></button>
+                  </div>
+                  <select id="applicantCountry" class="country-native-select" name="applicant_country" autocomplete="country" required>
+                    <option value="">Country code</option>
+                    <option value="PH">+63 Philippines</option>
+                    <option value="SG">+65 Singapore</option>
+                    <option value="MY">+60 Malaysia</option>
+                  </select>
+                </div>
+                <input id="contactNumber" name="contact_number" type="tel" autocomplete="tel-national" inputmode="numeric" pattern="[0-9]*" maxlength="10" placeholder="9664325990" required />
+              </div>
+              <span class="helper-text" style="text-align:left;margin-top:7px;">Enter the local number only, without the country code.</span>
+              <span class="field-error" id="contactNumberError" role="alert"></span>
+            </div>
+
+            <div class="form-group">
+              <label for="email">Email Address<span class="required-mark" aria-hidden="true">*</span></label>
+              <input id="email" name="email" type="email" autocomplete="email" required />
+              <span class="field-error" id="emailError" role="alert"></span>
+            </div>
+
+            <div class="form-group">
+              <label for="role">Role Applied For<span class="required-mark" aria-hidden="true">*</span></label>
+              <select id="role" name="role_id" required disabled>
+                <option value="">Loading available roles...</option>
+              </select>
+              <span class="field-error" id="roleError" role="alert"></span>
+              <span class="helper-text" id="rolesStatus" style="display:block;text-align:left;margin-top:7px;">Loading available roles</span>
+            </div>
+
+            <div class="form-group">
+              <label for="resume">Resume Upload<span class="required-mark" aria-hidden="true">*</span></label>
+
+              <label class="file-upload" for="resume">
+                <input type="file" id="resume" accept=".pdf,.doc,.docx" required />
+
+                <div class="file-icon" aria-hidden="true">
+                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="M7 8l5-5 5 5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+                </div>
+                <strong>Choose a resume file</strong>
+                <span>PDF, DOC or DOCX &middot; up to 10 MB</span>
+                <div class="file-name" id="fileName">No file selected</div>
+              </label>
+              <span class="field-error" id="resumeError" role="alert"></span>
+            </div>
+
+            <div class="validation-summary" id="validationSummary" role="alert" aria-live="polite"></div>
+
+            <button class="primary-btn" id="submitButton" type="submit">
+              Submit My Application
+            </button>
+
+          </form>
+
+          <div id="loading" aria-live="polite">
+            <div class="loader" role="status"></div>
+            <h3>Processing application</h3>
+            <p id="status">Uploading resume...</p>
+          </div>
+
+          <div id="callWaiting" aria-live="polite">
+            <div class="call-visual" aria-hidden="true">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 6"/></svg>
+            </div>
+            <h2 id="callTitle">Resume submitted</h2>
+            <p id="callMessage">
+              Thank you. Your resume has been received successfully.
+            </p>
+
+            <div class="live-status">
+              <span class="live-status-dot" aria-hidden="true"></span>
+              <span id="liveStatusText">Resume received</span>
+            </div>
+
+            <div class="status-timeline" style="display:none" aria-hidden="true">
+              <div class="status-step complete" id="stepSubmitted">
+                <span class="step-dot" aria-hidden="true">✓</span>
+                <span>Resume received</span>
+              </div>
+              <div class="status-step active" id="stepScreening">
+                <span class="step-dot" aria-hidden="true">2</span>
+                <span>AI resume screening</span>
+              </div>
+              <div class="status-step" id="stepPreparing">
+                <span class="step-dot" aria-hidden="true">3</span>
+                <span>Voice interview</span>
+              </div>
+              <div class="status-step" id="stepCalling">
+                <span class="step-dot" aria-hidden="true">4</span>
+                <span>Final interview</span>
+              </div>
+            </div>
+
+            <div class="submission-note">
+              <strong>What happens next?</strong>
+              <p>Our recruitment team will review your resume. Please wait for an email from us with any next steps. You do not need to submit your resume again.</p>
+            </div>
+
+            <div class="info">
+              <div class="info-row">
+                <span>Application reference</span>
+                <span id="appid">Received</span>
+              </div>
+              <div class="info-row">
+                <span>Position</span>
+                <span id="position">Submitted resume</span>
+              </div>
+              <div class="info-row">
+                <span>Resume</span>
+                <span id="resumeStatus">Processing</span>
+              </div>
+
+              <div class="info-row" style="display:none" aria-hidden="true">
+                <span>Voice Interview</span>
+                <span id="voiceStatus">Pending</span>
+              </div>
+
+              <div class="info-row" style="display:none" aria-hidden="true">
+                <span>Final Interview</span>
+                <span id="finalStatus">Pending</span>
+              </div>
+            </div>
+
+            <button class="try-again" type="button" onclick="resetForm()">
+              Submit Another Resume
+            </button>
+          </div>
+
+          <div id="errorState" aria-live="assertive">
+            <div class="error-icon" aria-hidden="true">!</div>
+            <h2>Submission failed</h2>
+            <p id="errorMessage">The application could not be submitted.</p>
+
+            <button class="try-again" type="button" onclick="resetForm()">
+              Try Again
+            </button>
+          </div>
+        </section>
+
+        <aside class="process-card reveal" style="transition-delay: 0.1s;">
+          <div class="process-label">What happens next</div>
+          <h3>Your application moves through a clear review process.</h3>
+
+          <ul class="reassurance-list">
+            <li>HR reviews every AI screening result.</li>
+            <li>Shortlisted candidates receive voice interview instructions.</li>
+            <li>Final interviews are scheduled after HR approval.</li>
+          </ul>
+
+          <div class="process-divider"></div>
+
+          <div class="process-label">Before submitting</div>
+          <p style="color: var(--muted); font-size: 13px; line-height: 1.6;">
+            Use a current PDF, DOC, or DOCX resume. Your application details are used for recruitment review.
+          </p>
+        </aside>
+      </div>
+    </section>
+
+    <section class="section" style="margin-top: 64px;">
+      <div class="journey-card reveal">
+        <h2 style="font-size: 22px; margin-bottom: 10px; text-align:center;">Your data, handled responsibly</h2>
+        <p style="color: var(--muted); font-size: 14px; max-width: 620px; margin: 0 auto 26px; text-align:center;">
+          We take the confidentiality of your application seriously at every stage of the process.
+        </p>
+
+        <div class="privacy-rows">
+          <div class="privacy-row">
+            <div class="trust-icon" aria-hidden="true">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 5-3.5 8.5-7 9-3.5-.5-7-4-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg>
+            </div>
+            <div>
+              <strong>Encrypted submission</strong>
+              <p>Your resume and details are transmitted over a secure connection.</p>
+            </div>
+          </div>
+          <div class="privacy-row">
+            <div class="trust-icon" aria-hidden="true">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/></svg>
+            </div>
+            <div>
+              <strong>Purpose-limited use</strong>
+              <p>Your data is used only to evaluate you for the recruitment process.</p>
+            </div>
+          </div>
+          <div class="privacy-row">
+            <div class="trust-icon" aria-hidden="true">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M4 20v-1a5 5 0 0 1 10 0v1"/><path d="M14 20v-1a4 4 0 0 1 6 0v1"/></svg>
+            </div>
+            <div>
+              <strong>Reviewed by people</strong>
+              <p>A human recruiter reviews every decision Ella makes about your application.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <strong>Ella AI</strong>
+    <p>HR AI Screening &amp; Outbound Recruiter Agent</p>
+    <p>Powered by MPS SOLUTIONS PTE LTD</p>
+  </footer>
+</div>
+
+<script>
+(function revealOnScroll() {
+  const targets = document.querySelectorAll(".reveal");
+  if (!targets.length) return;
+  if (!("IntersectionObserver" in window)) {
+    targets.forEach((el) => el.classList.add("is-visible"));
+    return;
+  }
+  const observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add("is-visible");
+          observer.unobserve(entry.target);
+        }
+      });
+    },
+    { threshold: 0.15, rootMargin: "0px 0px -40px 0px" }
+  );
+  targets.forEach((el) => observer.observe(el));
+})();
+</script>
+
+<script>
+/* Phase 1 recruitment application client. Replace both placeholders before deployment. */
+const RECRUITMENT_WEBHOOK_BASE_URL =
+  "https://n8n.srv1457709.hstgr.cloud/webhook";
+/* Recruitment portal API base. Single-use HR application links (?invite=...)
+   are validated and submitted through the portal itself rather than n8n
+   directly, so the portal can enforce "one use only" on the link. */
+const PORTAL_API_BASE_URL = "https://ella-recruitment.mclinkgroup.com";
+const MAX_RESUME_SIZE_BYTES = 10 * 1024 * 1024;
+const ALLOWED_RESUME_TYPES = ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
+const ALLOWED_RESUME_EXTENSIONS = ["pdf", "doc", "docx"];
+
+async function parseRecruitmentResponse(response, label) {
+  const responseText = await response.text();
+
+  if (!responseText.trim()) {
+    if (!response.ok) {
+      throw new Error(`${label} request failed with status ${response.status}.`);
+    }
+    return {};
+  }
+
+  try {
+    return JSON.parse(responseText);
+  } catch {
+    throw new Error(`${label} returned invalid JSON.`);
+  }
+}
+
+const recruitmentForm = document.getElementById("demoForm");
+const recruitmentRole = document.getElementById("role");
+const recruitmentCountry = document.getElementById("applicantCountry");
+const countryTrigger = document.getElementById("countryTrigger");
+const countryTriggerLabel = document.getElementById("countryTriggerLabel");
+const countryFlag = document.getElementById("countryFlag");
+const countryMenu = document.getElementById("countryMenu");
+const recruitmentFile = document.getElementById("resume");
+const recruitmentFileName = document.getElementById("fileName");
+const recruitmentSubmit = document.getElementById("submitButton");
+const recruitmentLoading = document.getElementById("loading");
+const recruitmentWaiting = document.getElementById("callWaiting");
+const recruitmentErrorState = document.getElementById("errorState");
+const recruitmentErrorMessage = document.getElementById("errorMessage");
+const recruitmentStatus = document.getElementById("status");
+const recruitmentRolesStatus = document.getElementById("rolesStatus");
+const validationSummary = document.getElementById("validationSummary");
+let availableRoles = [];
+let applicationInProgress = false;
+
+/* An HR reviewer can send a candidate a single-use application link from the
+   Resume Screening tab (e.g. ?invite=<token>). When present, that token
+   determines which role the candidate applies to, and the link stops
+   working the moment they submit. */
+const inviteToken = (new URLSearchParams(window.location.search).get("invite") || "").trim();
+let activeInvitation = null;
+
+function recruitmentEndpoint(path) {
+  return `${RECRUITMENT_WEBHOOK_BASE_URL.replace(/\/$/, "")}${path}`;
+}
+
+function portalEndpoint(path) {
+  return `${PORTAL_API_BASE_URL.replace(/\/$/, "")}${path}`;
+}
+
+function setFieldError(id, message) {
+  const error = document.getElementById(id);
+  if (!error) return;
+  const text = message || "";
+  error.textContent = text;
+  const group = error.closest(".form-group");
+  if (group) group.classList.toggle("has-error", Boolean(text));
+  const controls = group ? group.querySelectorAll("input, select") : [];
+  controls.forEach((control) => control.setAttribute("aria-invalid", text ? "true" : "false"));
+}
+
+function showRecruitmentError(message) {
+  recruitmentForm.style.display = "none";
+  recruitmentLoading.style.display = "none";
+  recruitmentWaiting.style.display = "none";
+  recruitmentErrorState.style.display = "block";
+  recruitmentErrorMessage.textContent = message;
+}
+
+function resetRecruitmentView() {
+  recruitmentForm.reset();
+  recruitmentForm.style.display = "block";
+  recruitmentLoading.style.display = "none";
+  recruitmentWaiting.style.display = "none";
+  recruitmentErrorState.style.display = "none";
+  recruitmentSubmit.disabled = false;
+  recruitmentFileName.textContent = "No file selected";
+  ["candidateNameError", "contactNumberError", "emailError", "roleError", "resumeError"].forEach((id) => setFieldError(id, ""));
+  validationSummary.textContent = "";
+  validationSummary.classList.remove("visible");
+}
+
+/* Legacy status code retained in docs/LEGACY-APPLICATION-STATUS.md. */
+/*
+function stopRecruitmentStatusPolling() {
+  if (recruitmentStatusPollingTimer) {
+    clearInterval(recruitmentStatusPollingTimer);
+    recruitmentStatusPollingTimer = null;
+  }
+}
+
+function normalizeRecruitmentStatus(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
+}
+
+*/
+
+const countryFlagMarkup = {
+  PH: '<svg viewBox="0 0 30 20" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="#0038A8" d="M0 0h30v10H0z"/><path fill="#CE1126" d="M0 10h30v10H0z"/><path fill="#fff" d="M0 0v20l14 10V10z" transform="scale(.7 1)"/><circle cx="5" cy="10" r="1.6" fill="#FCD116"/></svg>',
+  SG: '<svg viewBox="0 0 30 20" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="#ED2939" d="M0 0h30v10H0z"/><path fill="#fff" d="M0 10h30v10H0z"/><circle cx="7" cy="5" r="3.2" fill="#fff"/><circle cx="8.3" cy="4.2" r="3.2" fill="#ED2939"/><circle cx="12" cy="3" r=".7" fill="#fff"/><circle cx="14" cy="4.4" r=".7" fill="#fff"/><circle cx="14" cy="7" r=".7" fill="#fff"/><circle cx="12" cy="8.4" r=".7" fill="#fff"/></svg>',
+  MY: '<svg viewBox="0 0 30 20" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="#fff" d="M0 0h30v20H0z"/><path fill="#CC0001" d="M0 0h30v2H0zM0 4h30v2H0zM0 8h30v2H0zM0 12h30v2H0zM0 16h30v2H0z"/><path fill="#010066" d="M0 0h14v11H0z"/><circle cx="6" cy="5.5" r="3" fill="#FFCC00"/><circle cx="7.2" cy="4.8" r="3" fill="#010066"/><path fill="#FFCC00" d="m10 2 .6 1.3 1.4.2-1 .9.2 1.4L10 5.1 8.8 5.8 9 4.4l-1-.9 1.4-.2z"/></svg>'
+};
+
+const countryLabels = {
+  PH: "+63 Philippines",
+  SG: "+65 Singapore",
+  MY: "+60 Malaysia"
+};
+
+function updateCountryPicker(value) {
+  const selectedCountry = String(value || "");
+  countryTriggerLabel.textContent = countryLabels[selectedCountry] || "Country code";
+  countryFlag.innerHTML = countryFlagMarkup[selectedCountry] || "";
+  document.querySelectorAll("[data-flag]").forEach((element) => {
+    element.innerHTML = countryFlagMarkup[element.dataset.flag] || "";
+  });
+}
+
+function closeCountryMenu() {
+  countryMenu.hidden = true;
+  countryTrigger.setAttribute("aria-expanded", "false");
+}
+
+countryTrigger.addEventListener("click", () => {
+  countryMenu.hidden = !countryMenu.hidden;
+  countryTrigger.setAttribute("aria-expanded", String(!countryMenu.hidden));
+});
+
+document.querySelectorAll(".country-option").forEach((option) => {
+  option.addEventListener("click", () => {
+    recruitmentCountry.value = option.dataset.country;
+    updateCountryPicker(recruitmentCountry.value);
+    closeCountryMenu();
+    setFieldError("contactNumberError", "");
+  });
+});
+
+document.addEventListener("click", (event) => {
+  if (!event.target.closest("#countryPicker")) closeCountryMenu();
+});
+
+recruitmentForm.addEventListener("reset", () => {
+  requestAnimationFrame(() => updateCountryPicker(recruitmentCountry.value));
+});
+
+updateCountryPicker(recruitmentCountry.value);
+
+/* Legacy status implementation retained for future reference.
+function setRecruitmentTimeline(step) {
+  const steps = [
+    document.getElementById("stepSubmitted"),
+    document.getElementById("stepScreening"),
+    document.getElementById("stepPreparing"),
+    document.getElementById("stepCalling")
+  ];
+
+  steps.forEach((element, index) => {
+    if (!element) return;
+    element.classList.toggle("complete", index + 1 < step);
+    element.classList.toggle("active", index + 1 === step);
+  });
+}
+
+function renderRecruitmentApplicationStatus(data) {
+  const resumeStatus = data.resume_status || data.resume_text_status || data["Status (Resume Processing)"] || "Processing";
+  const voiceStatus = data.voice_status || data.voice_interview_status || data["Status 2 (Voice Interview)"] || "Pending";
+  const finalStatus = data.final_status || data.final_interview_status || data["Status 3 (Final Interview)"] || "Pending";
+  const stage = normalizeRecruitmentStatus(data.stage);
+  const statusByStage = {
+    resume_received: "Resume received",
+    screening: "Screening resume",
+    preparing_call: "Preparing voice interview",
+    awaiting_schedule: "Waiting for voice interview schedule",
+    scheduled: "Voice interview scheduled",
+    calling: "Ella is calling",
+    interviewing: "Voice interview in progress",
+    completed: "Voice interview completed",
+    interviewed: "Voice interview completed",
+    callback: "Callback pending",
+    manual_review: "Recruitment team review",
+    rejected: "Application reviewed",
+    final_interview: "Final interview scheduled",
+    final_interview_scheduled: "Final interview scheduled",
+    final_interview_reschedule: "Final interview rescheduling"
+  };
+
+  const step = Math.max(1, Math.min(4, Number(data.step) || (
+    ["resume_received"].includes(stage) ? 1 :
+    ["screening"].includes(stage) ? 2 :
+    ["final_interview", "final_interview_scheduled", "final_interview_reschedule"].includes(stage) ? 4 : 3
+  )));
+
+  document.getElementById("callTitle").textContent = data.title || "Application received";
+  document.getElementById("callMessage").textContent = data.message || "Your application status has been updated.";
+  document.getElementById("liveStatusText").textContent = data.live_status || statusByStage[stage] || "Checking application status";
+  document.getElementById("appid").textContent = data.application_id || "Submitted";
+  document.getElementById("resumeStatus").textContent = resumeStatus;
+  document.getElementById("voiceStatus").textContent = voiceStatus;
+  document.getElementById("finalStatus").textContent = finalStatus;
+  setRecruitmentTimeline(step);
+}
+
+function startRecruitmentStatusPolling(applicationId) {
+  stopRecruitmentStatusPolling();
+
+  const poll = async () => {
+    try {
+      const url = new URL(RECRUITMENT_STATUS_WEBHOOK_URL);
+      url.searchParams.set("application_id", applicationId);
+      url.searchParams.set("_", Date.now().toString());
+
+      const response = await fetch(url, {
+        headers: { Accept: "application/json" },
+        cache: "no-store"
+      });
+      const parsed = await parseRecruitmentResponse(response, "Status webhook");
+      const data = Array.isArray(parsed) ? parsed[0] : parsed;
+      if (!response.ok || !data || data.success === false) {
+        throw new Error(data?.message || `Status request failed with ${response.status}`);
+      }
+
+      if (normalizeRecruitmentStatus(data.stage) === "not_found") {
+        document.getElementById("liveStatusText").textContent = "Waiting for application record";
+        return;
+      }
+
+      renderRecruitmentApplicationStatus(data);
+
+      if (data.stop_polling === true || [
+        "rejected",
+        "invalid_phone",
+        "final_interview",
+        "final_interview_scheduled"
+      ].includes(normalizeRecruitmentStatus(data.stage))) {
+        stopRecruitmentStatusPolling();
+      }
+    } catch (error) {
+      console.error("Unable to refresh application status:", error);
+      document.getElementById("liveStatusText").textContent = "Reconnecting to Ella's workflow";
+    }
+  };
+
+  poll();
+  recruitmentStatusPollingTimer = setInterval(poll, RECRUITMENT_STATUS_POLL_INTERVAL_MS);
+}
+*/
+
+function uniqueRecruitmentRoles(roles) {
+  const seen = new Set();
+  return roles.filter((item) => {
+    // Normalize whitespace/case before comparing. The public form should show
+    // one choice per role title even when legacy role rows carry different IDs,
+    // departments, or invisible spacing; keep the first row as the canonical
+    // submission target without deleting any underlying Sheet data.
+    const roleId = String(item.role_id || "").trim().toLowerCase();
+    const role = String(item.role || "")
+      .normalize("NFKC")
+      .replace(/[\u200B-\u200D\uFEFF]/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+    const key = role || roleId;
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function showInviteLinkError(reason) {
+  const messages = {
+    used: "This application link has already been used. Each link can only be used once — please ask your recruiter for a new one.",
+    expired: "This application link has expired. Please ask your recruiter for a new one.",
+    revoked: "This application link is no longer valid. Please ask your recruiter for a new one.",
+    invalid: "This application link is invalid. Please check the link or ask your recruiter for a new one.",
+  };
+  recruitmentForm.style.display = "none";
+  recruitmentLoading.style.display = "none";
+  recruitmentWaiting.style.display = "none";
+  recruitmentErrorState.style.display = "block";
+  recruitmentErrorMessage.textContent = messages[reason] || messages.invalid;
+  const retryButton = recruitmentErrorState.querySelector(".try-again");
+  if (retryButton) retryButton.style.display = "none";
+}
+
+/* Validates the invite token against the portal, locks the role picker to
+   the invited role, and pre-fills the candidate's details. Falls back to
+   the normal multi-role flow when no invite token is present. */
+async function initApplicationForm() {
+  if (!inviteToken) {
+    await loadAvailableRoles();
+    return;
+  }
+  recruitmentRolesStatus.textContent = "Checking your application link...";
+  recruitmentRole.disabled = true;
+  try {
+    const response = await fetch(portalEndpoint(`/api/public/resume-screening-invite/${encodeURIComponent(inviteToken)}`), { headers: { Accept: "application/json" }, cache: "no-store" });
+    const data = await parseRecruitmentResponse(response, "Application link check");
+    if (!response.ok || data.success === false) throw new Error(data.error || "Unable to check this application link.");
+    if (!data.valid) {
+      showInviteLinkError(data.reason);
+      return;
+    }
+    activeInvitation = data;
+    availableRoles = [{ role_id: data.roleId, role: data.roleTitle || data.roleId, department: "" }];
+    recruitmentRole.innerHTML = "";
+    recruitmentRole.appendChild(new Option(data.roleTitle || data.roleId, data.roleId, true, true));
+    recruitmentRole.disabled = true;
+    recruitmentRolesStatus.textContent = "Application link verified";
+    if (data.candidateName) document.getElementById("candidateName").value = data.candidateName;
+    if (data.candidateEmail) document.getElementById("email").value = data.candidateEmail;
+  } catch (error) {
+    console.error("Unable to verify the application link:", error);
+    showInviteLinkError("invalid");
+  }
+}
+
+async function loadAvailableRoles() {
+  recruitmentRolesStatus.textContent = "Loading available roles";
+  recruitmentRole.disabled = true;
+  try {
+    const response = await fetch(recruitmentEndpoint("/recruitment/roles"), { headers: { Accept: "application/json" }, cache: "no-store" });
+    const data = await parseRecruitmentResponse(response, "Role list endpoint");
+    if (!response.ok || data.success === false) throw new Error(data.error || "Unable to load available roles.");
+    const roles = Array.isArray(data.roles) ? data.roles : [];
+    // The roles endpoint is already publication-aware, but keep this guard in
+    // the public form so a stale/cached response can never expose unpublished work.
+    const publishedRoles = roles.filter((item) => {
+      const hasPublicationMetadata = ["status", "setup_status", "recruitment_setup_status", "posting_confirmed", "posted_at"].some((key) =>
+        Object.prototype.hasOwnProperty.call(item || {}, key),
+      );
+      if (!hasPublicationMetadata) return true;
+      const status = String(item.status || "").trim().toLowerCase();
+      const setupStatus = String(item.setup_status || item.recruitment_setup_status || "").trim().toLowerCase();
+      const postingConfirmed = String(item.posting_confirmed || "").trim().toLowerCase();
+      const postedAt = String(item.posted_at || "").trim();
+      return status === "job posted" && setupStatus === "published" && (postingConfirmed === "true" || postedAt !== "");
+    });
+    availableRoles = uniqueRecruitmentRoles(publishedRoles).sort((left, right) => {
+      const byRole = String(left.role || "").localeCompare(String(right.role || ""), undefined, { sensitivity: "base" });
+      if (byRole !== 0) return byRole;
+
+      const byDepartment = String(left.department || "").localeCompare(String(right.department || ""), undefined, { sensitivity: "base" });
+      if (byDepartment !== 0) return byDepartment;
+
+      return String(left.role_id || "").localeCompare(String(right.role_id || ""), undefined, { sensitivity: "base" });
+    });
+    recruitmentRole.innerHTML = "";
+    if (!availableRoles.length) {
+      recruitmentRole.innerHTML = '<option value="">No available roles</option>';
+      recruitmentRolesStatus.textContent = "No available roles";
+      return;
+    }
+    recruitmentRole.appendChild(new Option("Select a role", ""));
+    availableRoles.forEach((item) => {
+      const option = new Option(`${item.role}${item.department ? ` · ${item.department}` : ""}`, item.role_id);
+      recruitmentRole.appendChild(option);
+    });
+    recruitmentRole.disabled = false;
+    recruitmentRolesStatus.textContent = "Roles loaded successfully";
+  } catch (error) {
+    recruitmentRole.innerHTML = '<option value="">Error loading roles</option>';
+    recruitmentRolesStatus.textContent = "Error loading roles";
+    setFieldError("roleError", error.message);
+  }
+}
+
+function validateRecruitmentForm() {
+  let valid = true;
+  const name = document.getElementById("candidateName").value.trim();
+  const country = document.getElementById("applicantCountry").value;
+  const phone = document.getElementById("contactNumber").value.trim();
+  const digits = phone.replace(/\D/g, "");
+  const email = document.getElementById("email").value.trim();
+  const role = recruitmentRole.value;
+  const file = recruitmentFile.files[0];
+  setFieldError("candidateNameError", name ? "" : "Full name is required.");
+  let phoneError = "";
+  if (!country) phoneError = "Select a country code.";
+  else if (!digits) phoneError = "Enter your contact number.";
+  else if (country === "PH" && !((digits.length === 10 && digits.startsWith("9")) || (digits.length === 11 && digits.startsWith("09")))) phoneError = "Enter a valid 10-digit Philippine mobile number, for example 9664325990.";
+  else if (country === "SG" && !(digits.length === 8 && /^[3689]/.test(digits))) phoneError = "Enter a valid 8-digit Singapore number.";
+  else if (country === "MY" && !((digits.length === 9 && digits.startsWith("1")) || (digits.length === 10 && digits.startsWith("01")))) phoneError = "Enter a valid Malaysian mobile number, for example 123456789.";
+  setFieldError("contactNumberError", phoneError);
+  setFieldError("emailError", /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? "" : "Enter a valid email address.");
+  setFieldError("roleError", role ? "" : "Select an available role.");
+  if (!file) setFieldError("resumeError", "Resume file is required.");
+  else {
+    const extension = file.name.split(".").pop().toLowerCase();
+    const typeAccepted = !file.type || ALLOWED_RESUME_TYPES.includes(file.type);
+    if (!ALLOWED_RESUME_EXTENSIONS.includes(extension) || !typeAccepted) setFieldError("resumeError", "Upload a PDF, DOC, or DOCX file.");
+    else if (file.size > MAX_RESUME_SIZE_BYTES) setFieldError("resumeError", "Resume must be 10 MB or smaller.");
+    else setFieldError("resumeError", "");
+  }
+  const errors = [...document.querySelectorAll(".field-error")].filter((node) => node.textContent.trim());
+  valid = errors.length === 0;
+  validationSummary.textContent = valid ? "" : `Please correct ${errors.length} highlighted field${errors.length === 1 ? "" : "s"} before submitting.`;
+  validationSummary.classList.toggle("visible", !valid);
+  if (!valid) errors[0].closest(".form-group")?.querySelector("input, select")?.focus();
+  return valid;
+}
+
+recruitmentFile.addEventListener("change", () => { recruitmentFileName.textContent = recruitmentFile.files[0]?.name || "No file selected"; });
+recruitmentForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (applicationInProgress || !validateRecruitmentForm()) return;
+  applicationInProgress = true;
+  recruitmentSubmit.disabled = true;
+  recruitmentForm.style.display = "none";
+  recruitmentLoading.style.display = "block";
+  recruitmentStatus.textContent = "Uploading resume and starting screening...";
+  const selectedRole = availableRoles.find((item) => item.role_id === recruitmentRole.value);
+  const applicantCountry = document.getElementById("applicantCountry").value;
+  const contactDigits = document.getElementById("contactNumber").value.replace(/\D/g, "");
+  const normalizedContactNumber = ["PH", "MY"].includes(applicantCountry) && contactDigits.startsWith("0") ? contactDigits.slice(1) : contactDigits;
+  const dialCodes = { PH: "63", SG: "65", MY: "60" };
+  try {
+    let response;
+    if (inviteToken && activeInvitation) {
+      // Single-use invite links are submitted through the portal itself, so
+      // the token can be validated and burned atomically with the application.
+      const payload = new FormData();
+      payload.append("candidateName", document.getElementById("candidateName").value.trim());
+      payload.append("email", document.getElementById("email").value.trim());
+      payload.append("roleId", recruitmentRole.value);
+      const preferredMobile = `+${dialCodes[applicantCountry] || ""}${normalizedContactNumber}`;
+      payload.append("contactNumber", preferredMobile);
+      payload.append("phone", preferredMobile);
+      payload.append("preferredMobile", preferredMobile);
+      payload.append("applicantCountry", applicantCountry);
+      payload.append("applicationSource", "HR Invitation");
+      payload.append("consent", "true");
+      payload.append("resumeFile", recruitmentFile.files[0], recruitmentFile.files[0].name);
+      payload.append("inviteToken", inviteToken);
+      response = await fetch(portalEndpoint("/api/public/applications"), { method: "POST", body: payload, headers: { Accept: "application/json" } });
+    } else {
+      const payload = new FormData();
+      payload.append("candidate_name", document.getElementById("candidateName").value.trim());
+      payload.append("contact_number", normalizedContactNumber);
+      payload.append("applicant_country", applicantCountry);
+      payload.append("email", document.getElementById("email").value.trim());
+      payload.append("role_id", recruitmentRole.value);
+      payload.append("selected_role", selectedRole?.role || "");
+      payload.append("resume_file", recruitmentFile.files[0]);
+      payload.append("submission_timestamp", new Date().toISOString());
+      response = await fetch(recruitmentEndpoint("/recruitment/apply"), { method: "POST", body: payload, headers: { Accept: "application/json" } });
+    }
+    const parsedData = await parseRecruitmentResponse(response, "Submission webhook");
+    const data = Array.isArray(parsedData) ? (parsedData[0] || {}) : (parsedData || {});
+    if (!response.ok || data.success === false) {
+      if (inviteToken && activeInvitation && data.code === "INVITE_INVALID") {
+        applicationInProgress = false;
+        recruitmentSubmit.disabled = false;
+        showInviteLinkError("used");
+        return;
+      }
+      throw new Error(data.error || data.message || "The application could not be submitted.");
+    }
+    recruitmentLoading.style.display = "none";
+    recruitmentWaiting.style.display = "block";
+    const applicationId = data.application_id || data.applicationId || data.id;
+    document.getElementById("appid").textContent = applicationId || "Received";
+    document.getElementById("position").textContent = selectedRole?.role || "Submitted resume";
+    document.getElementById("callTitle").textContent = "Resume submitted";
+    document.getElementById("callMessage").textContent =
+      "Thank you. Your resume has been received successfully. Please wait for an email from our recruitment team with any next steps.";
+    document.getElementById("liveStatusText").textContent = "Resume received";
+  } catch (error) {
+    showRecruitmentError(error.message || "Unable to submit the application.");
+  } finally {
+    applicationInProgress = false;
+    recruitmentSubmit.disabled = false;
+  }
+});
+
+window.resetForm = resetRecruitmentView;
+initApplicationForm();
+</script>
+
+<!-- Legacy status implementation retained for future reference; it is intentionally not executed. See docs/LEGACY-APPLICATION-STATUS.md. -->
+<script type="application/legacy-javascript">
+const WEBHOOK_URL =
+  "https://n8n.srv1457709.hstgr.cloud/webhook/ella-demo-resume-intake";
+
+const STATUS_WEBHOOK_URL =
+  "https://n8n.srv1457709.hstgr.cloud/webhook/ella-application-status";
+
+const POLL_INTERVAL_MS = 5000;
+
+const loadingSteps = [
+  "Uploading resume...",
+  "Creating application record...",
+  "Sending application to Ella...",
+  "Starting AI resume screening...",
+  "Finalizing submission..."
+];
+
+const form = document.getElementById("demoForm");
+const loading = document.getElementById("loading");
+const callWaiting = document.getElementById("callWaiting");
+const errorState = document.getElementById("errorState");
+const statusText = document.getElementById("status");
+const submitButton = document.getElementById("submitButton");
+const fileInput = document.getElementById("resume");
+const fileName = document.getElementById("fileName");
+
+let pollingTimer = null;
+let activeApplicationId = null;
+
+fileInput.addEventListener("change", () => {
+  fileName.textContent = fileInput.files[0]
+    ? fileInput.files[0].name
+    : "No file selected";
+});
+
+form.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  const resumeFile = fileInput.files[0];
+
+  if (!resumeFile) {
+    showError("Please select a resume file.");
+    return;
+  }
+
+  stopStatusPolling();
+  activeApplicationId = null;
+
+  form.style.display = "none";
+  errorState.style.display = "none";
+  callWaiting.style.display = "none";
+  loading.style.display = "block";
+  submitButton.disabled = true;
+
+  let stepIndex = 0;
+  statusText.textContent = loadingSteps[0];
+
+  const loadingInterval = setInterval(() => {
+    stepIndex += 1;
+    if (stepIndex < loadingSteps.length) {
+      statusText.textContent = loadingSteps[stepIndex];
+    }
+  }, 900);
+
+  const formData = new FormData();
+  formData.append("resume", resumeFile);
+
+  try {
+    const response = await fetch(WEBHOOK_URL, {
+      method: "POST",
+      body: formData,
+      cache: "no-store"
+    });
+
+    const responseText = await response.text();
+    let data = {};
+
+    try {
+      data = responseText ? JSON.parse(responseText) : {};
+    } catch {
+      throw new Error("The submission webhook returned an invalid response.");
+    }
+
+    if (!response.ok || data.success === false) {
+      throw new Error(
+        data.message ||
+        data.error ||
+        `Request failed with status ${response.status}`
+      );
+    }
+
+    const applicationId = data.application_id || data.applicationId || data.id;
+
+    clearInterval(loadingInterval);
+    loading.style.display = "none";
+    callWaiting.style.display = "block";
+
+    activeApplicationId = applicationId || null;
+    document.getElementById("appid").textContent = applicationId || "Received";
+    document.getElementById("position").textContent =
+      data.role || data.position || data.selected_role || "N/A";
+
+    renderApplicationStatus({
+      application_id: applicationId || "Received",
+      role: data.role || data.position || data.selected_role || "N/A",
+      stage: "screening",
+      step: 2,
+      title: "Ella is reviewing your application",
+      message:
+        data.message ||
+        "Your resume was submitted successfully. Ella is now reviewing the application before starting the interview workflow.",
+      resume_status: data.resume_status || data.status || "Processing",
+      voice_status: data.voice_status || "Pending",
+      final_status: data.final_status || "Pending",
+      stop_polling: false
+    });
+
+    if (applicationId) startStatusPolling(applicationId);
+  } catch (error) {
+    clearInterval(loadingInterval);
+    loading.style.display = "none";
+    showError(
+      error.message ||
+      "Unable to submit the resume. Please check the webhook and try again."
+    );
+  } finally {
+    submitButton.disabled = false;
+  }
+});
+
+function startStatusPolling(applicationId) {
+  stopStatusPolling();
+
+  const poll = async () => {
+    try {
+      const url = new URL(STATUS_WEBHOOK_URL);
+      url.searchParams.set("application_id", applicationId);
+      url.searchParams.set("_", Date.now().toString());
+
+      const response = await fetch(url.toString(), {
+        method: "GET",
+        headers: {
+          Accept: "application/json"
+        },
+        cache: "no-store"
+      });
+
+      const responseText = await response.text();
+      console.log("Ella raw status response:", responseText);
+
+      let parsedData = {};
+
+      try {
+        parsedData = responseText ? JSON.parse(responseText) : {};
+      } catch {
+        throw new Error("The status webhook returned invalid JSON.");
+      }
+
+      const data = Array.isArray(parsedData)
+        ? parsedData[0]
+        : parsedData;
+
+      console.log("Ella parsed status:", data);
+
+      if (!response.ok) {
+        throw new Error(
+          data?.message ||
+          `Status request failed with ${response.status}`
+        );
+      }
+
+      if (!data || typeof data !== "object") {
+        throw new Error("The status webhook returned an empty response.");
+      }
+
+      if (normalizeStatus(data.stage) === "not_found") {
+        document.getElementById("liveStatusText").textContent =
+          "Waiting for application record";
+        return;
+      }
+
+      renderApplicationStatus(data);
+
+      const normalizedStage = normalizeStatus(data.stage);
+
+      const terminalStages = [
+        "rejected",
+        "invalid_phone",
+        "final_interview_scheduled"
+      ];
+
+      if (
+        data.stop_polling === true ||
+        terminalStages.includes(normalizedStage)
+      ) {
+        stopStatusPolling();
+      }
+    } catch (error) {
+      console.error("Unable to refresh Ella status:", error);
+      document.getElementById("liveStatusText").textContent =
+        "Reconnecting to Ella's workflow";
+    }
+  };
+
+  poll();
+  pollingTimer = setInterval(poll, POLL_INTERVAL_MS);
+}
+
+function stopStatusPolling() {
+  if (pollingTimer) {
+    clearInterval(pollingTimer);
+    pollingTimer = null;
+  }
+}
+
+function renderApplicationStatus(data) {
+  console.log("Rendering Ella status:", data);
+
+  const stage = resolveStage(data);
+  const step = Number(data.step || getStepForStage(stage));
+
+  const title = document.getElementById("callTitle");
+  const description = document.getElementById("callMessage");
+  const liveStatus = document.getElementById("liveStatusText");
+
+  title.textContent = data.title || getDefaultTitle(stage);
+  description.textContent = data.message || getDefaultMessage(stage);
+
+  setTimelineStep(step);
+  updateTimelineForStage(stage);
+
+  const displayStatus = getDisplayStatus(stage, data);
+  liveStatus.textContent = displayStatus.live;
+
+  if (data.application_id) {
+    activeApplicationId = data.application_id;
+    document.getElementById("appid").textContent = data.application_id;
+  }
+
+  document.getElementById("position").textContent =
+    data.role ||
+    data.position ||
+    data.selected_role ||
+    document.getElementById("position").textContent ||
+    "N/A";
+
+  document.getElementById("resumeStatus").textContent =
+    normalizeDisplayValue(data.resume_status, "Processing");
+
+  document.getElementById("voiceStatus").textContent =
+    normalizeDisplayValue(data.voice_status, "Pending");
+
+  document.getElementById("finalStatus").textContent =
+    normalizeDisplayValue(data.final_status, "Pending");
+}
+
+function resolveStage(data) {
+  const explicitStage = normalizeStatus(data.stage);
+
+  if (explicitStage && explicitStage !== "n_a") {
+    return explicitStage;
+  }
+
+  const resumeStatus = normalizeStatus(data.resume_status);
+  const voiceStatus = normalizeStatus(data.voice_status);
+  const finalStatus = normalizeStatus(data.final_status);
+
+  if (
+    finalStatus === "final_interview_scheduled" ||
+    finalStatus === "interview_scheduled"
+  ) {
+    return "final_interview_scheduled";
+  }
+
+  if (finalStatus === "final_interview_invite_sent") {
+    return "final_interview_invite_sent";
+  }
+
+  if (finalStatus === "final_interview_invite_pending") {
+    return "final_interview_invite_pending";
+  }
+
+  if (voiceStatus === "interviewed") return "interviewed";
+  if (voiceStatus === "interviewing") return "interviewing";
+
+  if (
+    voiceStatus === "scheduled" ||
+    voiceStatus === "for_interview"
+  ) {
+    return "scheduled";
+  }
+
+  if (voiceStatus === "awaiting_schedule") {
+    return "awaiting_schedule";
+  }
+
+  if (
+    voiceStatus === "call_back" ||
+    voiceStatus === "ready_for_callback"
+  ) {
+    return "callback";
+  }
+
+  if (voiceStatus === "invalid_phone") {
+    return "invalid_phone";
+  }
+
+  if (
+    voiceStatus === "rejected" ||
+    finalStatus === "rejected" ||
+    resumeStatus === "rejected"
+  ) {
+    return "rejected";
+  }
+
+  if (resumeStatus === "processed") {
+    return "awaiting_schedule";
+  }
+
+  return "screening";
+}
+
+function getStepForStage(stage) {
+  const stepMap = {
+    resume_received: 1,
+    screening: 2,
+    awaiting_schedule: 3,
+    scheduled: 3,
+    preparing_call: 3,
+    calling: 3,
+    interviewing: 3,
+    completed: 3,
+    interviewed: 3,
+    callback: 3,
+    manual_review: 3,
+    invalid_phone: 3,
+    rejected: 4,
+    final_interview_invite_pending: 4,
+    final_interview_invite_sent: 4,
+    final_interview_scheduled: 4,
+    final_interview_reschedule: 4,
+    error: 2
+  };
+
+  return stepMap[stage] || 2;
+}
+
+function getDefaultTitle(stage) {
+  const titles = {
+    resume_received: "Your resume has been received",
+    screening: "Ella is reviewing your application",
+    awaiting_schedule: "Your voice interview is ready to be scheduled",
+    scheduled: "Your voice interview has been scheduled",
+    preparing_call: "Ella is preparing your interview",
+    calling: "Ella is calling you",
+    interviewing: "Your voice interview is in progress",
+    completed: "Your voice interview is complete",
+    interviewed: "Your voice interview is complete",
+    callback: "Ella will try to reach you again",
+    manual_review: "Your application is under review",
+    invalid_phone: "Your phone number needs to be corrected",
+    rejected: "Your application has been reviewed",
+    final_interview_invite_pending: "Your final interview invitation is being prepared",
+    final_interview_invite_sent: "Your final interview invitation has been sent",
+    final_interview_scheduled: "Your final interview has been scheduled",
+    final_interview_reschedule: "Your final interview schedule is being updated",
+    error: "Unable to retrieve application status"
+  };
+
+  return titles[stage] || "Ella is reviewing your application";
+}
+
+function getDefaultMessage(stage) {
+  const messages = {
+    resume_received:
+      "Your resume was received successfully and will now be reviewed.",
+
+    screening:
+      "Your resume is being evaluated against the requirements of the role.",
+
+    awaiting_schedule:
+      "Please check your email for instructions on choosing a schedule for Ella's voice interview.",
+
+    scheduled:
+      "Your voice interview schedule has been confirmed. Please keep your phone available at the selected time.",
+
+    preparing_call:
+      "Ella is preparing the voice interview. Please keep your phone nearby.",
+
+    calling:
+      "Ella is currently trying to reach you for the voice interview.",
+
+    interviewing:
+      "The voice interview is currently in progress.",
+
+    completed:
+      "Your voice interview has been completed successfully. The recruitment team will review the results.",
+
+    interviewed:
+      "Your voice interview has been completed successfully. If shortlisted, you will receive a final interview invitation by email.",
+
+    callback:
+      "Ella could not reach you. A callback or rescheduling email may be sent. Please keep your phone available.",
+
+    manual_review:
+      "Your application requires additional review by the recruitment team.",
+
+    invalid_phone:
+      "We could not reach the phone number provided. Please contact HR to update your contact details.",
+
+    rejected:
+      "Thank you for your application. After review, we will not be proceeding with your application at this time.",
+
+    final_interview_invite_pending:
+      "You completed the voice interview successfully. Your final interview invitation is now being prepared.",
+
+    final_interview_invite_sent:
+      "Please check your email and choose from the available Google Calendar schedules.",
+
+    final_interview_scheduled:
+      "Congratulations. Your final interview has been scheduled. Please check your email for the meeting details.",
+
+    final_interview_reschedule:
+      "Your final interview schedule is being updated. Please check your email for the latest details.",
+
+    error:
+      "We could not retrieve the latest application status. Please try again later."
+  };
+
+  return messages[stage] ||
+    "Your application is moving through Ella's recruitment workflow.";
+}
+
+function updateTimelineForStage(stage) {
+  const submittedStep = document.getElementById("stepSubmitted");
+  const screeningStep = document.getElementById("stepScreening");
+  const voiceStep = document.getElementById("stepPreparing");
+  const finalStep = document.getElementById("stepCalling");
+
+  const voiceLabel = voiceStep.querySelector("span:last-child");
+  const finalLabel = finalStep.querySelector("span:last-child");
+  const voiceDot = voiceStep.querySelector(".step-dot");
+  const finalDot = finalStep.querySelector(".step-dot");
+
+  voiceLabel.textContent = "Voice interview";
+  finalLabel.textContent = "Final interview";
+
+  if (["resume_received", "screening"].includes(stage)) {
+    return;
+  }
+
+  if (
+    [
+      "awaiting_schedule",
+      "scheduled",
+      "preparing_call",
+      "calling",
+      "interviewing",
+      "callback",
+      "manual_review",
+      "invalid_phone"
+    ].includes(stage)
+  ) {
+    submittedStep.classList.add("complete");
+    screeningStep.classList.add("complete");
+
+    voiceStep.classList.remove("complete");
+    voiceStep.classList.add("active");
+    voiceDot.textContent = "3";
+    return;
+  }
+
+  if (
+    [
+      "completed",
+      "interviewed",
+      "final_interview_invite_pending"
+    ].includes(stage)
+  ) {
+    submittedStep.classList.add("complete");
+    screeningStep.classList.add("complete");
+
+    voiceStep.classList.remove("active");
+    voiceStep.classList.add("complete");
+    voiceDot.textContent = "✓";
+
+    finalStep.classList.remove("complete");
+    finalStep.classList.add("active");
+    finalDot.textContent = "4";
+
+    if (stage === "final_interview_invite_pending") {
+      finalLabel.textContent = "Preparing final interview";
+    }
+
+    return;
+  }
+
+  if (stage === "final_interview_invite_sent") {
+    submittedStep.classList.add("complete");
+    screeningStep.classList.add("complete");
+
+    voiceStep.classList.remove("active");
+    voiceStep.classList.add("complete");
+    voiceDot.textContent = "✓";
+
+    finalStep.classList.remove("complete");
+    finalStep.classList.add("active");
+    finalDot.textContent = "4";
+    finalLabel.textContent = "Final interview invitation sent";
+    return;
+  }
+
+  if (
+    [
+      "final_interview_scheduled",
+      "final_interview_reschedule"
+    ].includes(stage)
+  ) {
+    submittedStep.classList.add("complete");
+    screeningStep.classList.add("complete");
+
+    voiceStep.classList.remove("active");
+    voiceStep.classList.add("complete");
+    voiceDot.textContent = "✓";
+
+    finalStep.classList.remove("active");
+    finalStep.classList.add("complete");
+    finalDot.textContent = "✓";
+
+    finalLabel.textContent =
+      stage === "final_interview_scheduled"
+        ? "Final interview scheduled"
+        : "Final interview rescheduling";
+
+    return;
+  }
+
+  if (stage === "rejected") {
+    submittedStep.classList.add("complete");
+    screeningStep.classList.add("complete");
+    voiceStep.classList.remove("active");
+    finalStep.classList.remove("active");
+  }
+}
+
+function getDisplayStatus(stage, data) {
+  const resumeStatus = normalizeDisplayValue(data.resume_status, "");
+  const voiceStatus = normalizeDisplayValue(data.voice_status, "");
+  const finalStatus = normalizeDisplayValue(data.final_status, "");
+
+  const states = {
+    resume_received: {
+      live: "Resume received",
+      result: resumeStatus || "Received"
+    },
+    screening: {
+      live: "Screening resume",
+      result: resumeStatus || "Screening"
+    },
+    awaiting_schedule: {
+      live: "Waiting for voice interview schedule",
+      result: voiceStatus || "Awaiting Schedule"
+    },
+    scheduled: {
+      live: "Voice interview scheduled",
+      result: voiceStatus || "Scheduled"
+    },
+    preparing_call: {
+      live: "Preparing voice interview",
+      result: voiceStatus || resumeStatus || "Preparing Call"
+    },
+    calling: {
+      live: "Ella is calling",
+      result: voiceStatus || "Calling"
+    },
+    interviewing: {
+      live: "Voice interview in progress",
+      result: voiceStatus || "Interviewing"
+    },
+    completed: {
+      live: "Voice interview completed",
+      result: voiceStatus || "Interviewed"
+    },
+    interviewed: {
+      live: "Voice interview completed",
+      result: voiceStatus || "Interviewed"
+    },
+    callback: {
+      live: "Callback pending",
+      result: voiceStatus || "Call Back"
+    },
+    manual_review: {
+      live: "Recruitment team review",
+      result: voiceStatus || "Manual Review"
+    },
+    invalid_phone: {
+      live: "Phone number requires correction",
+      result: voiceStatus || "Invalid Phone"
+    },
+    rejected: {
+      live: "Application reviewed",
+      result: finalStatus || voiceStatus || resumeStatus || "Rejected"
+    },
+    final_interview_invite_pending: {
+      live: "Preparing final interview invitation",
+      result: finalStatus || "Final Interview Invite Pending"
+    },
+    final_interview_invite_sent: {
+      live: "Final interview invitation sent",
+      result: finalStatus || "Final Interview Invite Sent"
+    },
+    final_interview_scheduled: {
+      live: "Final interview scheduled",
+      result: finalStatus || "Final Interview Scheduled"
+    },
+    final_interview_reschedule: {
+      live: "Final interview update",
+      result: finalStatus || "Reschedule Required"
+    },
+    error: {
+      live: "Unable to retrieve status",
+      result: "Error"
+    }
+  };
+
+  return states[stage] || {
+    live: "Checking application status",
+    result: resumeStatus || voiceStatus || finalStatus || "Processing"
+  };
+}
+
+function setTimelineStep(currentStep) {
+  const safeStep = Math.max(1, Math.min(4, Number(currentStep) || 1));
+
+  const steps = [
+    { id: "stepSubmitted", number: "1" },
+    { id: "stepScreening", number: "2" },
+    { id: "stepPreparing", number: "3" },
+    { id: "stepCalling", number: "4" }
+  ];
+
+  steps.forEach((stepItem, index) => {
+    const element = document.getElementById(stepItem.id);
+    const dot = element.querySelector(".step-dot");
+    const stepNumber = index + 1;
+
+    element.classList.remove("active", "complete");
+    dot.textContent = stepItem.number;
+
+    if (stepNumber < safeStep) {
+      element.classList.add("complete");
+      dot.textContent = "✓";
+    } else if (stepNumber === safeStep) {
+      element.classList.add("active");
+    }
+  });
+}
+
+function normalizeStatus(status) {
+  return String(status || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_")
+    .replace(/[()]/g, "");
+}
+
+function normalizeDisplayValue(value, fallback = "N/A") {
+  const text = String(value ?? "").trim();
+
+  if (!text || text.toUpperCase() === "N/A") {
+    return fallback;
+  }
+
+  return text;
+}
+
+function showError(message) {
+  stopStatusPolling();
+  form.style.display = "none";
+  loading.style.display = "none";
+  callWaiting.style.display = "none";
+  errorState.style.display = "block";
+  document.getElementById("errorMessage").textContent = message;
+}
+
+function resetForm() {
+  stopStatusPolling();
+  activeApplicationId = null;
+  form.reset();
+  fileName.textContent = "No file selected";
+
+  loading.style.display = "none";
+  callWaiting.style.display = "none";
+  errorState.style.display = "none";
+  form.style.display = "block";
+
+  document.getElementById("appid").textContent = "Processing...";
+  document.getElementById("position").textContent = "Processing...";
+  document.getElementById("resumeStatus").textContent = "Processing";
+  document.getElementById("voiceStatus").textContent = "Pending";
+  document.getElementById("finalStatus").textContent = "Pending";
+  document.getElementById("liveStatusText").textContent =
+    "Checking interview status";
+  document.getElementById("callTitle").textContent =
+    "Ella is preparing your interview";
+  document.getElementById("callMessage").textContent =
+    "Your application was submitted successfully. Please keep your phone nearby while Ella prepares the voice interview.";
+
+  setTimelineStep(2);
+  updateTimelineForStage("screening");
+}
+</script>
+</body>
 </html>

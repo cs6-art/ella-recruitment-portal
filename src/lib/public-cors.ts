@@ -12,7 +12,7 @@ function allowedOrigins() {
       if (!cleanValue) return "";
       try {
         // The invite setting may contain the full candidate page path, such
-        // as /application/index.html. CORS compares origins, so keep only
+        // as /index.html. CORS compares origins, so keep only
         // scheme + host + port here.
         return new URL(cleanValue).origin;
       } catch {
