@@ -165,6 +165,7 @@ test("invite links can use a separate candidate page origin without breaking por
   const inviteRoute = read("src/app/api/roles/[roleId]/resume-screening/invite/route.ts");
   const inviteStore = read("src/lib/resume-screening-invite.ts");
   const applications = read("src/app/api/public/applications/route.ts");
+  const inviteLookup = read("src/app/api/public/resume-screening-invite/[token]/route.ts");
   const candidatePage = read("public/index.html");
   const publicCors = read("src/lib/public-cors.ts");
   const envExample = read(".env.example");
@@ -183,6 +184,14 @@ test("invite links can use a separate candidate page origin without breaking por
   assert.match(publicCors, /new URL\(cleanValue\)\.origin/);
   assert.match(applications, /intake\.body\.candidateName = invitation\.candidateName/);
   assert.match(applications, /intake\.body\.candidateEmail = invitation\.candidateEmail/);
+  assert.match(applications, /reason: invitation\?\.reason/);
+  assert.match(applications, /status: "Pending HR Review"/);
+  assert.match(inviteLookup, /applicationId: invitation\.applicationId/);
+  assert.match(inviteLookup, /applicationStatus: applicationStatus/);
+  assert.match(candidatePage, /function showUsedInviteStatus\(data\)/);
+  assert.match(candidatePage, /Pending HR Review/);
+  assert.match(candidatePage, /data\.applicationStatus/);
+  assert.match(candidatePage, /data\.reason === "used"/);
   assert.match(homePage, /candidatePageUrl\.searchParams\.set\("invite", inviteValue\)/);
 });
 

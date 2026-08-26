@@ -1932,6 +1932,27 @@ function showInviteLinkError(reason) {
   if (retryButton) retryButton.style.display = "none";
 }
 
+/* A used invitation means the application was accepted by the screening
+   service. It is not a failed submission: the invitation is only marked
+   used after the applicant has been recorded for HR review. */
+function showUsedInviteStatus(data) {
+  recruitmentForm.style.display = "none";
+  recruitmentLoading.style.display = "none";
+  recruitmentErrorState.style.display = "none";
+  recruitmentWaiting.style.display = "block";
+  const applicationStatus = data.applicationStatus || "Pending HR Review";
+  document.getElementById("callTitle").textContent = "Application received";
+  document.getElementById("callMessage").textContent = applicationStatus === "Pending HR Review"
+    ? "Your resume has been received and is now pending HR review. Please wait for an email from us with any next steps. You do not need to submit your resume again."
+    : `Your application is currently ${applicationStatus}. Please wait for an email from us with any next steps.`;
+  document.getElementById("liveStatusText").textContent = applicationStatus;
+  document.getElementById("appid").textContent = data.applicationId || "Received";
+  document.getElementById("position").textContent = data.roleTitle || "Submitted resume";
+  document.getElementById("resumeStatus").textContent = applicationStatus;
+  const retryButton = recruitmentWaiting.querySelector(".try-again");
+  if (retryButton) retryButton.style.display = "none";
+}
+
 /* Validates the invite token against the portal, locks the role picker to
    the invited role, and pre-fills the candidate's details. Falls back to
    the normal multi-role flow when no invite token is present. */
@@ -1947,6 +1968,10 @@ async function initApplicationForm() {
     const data = await parseRecruitmentResponse(response, "Application link check");
     if (!response.ok || data.success === false) throw new Error(data.error || "Unable to check this application link.");
     if (!data.valid) {
+      if (data.reason === "used") {
+        showUsedInviteStatus(data);
+        return;
+      }
       showInviteLinkError(data.reason);
       return;
     }
@@ -2100,7 +2125,8 @@ recruitmentForm.addEventListener("submit", async (event) => {
       if (inviteToken && activeInvitation && data.code === "INVITE_INVALID") {
         applicationInProgress = false;
         recruitmentSubmit.disabled = false;
-        showInviteLinkError("used");
+        if (data.reason === "used") showUsedInviteStatus(data);
+        else showInviteLinkError(data.reason || "invalid");
         return;
       }
       throw new Error(data.error || data.message || "The application could not be submitted.");
@@ -2110,10 +2136,13 @@ recruitmentForm.addEventListener("submit", async (event) => {
     const applicationId = data.application_id || data.applicationId || data.id;
     document.getElementById("appid").textContent = applicationId || "Received";
     document.getElementById("position").textContent = selectedRole?.role || "Submitted resume";
-    document.getElementById("callTitle").textContent = "Resume submitted";
+    document.getElementById("callTitle").textContent = "Application received";
     document.getElementById("callMessage").textContent =
-      "Thank you. Your resume has been received successfully. Please wait for an email from our recruitment team with any next steps.";
-    document.getElementById("liveStatusText").textContent = "Resume received";
+      "Your resume has been received and is now pending HR review. Please wait for an email from us with any next steps. You do not need to submit your resume again.";
+    document.getElementById("liveStatusText").textContent = data.status || "Pending HR Review";
+    document.getElementById("resumeStatus").textContent = data.status || "Pending HR Review";
+    const retryButton = recruitmentWaiting.querySelector(".try-again");
+    if (inviteToken && retryButton) retryButton.style.display = "none";
   } catch (error) {
     showRecruitmentError(error.message || "Unable to submit the application.");
   } finally {

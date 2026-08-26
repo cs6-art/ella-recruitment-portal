@@ -46,8 +46,10 @@ Applicant appears for HR review
 - An unused link expires after the configured number of days.
 - If a submission fails before it is accepted, the candidate can retry the
   same link.
-- An expired or already-used link shows an unavailable message. HR should
-  generate a new link if the candidate needs to try again.
+- An expired or revoked link shows an unavailable message. An already-used
+  link shows that the application was received and displays its current
+  applicant status, normally Pending HR Review; HR should generate a new link
+  only if a different application is needed.
 
 ## Candidate page setup
 

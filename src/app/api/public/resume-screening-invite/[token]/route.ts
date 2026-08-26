@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { getApplicantById } from "@/lib/candidate-applications";
 import { publicCorsOptionsResponse, withPublicCors } from "@/lib/public-cors";
 import { getResumeScreeningInvitationByToken } from "@/lib/resume-screening-invite";
 
@@ -28,6 +29,17 @@ export async function GET(request: Request, context: { params: Promise<{ token: 
     if (!invitation) {
       return withPublicCors(request, NextResponse.json({ success: true, valid: false, reason: "invalid" }));
     }
+    let applicationStatus = "";
+    if (!invitation.valid && invitation.reason === "used" && invitation.applicationId) {
+      try {
+        const applicant = await getApplicantById(invitation.applicationId);
+        applicationStatus = applicant?.currentStage || applicant?.finalStatus || "";
+      } catch (error) {
+        // A successful invitation is still known to be at HR review even if
+        // a later status read is temporarily unavailable.
+        console.error("[API Public Resume Screening Invite] Could not read application status:", error);
+      }
+    }
     return withPublicCors(request, NextResponse.json({
       success: true,
       valid: invitation.valid,
@@ -36,6 +48,8 @@ export async function GET(request: Request, context: { params: Promise<{ token: 
       roleTitle: invitation.roleTitle,
       candidateName: invitation.candidateName,
       candidateEmail: invitation.candidateEmail,
+      applicationId: invitation.applicationId,
+      applicationStatus: applicationStatus || (invitation.reason === "used" ? "Pending HR Review" : ""),
       expiresAt: invitation.expiresAt,
     }));
   } catch (error) {

@@ -50,7 +50,11 @@ export async function POST(request: Request) {
     if (inviteToken) {
       invitation = await getResumeScreeningInvitationByToken(inviteToken);
       if (!invitation || !invitation.valid) {
-        return responseError(request, "This application link has expired or was already used.", 410, { code: "INVITE_INVALID" });
+        return responseError(request, "This application link has expired or was already used.", 410, {
+          code: "INVITE_INVALID",
+          reason: invitation?.reason,
+          applicationId: invitation?.applicationId,
+        });
       }
       intake.body.roleId = invitation.roleId;
       // The invitation identifies the intended candidate. The page displays
@@ -131,6 +135,7 @@ export async function POST(request: Request) {
       success: true,
       applicationId,
       roleId: role.roleId,
+      status: "Pending HR Review",
       message: "Application submitted successfully.",
     }, { status: 201 }));
   } catch (error) {

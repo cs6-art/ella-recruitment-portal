@@ -116,6 +116,7 @@ export type ResumeScreeningInvitation = {
   candidateName: string;
   candidateEmail: string;
   status: string;
+  applicationId: string;
   expiresAt: string;
   valid: boolean;
   reason?: "expired" | "used" | "revoked" | "invalid";
@@ -184,6 +185,7 @@ export async function getResumeScreeningInvitationByToken(token: string): Promis
     candidateName: text(record.Candidate_Name),
     candidateEmail: text(record.Candidate_Email),
     status: text(record.Status),
+    applicationId: text(record.Application_ID),
     expiresAt,
     valid,
     reason: valid
