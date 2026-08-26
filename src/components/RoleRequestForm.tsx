@@ -496,7 +496,7 @@ export default function RoleRequestForm({ user, roleId, status = "", initialValu
         <section className="section">
           <div className="section-title">
             <span className="section-number">2</span>
-            <h2>HR interview and screening</h2>
+            <h2>Face-to-Face interview and screening</h2>
           </div>
           <p className="section-intro">Review the HR interviewer and add up to two optional questions. AI-generated questions appear below for HR guidance and can be refined later in Recruitment Setup.</p>
 

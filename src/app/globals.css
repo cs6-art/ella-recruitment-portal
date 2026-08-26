@@ -593,6 +593,7 @@ a { color: inherit; text-decoration: none; }
 .booking-eyebrow { margin-top: 40px; color: #247abd; font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
 .booking-card h1 { margin: 7px 0 0; color: #0b477b; font-size: clamp(26px, 4vw, 34px); }
 .booking-intro { margin: 10px 0 28px; color: #61768d; line-height: 1.6; }
+.booking-ai-disclosure { margin: -16px 0 24px; padding: 10px 12px; border: 1px solid #d8e6f1; border-radius: 8px; background: #f4f9fd; color: #4f6d86; font-size: 12px; line-height: 1.5; }
 .booking-section-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .booking-section-heading h2 { margin: 0; color: #153f65; font-size: 17px; }
 .booking-section-heading span { color: #73879b; font-size: 12px; }

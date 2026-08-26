@@ -143,7 +143,7 @@ test("required publishing fields stay visible and checklist opens by default", (
   assert.match(editor, /Posting channels \*/);
   assert.match(editor, /Salary visibility \*/);
   assert.match(editor, /License requirement \*/);
-  assert.match(editor, /HR interview \*/);
+  assert.match(editor, /Face-to-Face interview \*/);
   assert.match(editor, /setupFieldAnchors\[field\.key\]/);
   assert.match(route, /hasField\("evaluationFieldToggles"\)/);
   assert.match(route, /hasField\("postingChannels"\)/);
@@ -152,9 +152,24 @@ test("required publishing fields stay visible and checklist opens by default", (
 test("VAPI prompt is interview-only and has no scheduling context", () => {
   const prompt = fs.readFileSync("src/lib/recruitment-prompt.ts", "utf8");
   assert.match(prompt, /This call is an interview only/);
+  assert.match(prompt, /McLink Group's AI HR Recruiting Assistant/);
+  assert.match(prompt, /Fair and Consistent Assessment/);
+  assert.match(prompt, /Never use or infer a person's name, age, gender/);
+  assert.match(prompt, /The AI recommendation is advisory only/);
   assert.doesNotMatch(prompt, /\[Time Management\]/);
   assert.doesNotMatch(prompt, /Current Time: \{\{current_time\}\}/);
   assert.match(prompt, /Never schedule an interview/);
+});
+
+test("AI voice interview emails disclose the AI interviewer and human review", () => {
+  const contracts = fs.readFileSync("docs/N8N-CONTRACTS.md", "utf8");
+  const workflow = fs.readFileSync("docs/WORKING-RECRUITMENT-WORKFLOW.md", "utf8");
+  assert.match(contracts, /upcoming voice interview will be conducted by Ella/);
+  assert.match(contracts, /same approved,/);
+  assert.match(contracts, /role-related questions for every applicant/);
+  assert.match(contracts, /hiring decision will be made by people/);
+  assert.match(contracts, /Face-to-Face\s+Interview invitations are for the human HR interviewer/);
+  assert.match(workflow, /AI interview assistant, will conduct the voice/);
 });
 
 test("evaluation field catalog is shared between the schema, editor, and n8n payload", async () => {

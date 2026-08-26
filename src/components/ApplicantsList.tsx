@@ -30,10 +30,10 @@ const DASHBOARD_STAGE_LABELS = [
   "Voice Booking Pending",
   "Voice Interview Scheduled",
   "Voice HR Review",
-  "Approved for HR Interview",
-  "HR Interview Scheduled",
-  "HR Decision Pending",
-  "Passed HR Interview",
+  "Approved for Face-to-Face Interview",
+  "Face-to-Face Interview Scheduled",
+  "Face-to-Face Decision Pending",
+  "Passed Face-to-Face Interview",
   "Rejected",
 ] as const;
 
@@ -45,10 +45,10 @@ const DASHBOARD_STAGE_LABELS = [
 function dashboardStageLabel(stage: string) {
   const value = stage.trim().toLowerCase();
   if (value.includes("reject")) return "Rejected";
-  if (value.includes("passed hr") || value.includes("passed final") || value === "hired") return "Passed HR Interview";
-  if (value.includes("hr decision") || value.includes("final interview completed") || value.includes("hr interview completed")) return "HR Decision Pending";
-  if (value.includes("hr interview scheduled") || value.includes("final interview scheduled")) return "HR Interview Scheduled";
-  if (value.includes("approved for hr") || value.includes("approved for final")) return "Approved for HR Interview";
+  if (value.includes("passed hr") || value.includes("passed final") || value === "hired") return "Passed Face-to-Face Interview";
+  if (value.includes("hr decision") || value.includes("final interview completed") || value.includes("hr interview completed")) return "Face-to-Face Decision Pending";
+  if (value.includes("hr interview scheduled") || value.includes("final interview scheduled")) return "Face-to-Face Interview Scheduled";
+  if (value.includes("approved for hr") || value.includes("approved for final")) return "Approved for Face-to-Face Interview";
   if (value.includes("voice interview completed") || value.includes("voice hr review") || value.includes("awaiting hr review")) return "Voice HR Review";
   if (value.includes("voice interview scheduled") || value.includes("ai voice interview scheduled")) return "Voice Interview Scheduled";
   if (value.includes("voice interview in progress") || value.includes("voice interview no show") || value.includes("voice interview busy")) return "Resume Approved";
@@ -267,7 +267,7 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
         <div className="applicant-stat"><span>Applications</span><strong>{summaryTotal}</strong><small>All history and live records</small></div>
         <div className="applicant-stat"><span>Resume Screened</span><strong>{summaryScreened}</strong><small>Processed applications</small></div>
         <div className="applicant-stat"><span>Voice Interview</span><strong>{summaryVoice}</strong><small>With voice workflow activity</small></div>
-        <div className="applicant-stat"><span>HR Interview</span><strong>{summaryHr}</strong><small>Moved beyond voice screening</small></div>
+        <div className="applicant-stat"><span>Face-to-Face Interview</span><strong>{summaryHr}</strong><small>Moved beyond voice screening</small></div>
       </div>
 
       <section className="card applicants-card">

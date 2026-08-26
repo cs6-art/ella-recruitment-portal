@@ -1282,7 +1282,7 @@ input:not([type="file"]), select { border-radius: 8px; border-color: #c2c7d0; }
     <section class="section" id="workflow" style="margin-top: 64px;">
       <div class="section-head reveal">
         <h2>The recruitment journey</h2>
-        <p>A clear, human-reviewed process from resume submission to final interview.</p>
+        <p>A clear, human-reviewed process from resume submission to Face-to-Face Interview.</p>
       </div>
 
       <div class="journey-band reveal">
@@ -1491,7 +1491,7 @@ input:not([type="file"]), select { border-radius: 8px; border-color: #c2c7d0; }
               </div>
               <div class="status-step" id="stepCalling">
                 <span class="step-dot" aria-hidden="true">4</span>
-                <span>Final interview</span>
+                <span>Face-to-Face Interview</span>
               </div>
             </div>
 
@@ -1520,7 +1520,7 @@ input:not([type="file"]), select { border-radius: 8px; border-color: #c2c7d0; }
               </div>
 
               <div class="info-row" style="display:none" aria-hidden="true">
-                <span>Final Interview</span>
+                <span>Face-to-Face Interview</span>
                 <span id="finalStatus">Pending</span>
               </div>
             </div>
@@ -1548,7 +1548,7 @@ input:not([type="file"]), select { border-radius: 8px; border-color: #c2c7d0; }
           <ul class="reassurance-list">
             <li>HR reviews every AI screening result.</li>
             <li>Shortlisted candidates receive voice interview instructions.</li>
-            <li>Final interviews are scheduled after HR approval.</li>
+            <li>Face-to-Face Interviews are scheduled after HR approval.</li>
           </ul>
 
           <div class="process-divider"></div>
@@ -1829,9 +1829,9 @@ function renderRecruitmentApplicationStatus(data) {
     callback: "Callback pending",
     manual_review: "Recruitment team review",
     rejected: "Application reviewed",
-    final_interview: "Final interview scheduled",
-    final_interview_scheduled: "Final interview scheduled",
-    final_interview_reschedule: "Final interview rescheduling"
+    final_interview: "Face-to-Face Interview scheduled",
+    final_interview_scheduled: "Face-to-Face Interview scheduled",
+    final_interview_reschedule: "Face-to-Face Interview rescheduling"
   };
 
   const step = Math.max(1, Math.min(4, Number(data.step) || (
@@ -2518,10 +2518,10 @@ function getDefaultTitle(stage) {
     manual_review: "Your application is under review",
     invalid_phone: "Your phone number needs to be corrected",
     rejected: "Your application has been reviewed",
-    final_interview_invite_pending: "Your final interview invitation is being prepared",
-    final_interview_invite_sent: "Your final interview invitation has been sent",
-    final_interview_scheduled: "Your final interview has been scheduled",
-    final_interview_reschedule: "Your final interview schedule is being updated",
+    final_interview_invite_pending: "Your Face-to-Face Interview invitation is being prepared",
+    final_interview_invite_sent: "Your Face-to-Face Interview invitation has been sent",
+    final_interview_scheduled: "Your Face-to-Face Interview has been scheduled",
+    final_interview_reschedule: "Your Face-to-Face Interview schedule is being updated",
     error: "Unable to retrieve application status"
   };
 
@@ -2555,7 +2555,7 @@ function getDefaultMessage(stage) {
       "Your voice interview has been completed successfully. The recruitment team will review the results.",
 
     interviewed:
-      "Your voice interview has been completed successfully. If shortlisted, you will receive a final interview invitation by email.",
+      "Your voice interview has been completed successfully. If shortlisted, you will receive a Face-to-Face Interview invitation by email.",
 
     callback:
       "Ella could not reach you. A callback or rescheduling email may be sent. Please keep your phone available.",
@@ -2570,16 +2570,16 @@ function getDefaultMessage(stage) {
       "Thank you for your application. After review, we will not be proceeding with your application at this time.",
 
     final_interview_invite_pending:
-      "You completed the voice interview successfully. Your final interview invitation is now being prepared.",
+      "You completed the voice interview successfully. Your Face-to-Face Interview invitation is now being prepared.",
 
     final_interview_invite_sent:
       "Please check your email and choose from the available Google Calendar schedules.",
 
     final_interview_scheduled:
-      "Congratulations. Your final interview has been scheduled. Please check your email for the meeting details.",
+      "Congratulations. Your Face-to-Face Interview has been scheduled. Please check your email for the meeting details.",
 
     final_interview_reschedule:
-      "Your final interview schedule is being updated. Please check your email for the latest details.",
+      "Your Face-to-Face Interview schedule is being updated. Please check your email for the latest details.",
 
     error:
       "We could not retrieve the latest application status. Please try again later."
@@ -2601,7 +2601,7 @@ function updateTimelineForStage(stage) {
   const finalDot = finalStep.querySelector(".step-dot");
 
   voiceLabel.textContent = "Voice interview";
-  finalLabel.textContent = "Final interview";
+  finalLabel.textContent = "Face-to-Face Interview";
 
   if (["resume_received", "screening"].includes(stage)) {
     return;
@@ -2647,7 +2647,7 @@ function updateTimelineForStage(stage) {
     finalDot.textContent = "4";
 
     if (stage === "final_interview_invite_pending") {
-      finalLabel.textContent = "Preparing final interview";
+      finalLabel.textContent = "Preparing Face-to-Face Interview";
     }
 
     return;
@@ -2664,7 +2664,7 @@ function updateTimelineForStage(stage) {
     finalStep.classList.remove("complete");
     finalStep.classList.add("active");
     finalDot.textContent = "4";
-    finalLabel.textContent = "Final interview invitation sent";
+    finalLabel.textContent = "Face-to-Face Interview invitation sent";
     return;
   }
 
@@ -2687,8 +2687,8 @@ function updateTimelineForStage(stage) {
 
     finalLabel.textContent =
       stage === "final_interview_scheduled"
-        ? "Final interview scheduled"
-        : "Final interview rescheduling";
+        ? "Face-to-Face Interview scheduled"
+        : "Face-to-Face Interview rescheduling";
 
     return;
   }
@@ -2760,19 +2760,19 @@ function getDisplayStatus(stage, data) {
       result: finalStatus || voiceStatus || resumeStatus || "Rejected"
     },
     final_interview_invite_pending: {
-      live: "Preparing final interview invitation",
-      result: finalStatus || "Final Interview Invite Pending"
+      live: "Preparing Face-to-Face Interview invitation",
+      result: finalStatus || "Face-to-Face Interview Invite Pending"
     },
     final_interview_invite_sent: {
-      live: "Final interview invitation sent",
-      result: finalStatus || "Final Interview Invite Sent"
+      live: "Face-to-Face Interview invitation sent",
+      result: finalStatus || "Face-to-Face Interview Invite Sent"
     },
     final_interview_scheduled: {
-      live: "Final interview scheduled",
-      result: finalStatus || "Final Interview Scheduled"
+      live: "Face-to-Face Interview scheduled",
+      result: finalStatus || "Face-to-Face Interview Scheduled"
     },
     final_interview_reschedule: {
-      live: "Final interview update",
+      live: "Face-to-Face Interview update",
       result: finalStatus || "Reschedule Required"
     },
     error: {
@@ -2829,7 +2829,7 @@ function normalizeDisplayValue(value, fallback = "N/A") {
     return fallback;
   }
 
-  return text;
+  return text.replace(/final[\s_-]+interview/gi, "Face-to-Face Interview");
 }
 
 function showError(message) {

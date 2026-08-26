@@ -84,8 +84,8 @@ function FinalInterviewCard({ applicant, role }: { applicant: ApplicantDetails; 
   const recommendation = hasFinalOutcome && storedRecommendation
     ? storedRecommendation
     : isScheduled
-      ? "HR Interview Scheduled"
-      : "Awaiting HR Interview Scheduling";
+      ? "Face-to-Face Interview Scheduled"
+      : "Awaiting Face-to-Face Interview Scheduling";
   const displayedStatus = isScheduled && /(awaiting schedule|not started|pending)/i.test(statusLower)
     ? "Interview Scheduled"
     : status;
@@ -93,7 +93,7 @@ function FinalInterviewCard({ applicant, role }: { applicant: ApplicantDetails; 
   const calendarError = recordValue(slot, "Google_Calendar_Event_Error");
 
   return <section className="card applicant-detail-card applicant-final-interview-card">
-    <DetailCardHeader icon="briefcase" title="HR Interview" description="Schedule and HR outcome details." />
+    <DetailCardHeader icon="briefcase" title="Face-to-Face Interview" description="Schedule and interview outcome details." />
     <div className="applicant-detail-content">
       <div className="applicant-detail-inline-fields">
         <DetailField label="Applicant" value={applicant.candidateName} />
@@ -196,7 +196,7 @@ export default async function ApplicantDetailsPage({ params }: { params: Promise
       <HistoryTimeline history={history} />
     </div><aside className="applicant-detail-side">
       {applicant.voiceDecision.toLowerCase() === "approve" && <FinalInterviewCard applicant={applicant} role={role} />}
-      <section className="card applicant-detail-card"><DetailCardHeader icon="clock" title="Status Tracking" description="Current progress through the candidate workflow." /><div className="applicant-timeline"><div><strong>1. AI CV Analysis</strong><span>{applicant.resumeStatus || "Not Started"}</span></div><div><strong>2. Voice Interview</strong><span>{applicant.voiceStatus || "Not Started"}</span></div><div><strong>3. Voice HR Review</strong><span>{applicant.voiceDecision || "Pending"}</span></div><div><strong>4. HR Interview</strong><span>{applicant.finalInterviewStatus || "Not Started"}</span></div><div><strong>Last Updated</strong><span>{dateValue(applicant.lastUpdated)}</span></div></div></section>
+      <section className="card applicant-detail-card"><DetailCardHeader icon="clock" title="Status Tracking" description="Current progress through the candidate workflow." /><div className="applicant-timeline"><div><strong>1. AI CV Analysis</strong><span>{applicant.resumeStatus || "Not Started"}</span></div><div><strong>2. Voice Interview</strong><span>{applicant.voiceStatus || "Not Started"}</span></div><div><strong>3. Voice HR Review</strong><span>{applicant.voiceDecision || "Pending"}</span></div><div><strong>4. Face-to-Face Interview</strong><span>{applicant.finalInterviewStatus || "Not Started"}</span></div><div><strong>Last Updated</strong><span>{dateValue(applicant.lastUpdated)}</span></div></div></section>
     </aside></div>
   </main></AppShell>;
 }

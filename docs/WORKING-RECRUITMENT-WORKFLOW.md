@@ -17,8 +17,12 @@ This document records the production path verified during the client-demo prepar
 1. HR approval moves the application to the AI voice interview stage.
 2. n8n workflow `If1HFQmMY9AeFUiz` (`AI Voice Interview Booking Confirmation`) handles both the booking invitation and booking confirmation branches.
 3. The workflow uses Google Sheets credential `ELAI`. Applicant emails use `Gmail account 4`.
-4. The secure `/book/voice/<token>` page displays generated 10-minute weekday slots and reserves the selected slot.
-5. A successful reservation writes the scheduled date, time, timezone, used token state, booking completion time, and call-queue row before the confirmation email is sent.
+4. The voice invitation and confirmation email must tell the candidate that
+   Ella, McLink Group's AI interview assistant, will conduct the voice
+   interview, and that the recruitment team reviews the responses before a
+   human hiring decision is made.
+5. The secure `/book/voice/<token>` page displays generated 10-minute weekday slots and reserves the selected slot.
+6. A successful reservation writes the scheduled date, time, timezone, used token state, booking completion time, and call-queue row before the confirmation email is sent.
 
 ## Scheduled voice call
 

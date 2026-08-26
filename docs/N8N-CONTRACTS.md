@@ -117,6 +117,18 @@ After the candidate books a slot, the portal sets
 `Final_Interview_Booking_Token_Status` to `Used`, and the same token must not
 be accepted again.
 
+For every AI Voice Interview invitation and booking confirmation email, include
+this clear notice near the booking link or interview details:
+
+> Please note: your upcoming voice interview will be conducted by Ella,
+> McLink Group's AI interview assistant. Ella will ask the same approved,
+> role-related questions for every applicant. Your responses will be reviewed
+> by our recruitment team, and the hiring decision will be made by people.
+
+Do not describe the AI voice interview as a human interview. Face-to-Face
+Interview invitations are for the human HR interviewer and should not contain
+the AI voice-interview notice.
+
 ## Events and responses
 
 Role-request payloads include `role.hodEmail` and
@@ -215,9 +227,12 @@ workflow validates the selected `Role_ID` and file metadata, loads that role's
 job description and screening criteria, runs role-specific AI screening, and
 appends the result with `Recommendation: For HR Review`,
 `Resume_HR_Decision: Pending`, and safe `Resume_File_*` metadata. The AI is
-not allowed to approve or reject a candidate. HR decisions remain portal-owned
-and are written to candidate status history. Binary or base64 resume content is
-never sent to or stored in Google Sheets.
+not allowed to approve or reject a candidate. Resume screening must use only
+job-related evidence and must not use or infer protected characteristics such as
+age, gender, race, ethnicity, nationality, religion, disability, medical
+history, family status, appearance, accent, location, or economic background.
+HR decisions remain portal-owned and are written to candidate status history.
+Binary or base64 resume content is never sent to or stored in Google Sheets.
 
 ## Bulk Resume Screening
 

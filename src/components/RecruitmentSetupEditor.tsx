@@ -128,7 +128,7 @@ const setupFieldLabels: Record<string, string> = {
   postingChannels: "Posting channels",
   salaryDisclosureStatus: "Salary visibility",
   licenseRequirementStatus: "License requirement",
-  hodInterviewRequired: "HR interview",
+  hodInterviewRequired: "Face-to-Face interview",
   customEvaluationFields: "Custom evaluation fields",
 };
 
@@ -648,7 +648,7 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
           <div className="vapi-policy-grid">
             <label htmlFor="vapi-salary-disclosure"><span>Salary visibility *</span><select required id="vapi-salary-disclosure" value={values.salaryDisclosureStatus || ""} disabled={!editable || saving} onChange={(event) => update("salaryDisclosureStatus", event.target.value)}><option value="">Choose one</option><option>Disclosed</option><option>Not disclosed</option></select></label>
             <label htmlFor="vapi-license-requirement"><span>License requirement *</span><select required id="vapi-license-requirement" value={values.licenseRequirementStatus || ""} disabled={!editable || saving} onChange={(event) => update("licenseRequirementStatus", event.target.value)}><option value="">Choose one</option><option>Required</option><option>Preferred</option><option>Not required</option></select></label>
-            <label htmlFor="vapi-hr-interview"><span>HR interview *</span><select required id="vapi-hr-interview" value={values.hodInterviewRequired || ""} disabled={!editable || saving} onChange={(event) => update("hodInterviewRequired", event.target.value)}><option value="">Choose one</option><option>Required</option><option>Not required</option></select></label>
+            <label htmlFor="vapi-hr-interview"><span>Face-to-Face interview *</span><select required id="vapi-hr-interview" value={values.hodInterviewRequired || ""} disabled={!editable || saving} onChange={(event) => update("hodInterviewRequired", event.target.value)}><option value="">Choose one</option><option>Required</option><option>Not required</option></select></label>
           </div>
         </div>
       </details>

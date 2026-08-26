@@ -54,7 +54,7 @@ test("dashboard includes candidate pipeline metrics without exposing them to cre
   assert.match(applicantMetrics, /Resume HR Review/);
   assert.match(applicantMetrics, /label: "Rejected"/);
   assert.doesNotMatch(applicantMetrics, /label: "Submitted"/);
-  assert.match(applicantMetrics, /Passed HR Interview/);
+  assert.match(applicantMetrics, /Passed Face-to-Face Interview/);
   assert.match(applicantMetrics, /currentApplicantStage/);
   assert.match(dashboard, /Role Request Actions/);
   assert.match(dashboard, /Pending HR Review/);
@@ -194,7 +194,7 @@ test("candidate intake forms and decisions expose the required fields", () => {
   assert.match(decisionPanel, /<h2>HR Decisions<\/h2>/);
   assert.match(decisionPanel, /reviewStage/);
   assert.match(decisionPanel, /CompletedDecision/);
-  assert.match(decisionPanel, /Open HR Interview Booking Link/);
+  assert.match(decisionPanel, /Open Face-to-Face Interview Booking Link/);
   assert.match(decisionPanel, /link=\{props\.finalBookingLink\}/);
   // Decisions refresh the server-backed detail page so every summary and
   // workflow control reflects the saved state without a hard browser reload.
@@ -260,6 +260,7 @@ test("candidate screening contract is role-bound and HR-owned", () => {
   assert.match(n8nContract, /role-specific AI screening/);
   assert.match(n8nContract, /For HR Review/);
   assert.match(n8nContract, /portal accepts either pasted resume text or one validated PDF, legacy DOC, or DOCX file/);
+  assert.match(n8nContract, /must not use or infer protected characteristics/);
   assert.match(n8nContract, /Binary or base64 resume content is\s+never sent/);
 });
 

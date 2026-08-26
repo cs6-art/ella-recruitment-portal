@@ -243,9 +243,9 @@ function applicationId(record: SheetRow) {
   return field(record, "Application_ID", "Application ID");
 }
 
-/** Keep legacy sheet/status keys intact while presenting the new HR-facing label. */
-function displayHrInterviewText(value: string) {
-  return value.replace(/final interview/gi, "HR Interview").replace(/final-interview/gi, "HR-interview");
+/** Keep legacy sheet/status keys intact while presenting the candidate-friendly label. */
+function displayFaceToFaceInterviewText(value: string) {
+  return value.replace(/final[- ]interview/gi, "Face-to-Face Interview");
 }
 
 /** Present one canonical label when older rows used the AI-prefixed wording. */
@@ -278,15 +278,15 @@ function nextActionFor(record: SheetRow) {
   const finalInterviewStatus = field(record, "Status 3 (Final Interview)").toLowerCase();
 
   if (voiceStatus.includes("no show") || finalStatus.includes("voice interview no show")) return "Reschedule Voice Interview";
-  if (finalInterviewStatus.includes("no show") || finalStatus.includes("final interview no show")) return "Reschedule Final Interview";
+  if (finalInterviewStatus.includes("no show") || finalStatus.includes("final interview no show")) return "Reschedule Face-to-Face Interview";
   if (finalStatus.includes("approved for ai voice") || voiceStatus === "awaiting schedule") return "Schedule Voice Interview";
   if (["calling", "initiated", "in progress"].includes(voiceStatus)) return "Voice Interview In Progress";
   if (voiceStatus === "scheduled" || finalStatus.includes("voice interview scheduled")) return "Complete Voice Interview";
   // Attendance is complete before HR makes the pass/reject decision.
   if (["interviewed", "completed"].includes(voiceStatus) && ["pending", ""].includes(voiceDecision)) return "Review Voice Interview";
   const finalStagePending = finalInterviewStatus.includes("awaiting schedule") || finalInterviewStatus.includes("not started") || finalInterviewStatus.includes("pending");
-  if (!finalStagePending && (finalInterviewStatus.includes("scheduled") || finalInterviewStatus.includes("booked") || finalStatus.includes("final interview scheduled"))) return "Attend Final Interview";
-  if (finalStatus.includes("approved for final") || finalInterviewStatus === "awaiting schedule") return "Schedule Final Interview";
+  if (!finalStagePending && (finalInterviewStatus.includes("scheduled") || finalInterviewStatus.includes("booked") || finalStatus.includes("final interview scheduled"))) return "Attend Face-to-Face Interview";
+  if (finalStatus.includes("approved for final") || finalInterviewStatus === "awaiting schedule") return "Schedule Face-to-Face Interview";
   return "Review Application";
 }
 
@@ -299,7 +299,7 @@ function workflowRecommendationFor(record: SheetRow) {
   const finalInterviewStatus = field(record, "Status 3 (Final Interview)").toLowerCase();
 
   if (voiceStatus.includes("no show") || finalStatus.includes("voice interview no show")) return "AI Voice Interview No Show";
-  if (finalInterviewStatus.includes("no show") || finalStatus.includes("final interview no show")) return "Final Interview No Show";
+  if (finalInterviewStatus.includes("no show") || finalStatus.includes("final interview no show")) return "Face-to-Face Interview No Show";
   if (["calling", "initiated", "in progress"].includes(voiceStatus) || finalStatus.includes("voice interview in progress")) {
     return "AI Voice Interview In Progress";
   }
@@ -319,11 +319,11 @@ function workflowRecommendationFor(record: SheetRow) {
 
   const finalStagePending = finalInterviewStatus.includes("awaiting schedule") || finalInterviewStatus.includes("not started") || finalInterviewStatus.includes("pending");
   if (!finalStagePending && (finalInterviewStatus.includes("scheduled") || finalInterviewStatus.includes("booked") || finalStatus.includes("final interview scheduled"))) {
-    return "Final Interview Scheduled";
+    return "Face-to-Face Interview Scheduled";
   }
 
   if (finalStagePending || finalStatus.includes("final interview booking link sent") || finalStatus.includes("approved for final")) {
-    return "Awaiting Final Interview Scheduling";
+    return "Awaiting Face-to-Face Interview Scheduling";
   }
 
   // The summary recommendation must reflect the applicant's current workflow
@@ -349,10 +349,10 @@ const applicantStageDefinitions: Omit<ApplicantStageCount, "value">[] = [
   { key: "voice_booking_pending", label: "Voice Booking Pending", tone: "purple" },
   { key: "voice_scheduled", label: "Voice Interview Scheduled", tone: "purple" },
   { key: "voice_review_pending", label: "Voice HR Review", tone: "green" },
-  { key: "approved_for_final", label: "Approved for HR Interview", tone: "teal" },
-  { key: "final_scheduled", label: "HR Interview Scheduled", tone: "orange" },
-  { key: "final_decision_pending", label: "HR Decision Pending", tone: "orange" },
-  { key: "passed_final", label: "Passed HR Interview", tone: "green" },
+  { key: "approved_for_final", label: "Approved for Face-to-Face Interview", tone: "teal" },
+  { key: "final_scheduled", label: "Face-to-Face Interview Scheduled", tone: "orange" },
+  { key: "final_decision_pending", label: "Face-to-Face Decision Pending", tone: "orange" },
+  { key: "passed_final", label: "Passed Face-to-Face Interview", tone: "green" },
   { key: "rejected", label: "Rejected", tone: "red" },
 ];
 
@@ -397,11 +397,11 @@ function applyFinalBookingState(summary: ApplicantSummary, record: SheetRow, fin
   // "Passed" before the final interview has happened.
   return {
     ...summary,
-    recommendation: "HR Interview Scheduled",
+    recommendation: "Face-to-Face Interview Scheduled",
     finalInterviewStatus: "Interview Scheduled",
-    finalStatus: "HR Interview Scheduled",
-    currentStage: "HR Interview Scheduled",
-    nextAction: "Attend HR Interview",
+    finalStatus: "Face-to-Face Interview Scheduled",
+    currentStage: "Face-to-Face Interview Scheduled",
+    nextAction: "Attend Face-to-Face Interview",
   };
 }
 
@@ -434,14 +434,14 @@ function mapApplicant(record: SheetRow, isHistoricalDemo = false): ApplicantSumm
     department: field(record, "Department"),
     appliedAt,
     matchScore: field(record, "Match_Score", "Match Score"),
-    recommendation: displayHrInterviewText(displayInterviewStageText(workflowRecommendationFor(record))),
+    recommendation: displayFaceToFaceInterviewText(displayInterviewStageText(workflowRecommendationFor(record))),
     cvRecommendation: field(record, "Recommendation"),
     resumeStatus: field(record, "Status (Resume Processing)"),
     voiceStatus,
-    finalInterviewStatus: displayHrInterviewText(displayInterviewStageText(finalInterviewStatus)),
-    finalStatus: displayHrInterviewText(displayInterviewStageText(finalStatus)),
-    currentStage: displayHrInterviewText(displayInterviewStageText(stageFor(record))),
-    nextAction: displayHrInterviewText(displayInterviewStageText(nextActionFor(record))),
+    finalInterviewStatus: displayFaceToFaceInterviewText(displayInterviewStageText(finalInterviewStatus)),
+    finalStatus: displayFaceToFaceInterviewText(displayInterviewStageText(finalStatus)),
+    currentStage: displayFaceToFaceInterviewText(displayInterviewStageText(stageFor(record))),
+    nextAction: displayFaceToFaceInterviewText(displayInterviewStageText(nextActionFor(record))),
     isHistoricalDemo,
   };
 }

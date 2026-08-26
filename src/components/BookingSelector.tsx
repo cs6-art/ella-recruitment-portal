@@ -45,7 +45,7 @@ export default function BookingSelector({ token, initialContext }: { token: stri
   const [error, setError] = useState("");
   const [confirmationMessage, setConfirmationMessage] = useState("");
   const [saving, setSaving] = useState(false);
-  const title = context.kind === "voice" ? "AI Voice Interview Booking" : "HR Interview Booking";
+  const title = context.kind === "voice" ? "AI Voice Interview Booking" : "Face-to-Face Interview Booking";
   const roleName = context.selectedRole.trim();
   const noShow = context.currentSlot?.status?.toLowerCase() === "no show" || context.bookingStatus.toLowerCase() === "no show";
   // A completed appointment must remain read-only even if its original link
@@ -98,6 +98,7 @@ export default function BookingSelector({ token, initialContext }: { token: stri
     <div className="booking-eyebrow">{title}</div>
     <h1>{noAvailability ? (noShow ? "No replacement times available" : "No interview times available") : noShow ? "Choose a new interview time" : completed ? "Your interview is complete" : booked ? "Your interview is scheduled" : "Choose a time that works for you"}</h1>
     <p className="booking-intro">Hi {context.candidateName || "there"}. {noAvailability ? <>There are currently no available times for {roleName ? <><strong>{roleName}</strong> role</> : "this role"}.</> : selecting ? <>Select an available slot for {roleName ? <><strong>{roleName}</strong> role</> : "this role"}.</> : <>{roleName ? <>Your <strong>{roleName}</strong> interview is confirmed.</> : "Your interview is confirmed."}</>}</p>
+    {context.kind === "voice" && <p className="booking-ai-disclosure">This interview will be conducted by Ella, McLink Group's AI interview assistant. Your responses will be reviewed by our recruitment team.</p>}
     {booked && !noShow ? <div className="booking-confirmed">
       {confirmationMessage && <ActionFeedback kind="success" className="booking-confirmed-feedback">{confirmationMessage}</ActionFeedback>}
       <div className="booking-confirmed-icon">✓</div>
