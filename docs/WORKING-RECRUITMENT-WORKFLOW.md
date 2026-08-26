@@ -23,6 +23,7 @@ This document records the production path verified during the client-demo prepar
    human hiring decision is made.
 5. The secure `/book/voice/<token>` page displays generated 10-minute weekday slots and reserves the selected slot.
 6. A successful reservation writes the scheduled date, time, timezone, used token state, booking completion time, and call-queue row before the confirmation email is sent.
+7. Each voice time is shared across roles and remains available until ten active applicants are scheduled for that exact time. The tenth booking is allowed; once ten calls are active, the time is hidden and a final booking check rejects any eleventh attempt.
 
 ## Scheduled voice call
 

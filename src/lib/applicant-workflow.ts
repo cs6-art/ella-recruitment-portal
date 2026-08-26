@@ -12,6 +12,7 @@ import { isDemoSideEffectAllowed } from "@/lib/demo-mode";
 import { cachedSheetsRead, invalidateSheetsCache } from "@/lib/sheets-cache";
 import type { ResumeFileRecord } from "@/lib/resume-files";
 import { generateAutomaticVoiceInterviewSlots, type VoiceInterviewSlot } from "@/lib/voice-interview-availability";
+import { countActiveVoiceInterviews, isActiveVoiceInterviewStatus, MAX_CONCURRENT_VOICE_INTERVIEWS, voiceCapacitySlotId, voiceInterviewConcurrencyKey } from "@/lib/voice-interview-capacity";
 import { hasValidFutureTime, isBeforeTargetHiringDate, isCurrentCalendarMonth, isStandardFinalInterviewSlot, isStandardVoiceInterviewSlot, isVirtualSlotId, slotKey, virtualSlotsForRole } from "@/lib/interview-availability-rules";
 
 export type BookingKind = "voice" | "final";
@@ -321,6 +322,43 @@ function slotFrom(row: Row): BookingSlot {
 
 function slotSort(left: BookingSlot, right: BookingSlot) { return `${left.date} ${left.startTime}`.localeCompare(`${right.date} ${right.startTime}`); }
 
+function rowAsVoiceCapacitySlot(row: Row): BookingSlot {
+  return {
+    slotId: field(row, "Slot_ID", "Slot ID"),
+    interviewType: field(row, "Interview_Type", "Interview Type"),
+    roleId: field(row, "Role_ID", "Role ID"),
+    date: field(row, "Date"),
+    startTime: field(row, "Start_Time", "Start Time"),
+    endTime: field(row, "End_Time", "End Time"),
+    timezone: field(row, "Timezone", "Time Zone") || "Asia/Singapore",
+    status: field(row, "Status"),
+  };
+}
+
+function activeVoiceBookingCount(rows: Row[], slot: Pick<BookingSlot, "date" | "startTime" | "endTime" | "timezone">) {
+  return countActiveVoiceInterviews(rows.map((row) => rowAsVoiceCapacitySlot(row)), slot);
+}
+
+function interviewSlotRowValues(headers: string[], slot: Pick<BookingSlot, "date" | "startTime" | "endTime" | "timezone" | "interviewType" | "roleId">, context: BookingContext, status: "Available" | "Booked", slotId: string, bookedAt = "") {
+  return headers.map((header) => {
+    const key = normalize(header);
+    if (key === normalize("Slot_ID")) return slotId;
+    if (key === normalize("Interview_Type")) return slot.interviewType;
+    if (key === normalize("Role_ID")) return slot.roleId;
+    if (key === normalize("Date")) return slot.date;
+    if (key === normalize("Start_Time")) return slot.startTime;
+    if (key === normalize("End_Time")) return slot.endTime;
+    if (key === normalize("Timezone")) return slot.timezone || "Asia/Singapore";
+    if (key === normalize("Status")) return status;
+    if (key === normalize("Application_ID")) return status === "Booked" ? context.applicationId : "";
+    if (key === normalize("Candidate_Name")) return status === "Booked" ? context.candidateName : "";
+    if (key === normalize("Candidate_Email")) return status === "Booked" ? context.email : "";
+    if (key === normalize("Booked_At")) return status === "Booked" ? bookedAt : "";
+    if (key === normalize("Last_Updated")) return bookedAt;
+    return "";
+  });
+}
+
 export function buildCandidateApplicationPayload(input: {
   applicationId: string;
   roleId: string;
@@ -527,15 +565,45 @@ export async function getBookingContext(kind: BookingKind, token: string): Promi
   const existingKeys = new Set(legacyAll.map((slot) => slotKey(slot)));
   const virtual = role
     ? virtualSlotsForRole(role, bookingKindValue(kind) as "AI Voice Interview" | "Final Interview")
-      .filter((slot) => !existingKeys.has(slotKey(slot)))
+      // Voice slots remain candidate-visible while their shared Vapi capacity
+      // is below ten. The booked rows are counted below, so do not discard a
+      // generated time merely because an earlier applicant used its first row.
+      .filter((slot) => {
+        if (kind !== "voice") return !existingKeys.has(slotKey(slot));
+        const matchingRows = slotsData.rows.filter((row) => {
+          const candidate = rowAsVoiceCapacitySlot(row);
+          return candidate.roleId.toLowerCase() === roleId.toLowerCase()
+            && candidate.interviewType.toLowerCase().includes("voice")
+            && voiceInterviewConcurrencyKey(candidate) === voiceInterviewConcurrencyKey(slot);
+        });
+        return !matchingRows.some((row) => ["blocked", "expired"].includes(field(row, "Status").toLowerCase()));
+      })
       .map((slot) => ({ ...slot }))
     : [];
   const candidateSlots = [...legacySlots, ...virtual]
     .filter((slot) => hasValidFutureTime(slot))
     .filter((slot) => slot.slotId)
     .sort(slotSort);
+  const voiceCandidateSlots = kind === "voice"
+    ? [...new Map(candidateSlots.map((slot) => [voiceInterviewConcurrencyKey(slot), slot])).values()]
+      .map((slot) => {
+        const activeCount = activeVoiceBookingCount(slotsData.rows, slot);
+        if (activeCount >= MAX_CONCURRENT_VOICE_INTERVIEWS) return null;
+        const availableRow = slotsData.rows.find((row) => {
+          const candidate = rowAsVoiceCapacitySlot(row);
+          return candidate.roleId.toLowerCase() === roleId.toLowerCase()
+            && candidate.interviewType.toLowerCase().includes("voice")
+            && candidate.status?.toLowerCase() === "available"
+            && voiceInterviewConcurrencyKey(candidate) === voiceInterviewConcurrencyKey(slot);
+        });
+        return availableRow
+          ? slotFrom(availableRow)
+          : { ...slot, slotId: voiceCapacitySlotId(slot), status: "Available", applicationId: "" };
+      })
+      .filter((slot): slot is BookingSlot => Boolean(slot))
+    : candidateSlots;
   const finalCalendarEmail = kind === "final" ? (await getFinalInterviewCalendarConfig()).email : "";
-  let slots = kind === "final" ? [] : candidateSlots;
+  let slots = kind === "final" ? [] : voiceCandidateSlots;
   if (kind === "final") {
     // Check every candidate-visible Final Interview slot against HR's
     // calendar, not just generated ("virtual") ones. A handful of real,
@@ -809,12 +877,12 @@ async function withReservationLock<T>(key: string, operation: () => Promise<T>) 
   }
 }
 
-// This serializes same-process contenders for one slot so the second request
-// re-reads the slot after the first booking lands and receives an unavailable
-// response instead of overwriting the first candidate. Multi-instance
-// deployments should move this reservation primitive to the shared database.
+// This serializes same-process contenders for one slot. Voice reservations use
+// one shared lock because the ten-call limit is global across roles and time
+// rows. Multi-instance deployments should move this reservation primitive to a
+// shared database or distributed lock before running more than one app worker.
 export async function reserveBooking(kind: BookingKind, token: string, slotId: string, preferredMobile: string) {
-  const lockKey = `${kind}:${text(slotId)}`;
+  const lockKey = kind === "voice" ? "voice-capacity" : `${kind}:${text(slotId)}`;
   return withReservationLock(lockKey, () => reserveBookingInternal(kind, token, slotId, preferredMobile));
 }
 
@@ -827,7 +895,7 @@ async function reserveBookingInternal(kind: BookingKind, token: string, slotId: 
   // application, so re-collecting it here is unnecessary friction.
   const confirmedMobile = kind === "voice" ? normalizePreferredMobile(preferredMobile) : "";
   if (kind === "voice" && !isPreferredMobileValid(confirmedMobile)) throw new Error("Confirm a valid preferred mobile number in international format.");
-  const [context, slotsData, applicantData] = await Promise.all([getBookingContext(kind, token), readSheet("Interview_Slots", "X"), readSheet("High_Match_Profile", "CZ")]);
+  const [context, slotsData, applicantData] = await Promise.all([getBookingContext(kind, token), readSheet("Interview_Slots", "X", { fresh: true }), readSheet("High_Match_Profile", "CZ")]);
   if (!context) throw new Error("This booking link is invalid or expired.");
   if (!isDemoSideEffectAllowed(context.appliedAt)) {
     throw new Error("This demo booking link is protected because it belongs to historical data.");
@@ -839,8 +907,12 @@ async function reserveBookingInternal(kind: BookingKind, token: string, slotId: 
   let virtualReservation = false;
   if (matchingSlotIndex < 0) {
     const virtualSlot = context.slots.find((slot) => slot.slotId === cleanSlotId);
-    if (!virtualSlot || !isVirtualSlotId(cleanSlotId)) throw new Error("The selected interview slot is no longer available.");
+    const isCapacitySlot = kind === "voice" && cleanSlotId === voiceCapacitySlotId(virtualSlot || { date: "", startTime: "", endTime: "", timezone: "" });
+    if (!virtualSlot || (!isVirtualSlotId(cleanSlotId) && !isCapacitySlot)) throw new Error("The selected interview slot is no longer available.");
     if (!hasValidFutureTime(virtualSlot)) throw new Error("This interview slot has already passed. Choose another time.");
+    if (kind === "voice" && activeVoiceBookingCount(slotsData.rows, virtualSlot) >= MAX_CONCURRENT_VOICE_INTERVIEWS) {
+      throw new Error("This AI Voice Interview time has reached the maximum of 10 concurrent calls. Choose another time.");
+    }
     if (kind === "final") {
       const hodEmail = finalCalendarEmail;
       if (!hodEmail) throw new Error("No HR interviewer email is configured for this role.");
@@ -848,26 +920,13 @@ async function reserveBookingInternal(kind: BookingKind, token: string, slotId: 
       if (!calendar.checked) throw new Error(calendar.reason === "not_connected" ? "Connect the HR Google Calendar before booking an HR interview." : "Unable to verify the HR Google Calendar. Please try again.");
       if (!calendar.available) throw new Error("This HR interview time is now blocked by the HR Google Calendar. Choose another time.");
     }
-    const values = slotsData.headers.map((header) => {
-      const key = normalize(header);
-      if (key === normalize("Slot_ID")) return virtualSlot.slotId;
-      if (key === normalize("Interview_Type")) return virtualSlot.interviewType;
-      if (key === normalize("Role_ID")) return virtualSlot.roleId;
-      if (key === normalize("Date")) return virtualSlot.date;
-      if (key === normalize("Start_Time")) return virtualSlot.startTime;
-      if (key === normalize("End_Time")) return virtualSlot.endTime;
-      if (key === normalize("Timezone")) return virtualSlot.timezone;
-      if (key === normalize("Status")) return "Booked";
-      if (key === normalize("Application_ID")) return context.applicationId;
-      if (key === normalize("Candidate_Name")) return context.candidateName;
-      if (key === normalize("Candidate_Email")) return context.email;
-      if (key === normalize("Booked_At")) return new Date().toISOString();
-      return "";
-    });
+    const bookingAt = new Date().toISOString();
+    const bookingSlotId = kind === "voice" ? `SLOT-${crypto.randomUUID().slice(0, 8).toUpperCase()}` : virtualSlot.slotId;
+    const values = interviewSlotRowValues(slotsData.headers, virtualSlot, context, "Booked", bookingSlotId, bookingAt);
     await appendRows("Interview_Slots", [values]);
     invalidateSheetsCache("Interview_Slots");
-    const refreshedSlots = await readSheet("Interview_Slots", "X");
-    matchingSlotIndex = refreshedSlots.rows.findIndex((row) => field(row, "Slot_ID", "Slot ID") === cleanSlotId);
+    const refreshedSlots = await readSheet("Interview_Slots", "X", { fresh: true });
+    matchingSlotIndex = refreshedSlots.rows.findIndex((row) => field(row, "Slot_ID", "Slot ID") === bookingSlotId);
     if (matchingSlotIndex < 0) throw new Error("The selected interview slot could not be reserved. Try again.");
     matchingSlot = refreshedSlots.rows[matchingSlotIndex];
     slotsData.rows = refreshedSlots.rows;
@@ -879,7 +938,34 @@ async function reserveBookingInternal(kind: BookingKind, token: string, slotId: 
   // slot that has since started or passed.
   if (!hasValidFutureTime({ date: field(matchingSlot, "Date"), startTime: field(matchingSlot, "Start_Time", "Start Time"), timezone: field(matchingSlot, "Timezone", "Time Zone") || "Asia/Singapore" })) throw new Error("This interview slot has already passed. Choose another time.");
   if (!isBeforeTargetHiringDate(field(matchingSlot, "Date"), role?.targetHiringDate)) throw new Error("This interview slot is outside the role's target hiring window. Choose another slot.");
-  if ((!virtualReservation && field(matchingSlot, "Status").toLowerCase() !== "available") || field(matchingSlot, "Interview_Type", "Interview Type") !== bookingKindValue(kind) || field(matchingSlot, "Role_ID", "Role ID").toLowerCase() !== context.roleId.toLowerCase()) throw new Error("The selected interview slot is no longer available.");
+  const matchingStatus = field(matchingSlot, "Status").toLowerCase();
+  const matchingVoiceSlot = kind === "voice" && field(matchingSlot, "Interview_Type", "Interview Type").toLowerCase().includes("voice");
+  const matchingVoiceBooking = matchingVoiceSlot && isActiveVoiceInterviewStatus(matchingStatus);
+  if (((kind !== "voice" && !virtualReservation && matchingStatus !== "available")
+    || (kind === "voice" && !virtualReservation && matchingStatus !== "available" && !matchingVoiceBooking))
+    || field(matchingSlot, "Interview_Type", "Interview Type") !== bookingKindValue(kind)
+    || field(matchingSlot, "Role_ID", "Role ID").toLowerCase() !== context.roleId.toLowerCase()) {
+    throw new Error("The selected interview slot is no longer available.");
+  }
+  if (kind === "voice" && activeVoiceBookingCount(slotsData.rows, rowAsVoiceCapacitySlot(matchingSlot)) >= MAX_CONCURRENT_VOICE_INTERVIEWS) {
+    throw new Error("This AI Voice Interview time has reached the maximum of 10 concurrent calls. Choose another time.");
+  }
+  // A booked row is an existing applicant's appointment, not a reusable
+  // capacity ticket. Add a new row for the next applicant so no booking can
+  // overwrite another candidate, while the shared time remains bookable up
+  // to Vapi's ten-call limit.
+  if (kind === "voice" && !virtualReservation && matchingStatus !== "available") {
+    const bookingAt = new Date().toISOString();
+    const bookingSlotId = `SLOT-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+    await appendRows("Interview_Slots", [interviewSlotRowValues(slotsData.headers, rowAsVoiceCapacitySlot(matchingSlot), context, "Booked", bookingSlotId, bookingAt)]);
+    const refreshedSlots = await readSheet("Interview_Slots", "X", { fresh: true });
+    matchingSlotIndex = refreshedSlots.rows.findIndex((row) => field(row, "Slot_ID", "Slot ID") === bookingSlotId);
+    if (matchingSlotIndex < 0) throw new Error("The selected interview slot could not be reserved. Try again.");
+    matchingSlot = refreshedSlots.rows[matchingSlotIndex];
+    slotsData.rows = refreshedSlots.rows;
+    slotsData.rowNumbers = refreshedSlots.rowNumbers;
+    virtualReservation = true;
+  }
 
   const now = new Date().toISOString();
   const slotRow = slotsData.rowNumbers[matchingSlotIndex];
@@ -1009,6 +1095,22 @@ async function reserveBookingInternal(kind: BookingKind, token: string, slotId: 
     );
   }
   await updateCells(updates);
+  if (kind === "voice") {
+    // Keep one reusable availability row while the time has capacity. The
+    // booked row above belongs to this applicant; it must never be reused for
+    // another applicant because doing so would overwrite the appointment.
+    const projectedRows = slotsData.rows.map((row, index) => index === matchingSlotIndex ? { ...row, status: "Booked" } : row);
+    const bookedVoiceSlot = rowAsVoiceCapacitySlot(matchingSlot);
+    const activeCount = activeVoiceBookingCount(projectedRows, bookedVoiceSlot);
+    const hasAvailableCapacityRow = projectedRows.some((row) =>
+      field(row, "Interview_Type", "Interview Type").toLowerCase().includes("voice")
+      && field(row, "Status").toLowerCase() === "available"
+      && voiceInterviewConcurrencyKey(rowAsVoiceCapacitySlot(row)) === voiceInterviewConcurrencyKey(bookedVoiceSlot),
+    );
+    if (activeCount < MAX_CONCURRENT_VOICE_INTERVIEWS && !hasAvailableCapacityRow) {
+      await appendRows("Interview_Slots", [interviewSlotRowValues(slotsData.headers, bookedVoiceSlot, context, "Available", `SLOT-${crypto.randomUUID().slice(0, 8).toUpperCase()}`, now)]);
+    }
+  }
   if (queueValues) await appendRows("Voice_Call_Queue", [queueValues]);
 
   if (kind === "final") {
