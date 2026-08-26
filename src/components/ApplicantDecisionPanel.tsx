@@ -73,7 +73,7 @@ function DecisionRow({ stage, title, description, current, link, enabled = true,
   const [error, setError] = useState("");
   const decided = isDecided(current);
 
-  async function decide(decision: "Approve" | "Reject" | "Manual Review") {
+  async function decide(decision: "Approve" | "Reject") {
     const trimmed = comments.trim();
     if (!trimmed) { setError("Comments are required for every action."); return; }
     setBusy(true); setError("");
@@ -84,7 +84,7 @@ function DecisionRow({ stage, title, description, current, link, enabled = true,
       // Show the saved state immediately while the server component refreshes.
       // This avoids a pending-looking card when the write and read hit
       // different serverless instances with separate in-memory caches.
-      onSaved(decision === "Approve" ? `${title} approved.` : decision === "Reject" ? `${title} marked rejected.` : `${title} returned for review.`, decision, trimmed);
+      onSaved(decision === "Approve" ? `${title} approved.` : `${title} marked rejected.`, decision, trimmed);
       // Refresh the server component data after the workflow write so the
       // summary cards, timeline, and available decisions stay in sync without
       // losing the reviewer's current page position.
@@ -106,7 +106,7 @@ function DecisionRow({ stage, title, description, current, link, enabled = true,
       {link && <a className="applicant-booking-link" href={link} target="_blank" rel="noreferrer">Open Booking Link</a>}
       <label className="field applicant-decision-comments" htmlFor={`${stage}-decision-comments`}><span>Comments *</span><textarea id={`${stage}-decision-comments`} value={comments} disabled={busy || !canReview || !enabled || decided} minLength={1} maxLength={5000} required placeholder={stage === "voice" ? "Explain the Face-to-Face interview decision or return note." : "Explain the decision or provide the review note."} onChange={(event) => { setComments(event.target.value); setError(""); }} /></label>
       {error && <ValidationSummary error={error} title="Decision save failed" />}
-      {canReview && enabled && !decided && <div className="applicant-decision-actions"><button type="button" className="btn btn-primary" disabled={busy} onClick={() => void decide("Approve")}>{busy ? "Saving..." : "Approve"}</button><button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void decide("Reject")}>Reject</button><button type="button" title="Request Manual Review" className="btn btn-secondary" disabled={busy} onClick={() => void decide("Manual Review")}>Return for review</button></div>}
+      {canReview && enabled && !decided && <div className="applicant-decision-actions"><button type="button" className="btn btn-primary" disabled={busy} onClick={() => void decide("Approve")}>{busy ? "Saving..." : "Approve"}</button><button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void decide("Reject")}>Reject</button></div>}
     </div>
   </div>;
 }

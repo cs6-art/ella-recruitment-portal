@@ -13,10 +13,10 @@ import { consumeRateLimit, rateLimitHeaders, requestClientKey } from "@/lib/rate
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
 
 const stages = new Set<ApplicantDecisionStage>(["resume", "voice", "final"]);
-const decisions = new Set<ApplicantDecision>(["Approve", "Reject", "Manual Review"]);
+const decisions = new Set<ApplicantDecision>(["Approve", "Reject"]);
 const decisionSchema = z.object({
   stage: z.enum(["resume", "voice", "final"]),
-  decision: z.enum(["Approve", "Reject", "Manual Review"]),
+  decision: z.enum(["Approve", "Reject"]),
   comments: z.string().trim().min(1).max(5000),
 });
 
