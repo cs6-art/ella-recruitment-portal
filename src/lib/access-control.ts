@@ -1,6 +1,20 @@
 import type { RoleRequestDetails, RoleRequestSummary } from "@/lib/google-sheets";
 import type { SessionUser } from "@/lib/session";
 
+/**
+ * Confidential departments form a two-way wall: their role requests and
+ * applicants are visible only to users who belong to the same department, and
+ * users who belong to a confidential department see only their own department's
+ * work — even when their access role otherwise grants company-wide visibility
+ * (HR, Management, Admin). Kept here, with no value imports, so this module
+ * stays independently unit-testable.
+ */
+export const RESTRICTED_DEPARTMENTS = ["AI"] as const;
+
+export function isRestrictedDepartment(value: string): boolean {
+  return RESTRICTED_DEPARTMENTS.some((department) => department.toLowerCase() === value.trim().toLowerCase());
+}
+
 // Three distinct tiers share this module:
 // - canReviewRole: HR/Admin. Company-wide pipeline management — recruitment
 //   setup, applicant records, interview scheduling — plus HR-stage review.
@@ -16,6 +30,18 @@ function sameDepartment(user: Pick<SessionUser, "department">, department: strin
   return Boolean(userDepartment) && userDepartment === department.trim().toLowerCase();
 }
 
+// Confidential-department wall, enforced on top of every tier. It runs in both
+// directions: if the record's department is confidential, only same-department
+// users pass; if the *viewer's* department is confidential, they pass only for
+// their own department's records — regardless of company-wide review/approve
+// rights. See RESTRICTED_DEPARTMENTS above.
+export function passesDepartmentWall(user: Pick<SessionUser, "department">, department: string): boolean {
+  if (isRestrictedDepartment(department) || isRestrictedDepartment(user.department)) {
+    return sameDepartment(user, department);
+  }
+  return true;
+}
+
 export function canViewRoleList(user: SessionUser): boolean {
   return user.canReviewRole === true || user.canApproveRole === true || user.canCreateRole === true || user.canReviewDepartmentRole === true;
 }
@@ -29,12 +55,14 @@ export function isDepartmentReviewer(user: Pick<SessionUser, "canReviewRole" | "
 }
 
 export function canViewRole(user: SessionUser, role: Pick<RoleRequestDetails, "requesterEmail" | "department">): boolean {
+  if (!passesDepartmentWall(user, role.department)) return false;
   if (user.canReviewRole === true || user.canApproveRole === true) return true;
   if (isDepartmentReviewer(user)) return sameDepartment(user, role.department);
   return isCreatorOnly(user) && role.requesterEmail.trim().toLowerCase() === user.email.trim().toLowerCase();
 }
 
 export function filterVisibleRoles<T extends Pick<RoleRequestSummary, "requesterEmail" | "department">>(roles: T[], user: SessionUser): T[] {
+  roles = roles.filter((role) => passesDepartmentWall(user, role.department));
   if (user.canReviewRole === true || user.canApproveRole === true) return roles;
   if (isDepartmentReviewer(user)) return roles.filter((role) => sameDepartment(user, role.department));
   if (!isCreatorOnly(user)) return [];
@@ -52,6 +80,17 @@ export function canManagePipeline(user: Pick<SessionUser, "canReviewRole">): boo
 
 export function canEditRecruitmentSetup(user: SessionUser): boolean {
   return canManagePipeline(user);
+}
+
+// Pipeline management for a specific role: company-wide HR rights AND the
+// confidential-department wall for that role's department. Use this on
+// role-scoped operational routes (screening invites, bulk uploads, interview
+// availability) that load a role by ID after the tier check.
+export function canManageRolePipeline(
+  user: Pick<SessionUser, "canReviewRole" | "department">,
+  role: Pick<RoleRequestDetails, "department">,
+): boolean {
+  return canManagePipeline(user) && passesDepartmentWall(user, role.department);
 }
 
 export function canEditHodAvailability(user: Pick<SessionUser, "email" | "canReviewRole">, role: Pick<RoleRequestDetails, "hodEmail" | "requesterEmail">): boolean {
@@ -99,12 +138,14 @@ export function canDecideApplicant(user: Pick<SessionUser, "canReviewRole" | "ca
 }
 
 export function canViewApplicant(user: SessionUser, applicant: { department: string }): boolean {
+  if (!passesDepartmentWall(user, applicant.department)) return false;
   if (user.canReviewRole === true || user.canApproveRole === true) return true;
   if (isDepartmentReviewer(user)) return sameDepartment(user, applicant.department);
   return false;
 }
 
 export function filterVisibleApplicants<T extends { department: string }>(applicants: T[], user: SessionUser): T[] {
+  applicants = applicants.filter((applicant) => passesDepartmentWall(user, applicant.department));
   if (user.canReviewRole === true || user.canApproveRole === true) return applicants;
   if (isDepartmentReviewer(user)) return applicants.filter((applicant) => sameDepartment(user, applicant.department));
   return [];

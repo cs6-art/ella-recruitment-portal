@@ -15,6 +15,7 @@ import {
   filterVisibleApplicants,
   filterVisibleRoles,
   isDepartmentReviewer,
+  passesDepartmentWall,
 } from "../src/lib/access-control.ts";
 
 function user(overrides = {}) {
@@ -95,4 +96,28 @@ test("filterVisibleApplicants and canViewApplicant apply the same department sco
   assert.deepEqual(filterVisibleApplicants(applicants, requester), []);
   assert.equal(canViewApplicant(hod, { department: "IT" }), true);
   assert.equal(canViewApplicant(hod, { department: "Finance" }), false);
+});
+
+test("confidential department (AI) forms a two-way wall over every tier", () => {
+  const aiHr = user({ canCreateRole: true, canReviewRole: true, department: "AI" });
+  const aiManagement = user({ canApproveRole: true, department: "AI" });
+  const aiRole = { requesterEmail: "someone-else@mclinkgroup.com", department: "AI", status: "Pending HR Discussion" };
+  const financeRole = { requesterEmail: "someone-else@mclinkgroup.com", department: "Finance", status: "Pending HR Discussion" };
+
+  // Outbound wall: non-AI company-wide reviewers cannot see AI roles/applicants.
+  assert.equal(canViewRole(hr, aiRole), false);
+  assert.equal(canViewRole(management, aiRole), false);
+  assert.equal(canViewApplicant(hr, { department: "AI" }), false);
+  assert.deepEqual(filterVisibleRoles([aiRole, financeRole], hr), [financeRole]);
+
+  // Inbound wall: an AI reviewer is scoped to AI only, despite company-wide rights.
+  assert.equal(canViewRole(aiHr, aiRole), true);
+  assert.equal(canViewRole(aiHr, financeRole), false);
+  assert.equal(canViewRole(aiManagement, financeRole), false);
+  assert.deepEqual(filterVisibleRoles([aiRole, financeRole], aiHr), [aiRole]);
+  assert.deepEqual(filterVisibleApplicants([{ department: "AI", id: 1 }, { department: "Finance", id: 2 }], aiHr), [{ department: "AI", id: 1 }]);
+
+  // Non-confidential departments are unaffected.
+  assert.equal(passesDepartmentWall(hr, "Finance"), true);
+  assert.equal(passesDepartmentWall(management, "IT"), true);
 });

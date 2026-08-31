@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { canManagePipeline } from "@/lib/access-control";
+import { canManagePipeline, passesDepartmentWall } from "@/lib/access-control";
 import { getBulkResumeQueue, getBulkResumeQueueTotals, getBulkResumeScreeningEvidence } from "@/lib/candidate-applications";
 import { bulkResumeEnvironment, bulkResumeIsUatMarked, productionUatBatchId } from "@/lib/bulk-resume-config";
 import { getRoleRequests, isPublishedRoleForIntake } from "@/lib/google-sheets";
@@ -22,7 +22,7 @@ export async function GET(request: Request) {
   const roleId = new URL(request.url).searchParams.get("roleId")?.trim() || "";
   try {
     const configuredProductionUatBatchId = productionUatBatchId();
-    const roles = await getRoleRequests({ liveOnly: true });
+    const roles = (await getRoleRequests({ liveOnly: true })).filter((role) => passesDepartmentWall(user, role.department));
     const publishedRoleIds = new Set(
       roles
         .filter(isPublishedRoleForIntake)

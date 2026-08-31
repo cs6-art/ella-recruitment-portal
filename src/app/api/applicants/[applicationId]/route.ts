@@ -1,10 +1,10 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { demoActionBlockReason } from "@/lib/candidate-applications";
+import { demoActionBlockReason, getApplicantById } from "@/lib/candidate-applications";
 import { z } from "zod";
 
-import { canDeleteApplicant, canEditApplicant } from "@/lib/access-control";
+import { canDeleteApplicant, canEditApplicant, passesDepartmentWall } from "@/lib/access-control";
 import { deleteApplicant, updateApplicantProfile } from "@/lib/applicant-workflow";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
 
@@ -31,6 +31,11 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (!user) return NextResponse.json({ success: false, error: "Authentication required." }, { status: 401 });
     if (!canEditApplicant(user)) return NextResponse.json({ success: false, error: "You do not have permission to edit applicants." }, { status: 403 });
     const { applicationId } = await context.params;
+    const existing = await getApplicantById(applicationId);
+    if (!existing) return NextResponse.json({ success: false, error: "Applicant not found." }, { status: 404 });
+    if (!passesDepartmentWall(user, existing.department)) {
+      return NextResponse.json({ success: false, error: "You do not have permission to edit applicants." }, { status: 403 });
+    }
     const input = applicantUpdateSchema.parse(await request.json());
     // Demo mode: protect real applicant records from presentation clicks.
     const blocked = await demoActionBlockReason(applicationId);
@@ -48,6 +53,11 @@ export async function DELETE(_request: Request, context: RouteContext) {
     if (!user) return NextResponse.json({ success: false, error: "Authentication required." }, { status: 401 });
     if (!canDeleteApplicant(user)) return NextResponse.json({ success: false, error: "You do not have permission to delete applicants." }, { status: 403 });
     const { applicationId } = await context.params;
+    const existing = await getApplicantById(applicationId);
+    if (!existing) return NextResponse.json({ success: false, error: "Applicant not found." }, { status: 404 });
+    if (!passesDepartmentWall(user, existing.department)) {
+      return NextResponse.json({ success: false, error: "You do not have permission to delete applicants." }, { status: 403 });
+    }
     // Demo mode: protect real applicant records from presentation clicks.
     const blocked = await demoActionBlockReason(applicationId);
     if (blocked) return NextResponse.json({ success: false, error: blocked }, { status: 503 });

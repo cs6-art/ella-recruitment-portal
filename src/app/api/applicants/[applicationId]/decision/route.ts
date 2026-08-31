@@ -8,6 +8,8 @@ import {
   type ApplicantDecision,
   type ApplicantDecisionStage,
 } from "@/lib/applicant-workflow";
+import { passesDepartmentWall } from "@/lib/access-control";
+import { getApplicantById } from "@/lib/candidate-applications";
 import { getPublicAppBaseUrl } from "@/lib/public-url";
 import { consumeRateLimit, rateLimitHeaders, requestClientKey } from "@/lib/rate-limit";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
@@ -35,6 +37,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ app
     }
 
     const applicationId = decodeURIComponent((await params).applicationId);
+    const applicant = await getApplicantById(applicationId);
+    if (!applicant) return NextResponse.json({ error: "Applicant not found." }, { status: 404 });
+    if (!passesDepartmentWall(user, applicant.department)) {
+      return NextResponse.json({ error: "You are not authorized to review applicants." }, { status: 403 });
+    }
     // Decisions are internal workflow state and remain available in demo mode.
     // Applicant-facing email/call/booking side effects are guarded downstream.
     const result = await recordApplicantDecision(

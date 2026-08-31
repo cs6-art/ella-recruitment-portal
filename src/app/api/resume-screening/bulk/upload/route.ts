@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { canManagePipeline } from "@/lib/access-control";
+import { canManagePipeline, canManageRolePipeline } from "@/lib/access-control";
 import { appendBulkResumeQueueEvent, getBulkResumeQueue, getBulkResumeScreeningEvidence, type BulkResumeQueueItem } from "@/lib/candidate-applications";
 import { extractResumeContactDetails } from "@/lib/resume-contact-extraction";
 import { getRoleRequestById, isPublishedRoleForIntake } from "@/lib/google-sheets";
@@ -88,6 +88,7 @@ export async function POST(request: Request) {
 
     const role = await getRoleRequestById(roleId);
     if (!role || !isPublishedRoleForIntake(role)) return responseError("The selected role is not available for bulk screening.", 409);
+    if (!canManageRolePipeline(user, role)) return responseError("Only HR reviewers can upload bulk resumes.", 403);
 
     // This is the duplicate gate for the portal endpoint. Bypass the short
     // process-local Sheets cache so a successful prior upload is not missed

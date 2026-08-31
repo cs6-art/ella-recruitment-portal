@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { canManagePipeline } from "@/lib/access-control";
+import { canManagePipeline, canManageRolePipeline } from "@/lib/access-control";
 import { sendApplicationInviteEmail } from "@/lib/application-invite-email";
 import { getRoleRequestById, isPublishedRoleForIntake } from "@/lib/google-sheets";
 import { getPublicAppBaseUrl } from "@/lib/public-url";
@@ -44,6 +44,9 @@ export async function POST(request: Request, context: { params: Promise<{ roleId
   const role = await getRoleRequestById(roleId);
   if (!role || !isPublishedRoleForIntake(role)) {
     return responseError("The selected role is not published for applications.", 409);
+  }
+  if (!canManageRolePipeline(user, role)) {
+    return responseError("Only HR reviewers can generate application links.", 403);
   }
 
   const parsed = bodySchema.safeParse(await request.json().catch(() => ({})));

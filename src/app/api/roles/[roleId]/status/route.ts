@@ -9,6 +9,7 @@ import {
   getRoleStatusHistory,
   updateRoleRequestFields,
 } from "@/lib/google-sheets";
+import { passesDepartmentWall } from "@/lib/access-control";
 import { generateRoleId } from "@/lib/role-id";
 import { invalidateSheetsCache } from "@/lib/sheets-cache";
 import {
@@ -184,6 +185,13 @@ export async function POST(
     const role = await getRoleRequestById(roleId, { fresh: true });
     if (!role) {
       return jsonError("Role request not found.", 404);
+    }
+
+    // Confidential-department wall: a role in a restricted department (or a
+    // reviewer who belongs to one) is scoped to that department regardless of
+    // company-wide review/approve rights. See access-control.ts.
+    if (!passesDepartmentWall(user, role.department)) {
+      return jsonError("You do not have permission to perform this action.", 403);
     }
 
     // The "create" permission tier (e.g. submitting a draft for HR review) is
