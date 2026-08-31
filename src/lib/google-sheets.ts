@@ -248,6 +248,9 @@ export const defaultPortalSettings: PortalSetting[] = [
   { key: "Booking_Default_Timezone", value: "Asia/Singapore", category: "Booking & Interview", description: "Timezone preselected when HR creates interview availability.", updatedAt: "", updatedBy: "" },
   { key: "Final_Interview_Calendar_Email", value: "hrsg@mclinkgroup.com", category: "Booking & Interview", description: "Google account used for every HR interview calendar check and booking event.", updatedAt: "", updatedBy: "" },
   { key: "Final_Interview_Calendar_ID", value: "primary", category: "Booking & Interview", description: "Google Calendar ID used for HR interviews. Use primary for the connected HR account's main calendar.", updatedAt: "", updatedBy: "" },
+  { key: "Final_Interview_Office_Address_SG", value: "51 Ubi Ave 1, #05-11 Paya Ubi Industrial Park, Singapore 408933", category: "Booking & Interview", description: "Office address used on the Google Calendar event for candidates whose mobile number is Singapore (+65). No floor/room number or arrival instructions are included by design.", updatedAt: "", updatedBy: "" },
+  { key: "Final_Interview_Office_Address_PH", value: "Unit 1803 Tycoon Building, Pearl Drive, Ortigas Center, Pasig City 1600, Philippines", category: "Booking & Interview", description: "Office address used on the Google Calendar event for candidates whose mobile number is Philippines (+63). No floor/room number or arrival instructions are included by design.", updatedAt: "", updatedBy: "" },
+  { key: "Final_Interview_Office_Address_MY", value: "Mount Austin, Johor Bahru, Johor, Malaysia", category: "Booking & Interview", description: "Office address used on the Google Calendar event for candidates whose mobile number is Malaysia (+60). No floor/room number or arrival instructions are included by design.", updatedAt: "", updatedBy: "" },
   { key: "Voice_Interview_Duration_Minutes", value: "10", category: "Booking & Interview", description: "Fixed duration for an AI Voice Interview slot.", updatedAt: "", updatedBy: "" },
   { key: "Final_Interview_Duration_Minutes", value: "60", category: "Booking & Interview", description: "Expected duration for an HR Interview slot.", updatedAt: "", updatedBy: "" },
   { key: "Booking_Link_Expiry_Days", value: "7", category: "Booking & Interview", description: "Number of days before a candidate booking link expires.", updatedAt: "", updatedBy: "" },
@@ -1407,6 +1410,26 @@ export async function getFinalInterviewCalendarConfig(): Promise<{ email: string
   const email = storedByKey.get("Final_Interview_Calendar_Email") || defaultPortalSettings.find((setting) => setting.key === "Final_Interview_Calendar_Email")?.value || "hrsg@mclinkgroup.com";
   const calendarId = storedByKey.get("Final_Interview_Calendar_ID") || defaultPortalSettings.find((setting) => setting.key === "Final_Interview_Calendar_ID")?.value || "primary";
   return { email: email.trim().toLowerCase(), calendarId: calendarId.trim() || "primary" };
+}
+
+// Country is inferred from the candidate's E.164 mobile number (see
+// inferApplicantCountry in applicant-workflow.ts: +63 PH, +65 SG, +60 MY —
+// the three countries applications are supported for). Falls back to the
+// Singapore address for any other/unrecognized country, since that is
+// McLink's primary office and the default final-interview calendar account
+// (hrsg@mclinkgroup.com) is Singapore-based.
+export async function getFinalInterviewOfficeAddress(country: string): Promise<string> {
+  const stored = await getPortalSettings();
+  const storedByKey = new Map(stored.map((setting) => [setting.key, setting.value.trim()]));
+  const key = country === "PH" ? "Final_Interview_Office_Address_PH"
+    : country === "MY" ? "Final_Interview_Office_Address_MY"
+    : "Final_Interview_Office_Address_SG";
+  const value = storedByKey.get(key) || defaultPortalSettings.find((setting) => setting.key === key)?.value || "";
+  if (value) return value;
+  // Guard against a setting being cleared to blank in the sheet — fall back
+  // to SG rather than sending a candidate a blank location.
+  const fallbackKey = "Final_Interview_Office_Address_SG";
+  return storedByKey.get(fallbackKey) || defaultPortalSettings.find((setting) => setting.key === fallbackKey)?.value || "";
 }
 
 export async function upsertPortalSettings(settings: PortalSetting[]): Promise<void> {

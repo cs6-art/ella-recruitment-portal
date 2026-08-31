@@ -1020,6 +1020,21 @@ export async function getApplicantById(id: string): Promise<ApplicantDetails | n
     field(voiceResult ?? {}, "Answer_Completeness", "Answer Completeness")
       || field(callLog ?? {}, "Answer_Completeness", "Answer Completeness"),
   );
+  const rawVoiceScore = field(voiceResult ?? {}, "Voice_Score", "Voice Score")
+    || field(callLog ?? {}, "Voice_Score", "Voice Score");
+  // The n8n evaluator ("Prepare Final Result") deliberately leaves the score
+  // blank when there is nothing gradable — no transcript, an unrelated
+  // transcript, or a call that ended before the applicant answered anything
+  // (see docs/N8N-WORKFLOW-INTERNALS.md, "Scoring guard"). Once the call is
+  // over, treat that blank as a hard 0 rather than "Awaiting AI evaluation":
+  // an applicant who could not answer any question did not score, and HR
+  // review plus downstream automation need a real number. A still-running
+  // evaluation (outcome "completed"/"interviewed" with no score yet) keeps
+  // the awaiting state.
+  const voiceOutcome = field(record, "Status 2 (Voice Interview)").toLowerCase();
+  const voiceInterviewEndedUngraded = !rawVoiceScore
+    && Boolean(voiceResult || callLog)
+    && /incomplete|no answer|no show|busy|wrong person|rejected|call back/.test(voiceOutcome);
 
   return {
     ...displaySummary,
@@ -1046,8 +1061,9 @@ export async function getApplicantById(id: string): Promise<ApplicantDetails | n
     // Voice_Interview_Results is canonical. The call log is a safe fallback
     // while the result workflow is retrying or when a provider webhook only
     // updated the audit log.
-    voiceScore: field(voiceResult ?? {}, "Voice_Score", "Voice Score") || field(callLog ?? {}, "Voice_Score", "Voice Score")
-      || (isGeneratedDemoRecord && summary.voiceStatus ? summary.matchScore : ""),
+    voiceScore: rawVoiceScore
+      || (isGeneratedDemoRecord && summary.voiceStatus ? summary.matchScore : "")
+      || (voiceInterviewEndedUngraded ? "0" : ""),
     voiceRecommendation: field(voiceResult ?? {}, "Voice_Recommendation", "Voice Recommendation") || field(callLog ?? {}, "Voice_Recommendation", "Voice Recommendation")
       || (isGeneratedDemoRecord && summary.voiceStatus ? summary.recommendation : ""),
     voiceSummary,

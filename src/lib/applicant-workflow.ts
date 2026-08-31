@@ -4,7 +4,7 @@ import { getGoogleServiceAccountPrivateKey } from "@/lib/google-service-account"
 import { z } from "zod";
 
 import { createFinalInterviewEvent, deleteFinalInterviewEvent, checkCalendarAvailability, getCalendarBusyWindows, type CalendarAvailabilityResult } from "@/lib/google-calendar";
-import { getFinalInterviewCalendarConfig, getRoleRequestById } from "@/lib/google-sheets";
+import { getFinalInterviewCalendarConfig, getFinalInterviewOfficeAddress, getRoleRequestById } from "@/lib/google-sheets";
 import { expandHodAvailabilitySlots, parseHodAvailabilitySlots, slotMatchesHodAvailability } from "@/lib/hod-availability";
 import { isValidTimezone, scheduledInstant } from "@/lib/interview-time";
 import { bookingLink } from "@/lib/public-url";
@@ -160,6 +160,7 @@ export type BookingContext = {
   timezone: string;
   appliedAt: string;
   preferredMobile: string;
+  applicantCountry: string;
   currentSlot?: BookingSlot;
   slots: BookingSlot[];
 };
@@ -648,6 +649,7 @@ export async function getBookingContext(kind: BookingKind, token: string): Promi
     roleId,
     bookingStatus: status,
     preferredMobile: field(row, "Preferred_Mobile", "Preferred Mobile", "Contact_Number", "Contact Number", "Phone"),
+    applicantCountry: field(row, "Applicant_Country", "Applicant Country"),
     scheduledDate,
     scheduledTime,
     timezone,
@@ -1070,7 +1072,12 @@ async function reserveBookingInternal(kind: BookingKind, token: string, slotId: 
       if (key === normalize("Role_ID")) return context.roleId;
       if (key === normalize("Voice_Call_Status")) return "Scheduled";
       if (key === normalize("Voice_Call_Attempts")) return "0";
-      if (key === normalize("Voice_Call_Max_Attempts")) return "1";
+      // 1-3 attempt retry flow: an unreachable call (No Answer/Busy) is now
+      // automatically re-queued up to this many times before handing off to
+      // HR (see "Prepare Final Result" in the n8n "Phase 5 - Scheduled Vapi
+      // Result Polling" workflow). Previously hardcoded to 1, which meant a
+      // single missed call left the applicant permanently stuck.
+      if (key === normalize("Voice_Call_Max_Attempts")) return "3";
       if (key === normalize("Voice_Call_Scheduled_At")) return scheduledAt;
       if (key === normalize("Last_Updated")) return now;
       return "";
@@ -1105,6 +1112,15 @@ async function reserveBookingInternal(kind: BookingKind, token: string, slotId: 
       { tab: "Interview_Slots", row: slotRow, header: "Interviewer_Email", value: interviewerEmail },
       { tab: "Interview_Slots", row: slotRow, header: "HOD_Name", value: interviewerName },
       { tab: "Interview_Slots", row: slotRow, header: "HOD_Email", value: interviewerEmail },
+    );
+    // Initialize (blank) so the column exists before the n8n "AI Final
+    // Interview Booking Confirmation" workflow's claim-tracking filter ever
+    // reads it. updateCells auto-creates a missing header column; doing that
+    // here rather than relying on n8n's own Sheets node to create it keeps
+    // column creation on the one code path already proven to do it safely.
+    updates.push(
+      { tab: "High_Match_Profile", row: applicantRow, header: "Final_Interview_Confirmation_Email_Sent", value: "" },
+      { tab: "High_Match_Profile", row: applicantRow, header: "Final_Interview_Confirmation_Email_Sent_Date", value: "" },
     );
   }
   await updateCells(updates);
@@ -1157,18 +1173,27 @@ async function reserveBookingInternal(kind: BookingKind, token: string, slotId: 
     // candidate's booking — this runs after updateCells and only logs.
     try {
       if (calendarHodEmail) {
+        // Prefer the stored Applicant_Country (set at application time); fall
+        // back to inferring PH/SG/MY from the confirmed mobile's dialing code.
+        const applicantCountry = (context.applicantCountry || "").trim().toUpperCase()
+          || inferApplicantCountry(context.preferredMobile);
+        const officeAddress = await getFinalInterviewOfficeAddress(applicantCountry);
         const result = await createFinalInterviewEvent({
           hodEmail: calendarHodEmail,
           summary: `HR Interview: ${context.candidateName} — ${context.selectedRole}`,
-          description: `HR interview for ${context.candidateName} (${context.applicationId}) applying for ${context.selectedRole}.\n\nCandidate email: ${context.email}`,
+          description: `HR interview for ${context.candidateName} (${context.applicationId}) applying for ${context.selectedRole}.\n\nCandidate email: ${context.email}${officeAddress ? `\n\nLocation: ${officeAddress}` : ""}`,
           date: field(matchingSlot, "Date"),
           startTime: field(matchingSlot, "Start_Time", "Start Time"),
           endTime: field(matchingSlot, "End_Time", "End Time"),
           timezone: field(matchingSlot, "Timezone", "Time Zone"),
           // Booking is already protected by the fixed demo cutoff and
-          // synthetic-record guard above. Invite the eligible applicant so
-          // Google Calendar sends the actual interview invitation.
+          // synthetic-record guard above. The candidate is still added as an
+          // attendee so the event appears on their calendar if they add it
+          // manually from the confirmation email, but createFinalInterviewEvent
+          // sends no Calendar auto-invite (sendUpdates: "none") — HR sends its
+          // own customized confirmation email with the office address instead.
           attendeeEmails: [context.email],
+          location: officeAddress || undefined,
         });
         const calendarUpdates: CellUpdate[] = result.created
           ? [

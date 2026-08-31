@@ -250,6 +250,7 @@ export type CalendarEventInput = {
   endTime: string; // HH:mm:ss
   timezone: string;
   attendeeEmails: string[];
+  location?: string;
 };
 
 export type CalendarEventResult =
@@ -278,10 +279,16 @@ export async function createFinalInterviewEvent(input: CalendarEventInput): Prom
     const end = scheduledInstant(input.date, input.endTime, input.timezone);
     const response = await calendar.events.insert({
       calendarId: target.calendarId,
-      sendUpdates: "all",
+      // sendUpdates is deliberately "none": the only attendee is the
+      // candidate (see call site), and Google Calendar's own invite email
+      // has no field for our office address. HR sends a separate, custom
+      // confirmation email that includes it instead — this just stops the
+      // Calendar auto-email from going out first and looking incomplete.
+      sendUpdates: "none",
       requestBody: {
         summary: input.summary,
         description: input.description,
+        location: input.location || undefined,
         start: { dateTime: start.toISOString(), timeZone: input.timezone },
         end: { dateTime: end.toISOString(), timeZone: input.timezone },
         attendees: input.attendeeEmails.map((email) => ({ email })),
