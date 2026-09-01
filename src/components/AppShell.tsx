@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 
 import UiIcon from "./UiIcon";
 import NotificationBell from "./NotificationBell";
+import { useNotificationFeed } from "./notification-feed";
 import { ConfirmationProvider } from "./ConfirmationModal";
 import styles from "./AppShell.module.css";
 
@@ -51,6 +52,10 @@ export default function AppShell({ user, children }: AppShellProps) {
   // The notification feed covers applicant/screening/interview activity, so it
   // follows the same audience as the Applicants view.
   const showNotifications = showApplicants;
+  // Mirror the header bell's unread count as a badge on the Applicants nav item
+  // (the feed hook shares one cache, so this adds no extra polling).
+  const { unreadCount } = useNotificationFeed();
+  const applicantsBadge = unreadCount > 9 ? "9+" : String(unreadCount);
   const isDashboard = pathname === "/dashboard";
   const isRoleList = pathname === "/roles";
   const isRoleCreate = pathname === "/roles/new";
@@ -99,7 +104,7 @@ export default function AppShell({ user, children }: AppShellProps) {
           {showRoleRequests && <Link href="/roles" onClick={closeSidebar} className={`${styles.navLink} ${isRoleList || isRoleDetails || isRoleCreate ? styles.navLinkActive : ""}`}><span className={styles.navIcon}><UiIcon name="roles" /></span><span>Role Requests</span></Link>}
           {showOperationalTools && <Link href="/resume-screening" onClick={closeSidebar} className={`${styles.navLink} ${isResumeScreening ? styles.navLinkActive : ""}`}><span className={styles.navIcon}><UiIcon name="document" /></span><span>Resume Screening</span></Link>}
           {(showApplicants || showOperationalTools) && <div className={styles.applicantBookingGroup}>
-            {showApplicants && <Link href="/applicants" onClick={closeSidebar} className={`${styles.navLink} ${isApplicants ? styles.navLinkActive : ""}`}><span className={styles.navIcon}><UiIcon name="applicants" /></span><span>Applicants</span></Link>}
+            {showApplicants && <Link href="/applicants" onClick={closeSidebar} className={`${styles.navLink} ${isApplicants ? styles.navLinkActive : ""}`}><span className={styles.navIcon}><UiIcon name="applicants" /></span><span>Applicants</span>{unreadCount > 0 && <span className={styles.navBadge} aria-label={`${unreadCount} unread notifications`}>{applicantsBadge}</span>}</Link>}
             <button type="button" className={styles.collapseButton} onClick={() => setSidebarCollapsed((current) => !current)} aria-label={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"} aria-expanded={!sidebarCollapsed}><UiIcon name={sidebarCollapsed ? "chevron-right" : "chevron-left"} /></button>
             {showOperationalTools && <Link href="/bookings" onClick={closeSidebar} className={`${styles.navLink} ${isBookings ? styles.navLinkActive : ""}`}><span className={styles.navIcon}><UiIcon name="calendar" /></span><span>Bookings</span></Link>}
           </div>}
