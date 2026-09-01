@@ -4745,6 +4745,12 @@ textarea:focus-visible {
 .applicants-table tbody tr.is-selected:hover { background: #e3f0fc; }
 .roles-table tbody tr.is-selected { background: #eaf4ff; box-shadow: inset 3px 0 0 var(--blue); }
 .roles-table tbody tr.is-selected:hover { background: #e3f0fc; }
+/* Unread "new applicant" rows: a warm left marker + tint that persists until
+   the profile is opened or the notification is marked read. */
+.applicants-table tbody tr.is-new-applicant { background: #fff7ec; box-shadow: inset 3px 0 0 #e8912f; }
+.applicants-table tbody tr.is-new-applicant:hover { background: #fdefdc; }
+.applicants-table tbody tr.is-new-applicant.is-selected { background: #eef4ff; box-shadow: inset 3px 0 0 var(--blue); }
+.applicant-new-pill { display: inline-grid; place-items: center; margin-left: 7px; padding: 1px 7px; border-radius: 999px; background: #e8912f; color: #fff; font-size: 9px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; vertical-align: middle; }
 .applicants-table th, .applicants-table td { padding-top: 12px; padding-bottom: 12px; }
 .applicants-table .applicant-table-actions { gap: 7px; }
 .applicants-table .applicant-table-actions a, .applicants-table .applicant-table-actions .table-danger-action { min-height: 30px; padding: 6px 9px; }
