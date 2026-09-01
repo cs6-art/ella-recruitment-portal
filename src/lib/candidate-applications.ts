@@ -7,6 +7,7 @@ import { isDemoMode, isDemoWindowRecord } from "@/lib/demo-mode";
 import { getRoleRequestById, type RoleRequestDetails } from "@/lib/google-sheets";
 import { evaluationFieldsForSetup, type EvaluationField } from "@/lib/recruitment-setup-schema";
 import { normalizeInterviewQuestionCount } from "@/lib/interview-question-count";
+import type { NotificationSourceRow } from "@/lib/notifications";
 
 export {
   getCandidateStatusHistory,
@@ -613,6 +614,33 @@ export async function getApplicantMetrics(): Promise<ApplicantMetrics> {
   // dashboard metrics read-only so the dashboard does not wait on that work.
   const rows = withDemoHistory((await readTab("High_Match_Profile", "CZ")).rows);
   return calculateApplicantMetrics(rows.filter((record) => applicationId(record) !== ""));
+}
+
+/**
+ * Raw applicant fields the in-app notification feed is derived from. Uses the
+ * short-lived cache (not a fresh read) — the bell is polled and does not need
+ * sub-20-second freshness. `department` is included so the caller can apply
+ * `filterVisibleApplicants` before building notifications.
+ */
+export async function getNotificationSourceRows(): Promise<NotificationSourceRow[]> {
+  const live = withDemoApplicantList((await readTab("High_Match_Profile", "CZ")).rows);
+  return live
+    .filter((record) => applicationId(record) !== "")
+    .map((record) => ({
+      applicationId: applicationId(record),
+      candidateName: field(record, "Candidate_Name", "Candidate Name", "Name"),
+      roleId: field(record, "Role_ID", "Role ID"),
+      roleLabel: field(record, "Selected_Role", "Selected Role", "Role") || field(record, "Role_ID", "Role ID"),
+      department: field(record, "Department"),
+      dateOfApplication: field(record, "Date_of_Application", "Date of Application", "Applied_At", "Applied At", "Submitted_At", "Submitted At", "Created_At", "Created At"),
+      lastUpdated: field(record, "Last_Updated", "Last Updated"),
+      resumeStatus: field(record, "Status (Resume Processing)"),
+      recommendation: field(record, "Recommendation"),
+      voiceStatus: field(record, "Status 2 (Voice Interview)"),
+      voiceHrDecision: field(record, "Voice_HR_Decision"),
+      finalStatus: field(record, "Final_Status"),
+      finalScheduledDate: field(record, "Final_Interview_Scheduled_Date"),
+    }));
 }
 
 export async function getInterviewBookings(): Promise<InterviewBooking[]> {

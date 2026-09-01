@@ -52,7 +52,18 @@
 .signOutButton:disabled { cursor: wait; opacity: .65; }
 .main { min-width: 0; min-height: 100vh; margin-left: 252px; }
 .mainCollapsed { margin-left: 76px; }
+.appTopBar {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 10px var(--portal-content-padding, clamp(16px, 2.5vw, 36px)) 0;
+  background: linear-gradient(#f5f7fa 70%, rgba(245, 247, 250, 0));
+}
 .mobileHeader { display: none; }
+.mobileHeaderActions { display: inline-flex; align-items: center; gap: 10px; }
 .pageToolbar { width: 100%; max-width: var(--portal-content-max-width, 1680px); box-sizing: border-box; margin: 0 auto; padding: 18px var(--portal-content-padding, clamp(16px, 2.5vw, 36px)) 0; }
 .navLink:focus-visible, .profileButton:focus-visible, .signOutButton:focus-visible, .menuButton:focus-visible { outline: 3px solid rgba(0, 113, 247, .28); outline-offset: 2px; }
 .content {
@@ -111,6 +122,7 @@
   .sidebarCollapsed .signOutButton { padding-inline: 12px; }
   .main { margin-left: 0; }
   .content { padding-inline: 16px; }
+  .appTopBar { display: none; }
   .mobileHeader { position: sticky; top: 0; z-index: 70; display: flex; min-height: 64px; align-items: center; justify-content: space-between; gap: 12px; padding: 0 16px; border-bottom: 1px solid #dfe5ec; background: rgba(255, 255, 255, .96); box-shadow: 0 2px 10px rgba(14, 68, 113, .05); backdrop-filter: blur(10px); }
   .mobileBrand { display: inline-flex; min-width: 0; align-items: center; gap: 9px; color: #0e4471; font-size: 14px; text-decoration: none; }
   .mobileBrand .brandIcon { width: 34px; height: 34px; flex-basis: 34px; font-size: 16px; }

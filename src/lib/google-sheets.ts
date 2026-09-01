@@ -1475,3 +1475,95 @@ export async function upsertPortalSettings(settings: PortalSetting[]): Promise<v
   invalidateSheetsCache("Settings");
 }
 
+// ---------------------------------------------------------------------------
+// In-app notification read markers
+//
+// The notification feed itself is derived on read (see lib/notifications.ts);
+// the only stored state is one row per user recording when they last cleared
+// everything and which individual items they dismissed. Kept in the portal
+// spreadsheet alongside Settings / User_Directory. The tab is created on first
+// write so no manual setup is required.
+// ---------------------------------------------------------------------------
+
+const NOTIFICATION_READS_TAB = "Notification_Reads";
+const NOTIFICATION_READS_HEADERS = ["Email", "Last_Read_All_At", "Read_Ids", "Updated_At"];
+
+export type StoredNotificationReadState = { lastReadAllAt: string; readIds: string[] };
+
+function normalizeEmail(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+async function readNotificationReadRows(): Promise<string[][]> {
+  return cachedSheetsRead(`${NOTIFICATION_READS_TAB}:D:${spreadsheetId}`, async () => {
+    try {
+      const response = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: `${NOTIFICATION_READS_TAB}!A1:D`,
+      });
+      return (response.data.values ?? []) as string[][];
+    } catch {
+      // Tab not created yet — treat every user as having no read markers.
+      return [] as string[][];
+    }
+  });
+}
+
+export async function getNotificationReadState(email: string): Promise<StoredNotificationReadState> {
+  const rows = await readNotificationReadRows();
+  const target = normalizeEmail(email);
+  const match = rows.slice(1).find((row) => normalizeEmail(toText(row[0])) === target);
+  if (!match) return { lastReadAllAt: "", readIds: [] };
+  const readIds = toText(match[2]).split("\n").map((value) => value.trim()).filter(Boolean);
+  return { lastReadAllAt: toText(match[1]), readIds };
+}
+
+async function ensureNotificationReadsTab(): Promise<void> {
+  try {
+    await sheets.spreadsheets.values.get({ spreadsheetId, range: `${NOTIFICATION_READS_TAB}!A1:D1` });
+    return;
+  } catch {
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId,
+      requestBody: { requests: [{ addSheet: { properties: { title: NOTIFICATION_READS_TAB } } }] },
+    });
+  }
+  await sheets.spreadsheets.values.update({
+    spreadsheetId,
+    range: `${NOTIFICATION_READS_TAB}!A1:D1`,
+    valueInputOption: "RAW",
+    requestBody: { values: [NOTIFICATION_READS_HEADERS] },
+  });
+}
+
+export async function saveNotificationReadState(email: string, state: StoredNotificationReadState): Promise<void> {
+  await ensureNotificationReadsTab();
+  const response = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: `${NOTIFICATION_READS_TAB}!A1:D`,
+  });
+  const rows = (response.data.values ?? []) as string[][];
+  const target = normalizeEmail(email);
+  const rowIndex = rows.slice(1).findIndex((row) => normalizeEmail(toText(row[0])) === target);
+  const record = [email.trim(), state.lastReadAllAt, state.readIds.join("\n"), new Date().toISOString()];
+
+  if (rowIndex === -1) {
+    await sheets.spreadsheets.values.append({
+      spreadsheetId,
+      range: `${NOTIFICATION_READS_TAB}!A:D`,
+      valueInputOption: "RAW",
+      insertDataOption: "INSERT_ROWS",
+      requestBody: { values: [record] },
+    });
+  } else {
+    const sheetRow = rowIndex + 2; // header on row 1, data from row 2
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: `${NOTIFICATION_READS_TAB}!A${sheetRow}:D${sheetRow}`,
+      valueInputOption: "RAW",
+      requestBody: { values: [record] },
+    });
+  }
+  invalidateSheetsCache(NOTIFICATION_READS_TAB);
+}
+

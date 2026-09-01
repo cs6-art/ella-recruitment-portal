@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import UiIcon from "./UiIcon";
+import NotificationBell from "./NotificationBell";
 import { ConfirmationProvider } from "./ConfirmationModal";
 import styles from "./AppShell.module.css";
 
@@ -47,6 +48,9 @@ export default function AppShell({ user, children }: AppShellProps) {
   // read-only) do not manage the pipeline, so they don't see these.
   const showOperationalTools = user.canReviewRole === true;
   const showApplicants = user.canReviewRole === true || user.canApproveRole === true || user.canReviewDepartmentRole === true;
+  // The notification feed covers applicant/screening/interview activity, so it
+  // follows the same audience as the Applicants view.
+  const showNotifications = showApplicants;
   const isDashboard = pathname === "/dashboard";
   const isRoleList = pathname === "/roles";
   const isRoleCreate = pathname === "/roles/new";
@@ -122,7 +126,8 @@ export default function AppShell({ user, children }: AppShellProps) {
       </aside>
 
       <div className={`${styles.main} ${sidebarCollapsed ? styles.mainCollapsed : ""}`}>
-        <header className={styles.mobileHeader}><Link href="/dashboard" className={styles.mobileBrand} onClick={closeSidebar}><span className={styles.brandIcon}>M</span><strong>McLink Recruitment Portal</strong></Link><button type="button" className={styles.menuButton} onClick={() => setSidebarOpen(true)} aria-expanded={sidebarOpen} aria-controls="portal-navigation"><UiIcon name="menu" /><span>Menu</span></button></header>
+        {showNotifications && <div className={styles.appTopBar}><NotificationBell /></div>}
+        <header className={styles.mobileHeader}><Link href="/dashboard" className={styles.mobileBrand} onClick={closeSidebar}><span className={styles.brandIcon}>M</span><strong>McLink Recruitment Portal</strong></Link><div className={styles.mobileHeaderActions}>{showNotifications && <NotificationBell />}<button type="button" className={styles.menuButton} onClick={() => setSidebarOpen(true)} aria-expanded={sidebarOpen} aria-controls="portal-navigation"><UiIcon name="menu" /><span>Menu</span></button></div></header>
         {!isDashboard && !isRoleRequestArea && !isApplicantDetail && <div className={styles.pageToolbar}><Link href="/dashboard" className="portal-back-button" aria-label="Back to Dashboard"><UiIcon name="arrow-left" />Back to Dashboard</Link></div>}
         <div className={styles.content}>{children}</div>
       </div>

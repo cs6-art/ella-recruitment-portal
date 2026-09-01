@@ -14,3 +14,8 @@ Required tabs:
 - `Settings.csv`
 - `Role_AI_Settings.csv`
 - `Recruitment_Templates.csv`
+
+Optional tabs (auto-created by the portal on first write, template provided for
+reference):
+
+- `Notification_Reads.csv` — per-user in-app notification read markers
