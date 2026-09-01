@@ -305,7 +305,7 @@ export default function BulkResumeScreeningPanel({ roleOptions, driveUrl }: { ro
             {files.map((file) => (
               <span key={`${file.name}-${file.size}-${file.lastModified}`} className="bulk-screening-file-chip">
                 {file.name}
-                <button type="button" aria-label={`Remove ${file.name}`} disabled={uploading} onClick={() => removeFile(file)}>×</button>
+                <button type="button" aria-label={`Remove ${file.name}`} disabled={uploading} onClick={() => removeFile(file)}>&#x2715;</button>
               </span>
             ))}
           </div>

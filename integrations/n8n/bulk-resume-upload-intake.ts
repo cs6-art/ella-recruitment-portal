@@ -94,13 +94,16 @@ const name = String(data.candidate_name || data.candidateName || base.candidateN
 const email = String(data.candidate_email || data.candidateEmail || base.candidateEmail || firstEmail).trim().toLowerCase();
 const rawMobile = String(data.preferred_mobile || data.preferredMobile || base.preferredMobile || '').trim();
 const mobile = normalizePhone(rawMobile) || firstPhone;
-return { json: { ...base, candidateName: name, candidateEmail: email, preferredMobile: mobile, applicantCountry: country, valid: Boolean(name && email.includes('@') && /^\\+[1-9]\\d{7,14}$/.test(mobile)) } };` },
+// A missing or non-international phone number no longer blocks screening - the
+// Candidate Application Foundation workflow accepts a blank phone. Only a name
+// and a plausible email are required to open a candidate record.
+return { json: { ...base, candidateName: name, candidateEmail: email, preferredMobile: mobile, applicantCountry: country, valid: Boolean(name && email.includes('@')) } };` },
     position: [1920, 300],
   },
   output: [{ queueId: 'BULK-example', roleId: 'AC01', candidateName: 'Alex Chen', candidateEmail: 'alex@example.com', preferredMobile: '+639171234567', applicantCountry: 'PH', valid: true, resumeText: 'Candidate resume text...' }],
 });
 const validCandidate = ifElse({ version: 2.3, config: { name: 'Candidate Details Valid', parameters: { conditions: { options: { caseSensitive: false, leftValue: '', typeValidation: 'strict' }, conditions: [{ leftValue: expr('{{ $json.valid }}'), operator: { type: 'boolean', operation: 'true' }, rightValue: true }], combinator: 'and' } }, position: [2200, 300] } });
-const missing = node({ type: 'n8n-nodes-base.code', version: 2, config: { name: 'Prepare Candidate Details Failure', parameters: { mode: 'runOnceForEachItem', language: 'javaScript', jsCode: `return { json: { ...$json, status: 'Failed', errorMessage: 'Candidate name, email, or international mobile number was not found in the resume.', lastUpdated: new Date().toISOString() } };` }, position: [2480, 520] }, output: [{ queueId: 'BULK-example', roleId: 'AC01', status: 'Failed', errorMessage: 'Candidate details missing' }] });
+const missing = node({ type: 'n8n-nodes-base.code', version: 2, config: { name: 'Prepare Candidate Details Failure', parameters: { mode: 'runOnceForEachItem', language: 'javaScript', jsCode: `return { json: { ...$json, status: 'Failed', errorMessage: 'A candidate name and email could not be found in the resume.', lastUpdated: new Date().toISOString() } };` }, position: [2480, 520] }, output: [{ queueId: 'BULK-example', roleId: 'AC01', status: 'Failed', errorMessage: 'Candidate details missing' }] });
 const saveMissing = node({ type: 'n8n-nodes-base.googleSheets', version: 4.7, config: { name: 'Record Candidate Details Failure', parameters: queueParameters, credentials: queueCredentials, retryOnFail: true, maxTries: 5, waitBetweenTries: 5000, position: [2760, 520] }, output: [{ queueId: 'BULK-example', roleId: 'AC01', status: 'Failed' }] });
 
 const submit = node({
