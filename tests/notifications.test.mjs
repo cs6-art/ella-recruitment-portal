@@ -49,13 +49,11 @@ test("applications older than the lookback window are dropped", () => {
   assert.equal(notifications.length, 0);
 });
 
-test("a screened resume with a recommendation is surfaced", () => {
+test("a screened resume does not produce a notification", () => {
   const notifications = deriveNotifications([
     row({ resumeStatus: "For HR Review", recommendation: "Proceed to voice interview", lastUpdated: hoursAgo(1) }),
   ], NOW);
-  const screened = notifications.find((n) => n.type === "resume_screened");
-  assert.ok(screened);
-  assert.match(screened.message, /Proceed to voice interview/);
+  assert.ok(!notifications.some((n) => n.type === "resume_screened"));
 });
 
 test("a completed voice interview awaiting a decision is voice_review, not voice_completed", () => {

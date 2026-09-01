@@ -12,7 +12,6 @@
 
 export type PortalNotificationType =
   | "applicant_new"
-  | "resume_screened"
   | "voice_completed"
   | "voice_review"
   | "final_booked"
@@ -63,7 +62,6 @@ export const MAX_NOTIFICATIONS = 60;
 /** Cap the per-user dismissed-id list so the sheet cell cannot grow forever. */
 export const MAX_READ_IDS = 400;
 
-const RESUME_SCREENED_STATUSES = new Set(["processed", "for hr review", "pending hr review"]);
 const VOICE_DONE_STATUSES = new Set(["interviewed", "completed"]);
 const HR_REVIEW_FINAL_STATUS = /for hr review|awaiting hr|needs hr review/i;
 
@@ -129,13 +127,6 @@ export function deriveNotifications(
     push(row, "applicant_new", "New applicant",
       `${name} applied for ${role}.`,
       firstTime(row.dateOfApplication));
-
-    const resumeStatus = row.resumeStatus.trim().toLowerCase();
-    if (RESUME_SCREENED_STATUSES.has(resumeStatus) && row.recommendation.trim()) {
-      push(row, "resume_screened", "Resume screened",
-        `${name} — ${row.recommendation.trim()}.`,
-        firstTime(row.lastUpdated, row.dateOfApplication));
-    }
 
     const voiceStatus = row.voiceStatus.trim().toLowerCase();
     const voiceDone = VOICE_DONE_STATUSES.has(voiceStatus) || voiceStatus.includes("interview completed");
