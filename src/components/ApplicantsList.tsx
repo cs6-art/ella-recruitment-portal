@@ -178,7 +178,7 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
   const voiceCount = activeApplicants.filter((applicant) => applicant.voiceStatus || applicant.finalStatus.toLowerCase().includes("voice")).length;
   const finalInterviewCount = activeApplicants.filter((applicant) => applicant.finalInterviewStatus && applicant.finalInterviewStatus.toLowerCase() !== "pending").length;
   const summaryTotal = historyMetrics?.total ?? activeApplicants.length;
-  const summaryScreened = historyMetrics?.screened ?? activeApplicants.filter((applicant) => ["processed", "for hr review", "pending hr review"].includes(applicant.resumeStatus.trim().toLowerCase())).length;
+  const summaryScreened = historyMetrics?.screened ?? activeApplicants.filter((applicant) => ["processed", "for hr review", "pending hr review", "rejected"].includes(applicant.resumeStatus.trim().toLowerCase())).length;
   const summaryVoice = historyMetrics?.voiceActivity ?? voiceCount;
   const summaryHr = historyMetrics?.hrActivity ?? finalInterviewCount;
   // Keep the pipeline headline aligned with the history-backed summary. Demo

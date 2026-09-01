@@ -484,9 +484,10 @@ export function calculateApplicantMetrics(rows: SheetRow[], now = new Date(), ti
 
     result.total += 1;
     if (calendarDate(field(record, "Date_of_Application", "Date of Application"), timeZone) === today) result.today += 1;
-    // Treat every completed resume handoff as screened, including the
-    // normalized HR-review label used by the bulk and public workflows.
-    if (["processed", "for hr review", "pending hr review"].includes(resumeStatus)) result.screened += 1;
+    // Treat every completed resume decision as screened: the HR-review labels
+    // used by the bulk and public workflows, plus resume-stage rejections,
+    // which are a finished screening outcome and not a still-pending row.
+    if (["processed", "for hr review", "pending hr review", "rejected"].includes(resumeStatus)) result.screened += 1;
     if (voiceStatus === "interviewed" || voiceStatus === "completed") result.interviewed += 1;
     if (voiceStatus !== "" && !["pending", "not started"].includes(voiceStatus)) result.voiceActivity += 1;
     const finalInterviewStatus = field(record, "Status 3 (Final Interview)").toLowerCase();
