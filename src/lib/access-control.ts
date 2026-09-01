@@ -2,12 +2,12 @@ import type { RoleRequestDetails, RoleRequestSummary } from "@/lib/google-sheets
 import type { SessionUser } from "@/lib/session";
 
 /**
- * Confidential departments form a two-way wall: their role requests and
- * applicants are visible only to users who belong to the same department, and
- * users who belong to a confidential department see only their own department's
- * work — even when their access role otherwise grants company-wide visibility
- * (HR, Management, Admin). Kept here, with no value imports, so this module
- * stays independently unit-testable.
+ * Confidential departments form a one-way wall: their role requests and
+ * applicants are visible only to users who belong to the same department.
+ * Belonging to a confidential department does not, on its own, narrow a user's
+ * view of everyone else's work — a company-wide access role (HR, Management,
+ * Admin) still applies to non-confidential departments. Kept here, with no
+ * value imports, so this module stays independently unit-testable.
  */
 export const RESTRICTED_DEPARTMENTS = ["AI"] as const;
 
@@ -30,13 +30,13 @@ function sameDepartment(user: Pick<SessionUser, "department">, department: strin
   return Boolean(userDepartment) && userDepartment === department.trim().toLowerCase();
 }
 
-// Confidential-department wall, enforced on top of every tier. It runs in both
-// directions: if the record's department is confidential, only same-department
-// users pass; if the *viewer's* department is confidential, they pass only for
-// their own department's records — regardless of company-wide review/approve
-// rights. See RESTRICTED_DEPARTMENTS above.
+// Confidential-department wall, enforced on top of every tier. It is one-way:
+// if the *record's* department is confidential, only same-department users
+// pass. A confidential-department user is not otherwise restricted here — their
+// access tier still governs every non-confidential department's work. See
+// RESTRICTED_DEPARTMENTS above.
 export function passesDepartmentWall(user: Pick<SessionUser, "department">, department: string): boolean {
-  if (isRestrictedDepartment(department) || isRestrictedDepartment(user.department)) {
+  if (isRestrictedDepartment(department)) {
     return sameDepartment(user, department);
   }
   return true;

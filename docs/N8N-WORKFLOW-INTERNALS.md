@@ -79,9 +79,14 @@ matches on `Booking_Token_Hash`.
 
 ## 2. AI Voice Interview Booking Invitations — `yKb9DvRNahvGAcRO`
 
-**Trigger**: schedule, every 2 minutes. 14 nodes. Active.
+**Trigger**: schedule, every 5 minutes. 14 nodes. Active.
 Self-description: "Retries stale voice interview invitation sends and emails
 approved candidates a secure production booking link."
+
+All five Google Sheets nodes retry on failure (5 tries, 5s apart); the two
+completion writers (`Mark Invitation Complete`, `Record Invitation Error`) also
+`onError: continueRegularOutput` so a persistent `sheets.googleapis.com` quota
+error can no longer abort the run mid-batch and strand a row at `Sending`.
 
 **Flow**
 1. Read `High_Match_Profile` → **Filter Invitation Applicants**: demo-safety
@@ -89,11 +94,15 @@ approved candidates a secure production booking link."
    `Voice_Interview_Booking_Status = Awaiting Booking System`,
    `Booking_Token_Status = Active`, token present and not expired, valid email,
    and `Voice_Interview_Invitation_Sent ∈ {'', Pending, Error}` **or**
-   `Sending` older than 5 minutes (stale-send retry).
+   `Sending` older than 30 minutes (stale-send retry). Any row that already has
+   a `Voice_Interview_Booking_Link` is skipped outright — the invite email
+   definitely went out, so it must never be resent.
 2. `splitInBatches` → `Voice_Interview_Invitation_Sent = Sending` (+ date) →
    re-read row → **Prepare Booking Invitation**: if already booked
    (`Voice_Interview_Scheduled_Date` set or status `booked`) short-circuit with
-   `invitation_error = ALREADY_BOOKED`; otherwise build
+   `invitation_error = ALREADY_BOOKED`; if the row is already `Yes` or already
+   carries a booking link, short-circuit with `invitation_error = ALREADY_SENT`
+   (idempotency guard against a stale read); otherwise build
    `booking_url = https://ella-recruitment.mclinkgroup.com/book/voice/<token>`.
 3. Guard passed → **Send AI Voice Interview Invitation** (Gmail account 4).
    Subject "Schedule your AI voice interview with McLink Group". HTML body has
@@ -103,7 +112,9 @@ approved candidates a secure production booking link."
    `Voice_Interview_Invitation_Sent = Yes`. On failure
    `Voice_Interview_Invitation_Sent = Error` + `Booking_Error`. The
    `ALREADY_BOOKED` case instead flips the row to `Booked` /
-   `Booking_Token_Status = Used` and clears the error.
+   `Booking_Token_Status = Used` and clears the error; the `ALREADY_SENT` case
+   flips `Voice_Interview_Invitation_Sent = Yes` and clears the error without
+   sending anything.
 
 ---
 

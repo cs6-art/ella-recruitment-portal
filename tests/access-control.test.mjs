@@ -98,9 +98,8 @@ test("filterVisibleApplicants and canViewApplicant apply the same department sco
   assert.equal(canViewApplicant(hod, { department: "Finance" }), false);
 });
 
-test("confidential department (AI) forms a two-way wall over every tier", () => {
+test("confidential department (AI) forms a one-way wall protecting AI records", () => {
   const aiHr = user({ canCreateRole: true, canReviewRole: true, department: "AI" });
-  const aiManagement = user({ canApproveRole: true, department: "AI" });
   const aiRole = { requesterEmail: "someone-else@mclinkgroup.com", department: "AI", status: "Pending HR Discussion" };
   const financeRole = { requesterEmail: "someone-else@mclinkgroup.com", department: "Finance", status: "Pending HR Discussion" };
 
@@ -110,14 +109,18 @@ test("confidential department (AI) forms a two-way wall over every tier", () => 
   assert.equal(canViewApplicant(hr, { department: "AI" }), false);
   assert.deepEqual(filterVisibleRoles([aiRole, financeRole], hr), [financeRole]);
 
-  // Inbound wall: an AI reviewer is scoped to AI only, despite company-wide rights.
+  // One-way: an AI reviewer still sees AI work AND every other department's
+  // work their company-wide tier already grants.
   assert.equal(canViewRole(aiHr, aiRole), true);
-  assert.equal(canViewRole(aiHr, financeRole), false);
-  assert.equal(canViewRole(aiManagement, financeRole), false);
-  assert.deepEqual(filterVisibleRoles([aiRole, financeRole], aiHr), [aiRole]);
-  assert.deepEqual(filterVisibleApplicants([{ department: "AI", id: 1 }, { department: "Finance", id: 2 }], aiHr), [{ department: "AI", id: 1 }]);
+  assert.equal(canViewRole(aiHr, financeRole), true);
+  assert.deepEqual(filterVisibleRoles([aiRole, financeRole], aiHr), [aiRole, financeRole]);
+  assert.deepEqual(
+    filterVisibleApplicants([{ department: "AI", id: 1 }, { department: "Finance", id: 2 }], aiHr),
+    [{ department: "AI", id: 1 }, { department: "Finance", id: 2 }],
+  );
 
   // Non-confidential departments are unaffected.
   assert.equal(passesDepartmentWall(hr, "Finance"), true);
   assert.equal(passesDepartmentWall(management, "IT"), true);
+  assert.equal(passesDepartmentWall(aiHr, "Finance"), true);
 });
