@@ -33,7 +33,13 @@ type FormState = {
   resumeRoleId: string;
 };
 
-const maxResumeFileBytes = 10 * 1024 * 1024;
+// Vercel caps a serverless function's entire request body at ~4.5 MB and
+// rejects anything larger at the edge with a plain-text "Request Entity Too
+// Large" before our route runs. Keep the resume comfortably under that so the
+// multipart overhead (form fields + boundaries) still fits and the applicant
+// gets a real validation message instead of a broken JSON-parse error.
+const maxResumeFileBytes = 4 * 1024 * 1024;
+const maxResumeFileLabel = "4 MB";
 // Keep client-side MIME checks aligned with server signature and extractor
 // checks, including legacy binary Word documents.
 const resumeMimeTypes = new Set([
@@ -42,6 +48,21 @@ const resumeMimeTypes = new Set([
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "application/octet-stream",
 ]);
+
+// Infra in front of the route (Vercel edge, gateways) can answer with a
+// plain-text or HTML body — e.g. "Request Entity Too Large". Parsing that as
+// JSON unconditionally surfaced a cryptic "Unexpected token ... is not valid
+// JSON" as the submission error, so tolerate a non-JSON body here.
+async function readJsonResponse(response: Response): Promise<Record<string, unknown>> {
+  const text = await response.text().catch(() => "");
+  if (!text) return {};
+  try {
+    const parsed = JSON.parse(text);
+    return parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
+}
 
 function cleanDigits(value: string) {
   return value.replace(/\D/g, "");
@@ -136,13 +157,13 @@ export default function CandidateApplicationForm({
     if (!file) return;
     const extension = file.name.toLowerCase().split(".").pop();
     if (!extension || !["pdf", "doc", "docx"].includes(extension) || !resumeMimeTypes.has(file.type || "application/octet-stream")) {
-      setFieldErrors((current) => ({ ...current, resumeFile: "Choose a valid PDF, DOC, or DOCX resume file." }));
-      setError("The selected resume file is not supported.");
+      setFieldErrors((current) => ({ ...current, resumeFile: "Please upload a PDF, DOC, or DOCX file." }));
+      setError("That file type is not accepted. Please upload your resume as a PDF, DOC, or DOCX file.");
       return;
     }
     if (file.size > maxResumeFileBytes) {
-      setFieldErrors((current) => ({ ...current, resumeFile: "Resume files must be 10 MB or smaller." }));
-      setError("The selected resume file is too large.");
+      setFieldErrors((current) => ({ ...current, resumeFile: `Please upload a file that is ${maxResumeFileLabel} or smaller.` }));
+      setError(`Your resume file is too big. Please upload a file that is ${maxResumeFileLabel} or smaller.`);
       return;
     }
     setResumeFile(file);
@@ -180,10 +201,17 @@ export default function CandidateApplicationForm({
       if (resumeFile) body.append("resumeFile", resumeFile, resumeFile.name);
 
       const response = await fetch(submitUrl, { method: "POST", body });
-      const result = await response.json();
-      if (!response.ok || result.success !== true) throw new Error(result.error || "Unable to submit application.");
+      const result = await readJsonResponse(response);
+      if (!response.ok || result.success !== true) {
+        if (response.status === 413 || response.status === 0) {
+          throw new Error(`Your resume file is too big to send. Please upload a file that is ${maxResumeFileLabel} or smaller and try again.`);
+        }
+        if (typeof result.error === "string" && result.error) throw new Error(result.error);
+        throw new Error("Something went wrong while sending your application, and it was not received. Please wait a moment and try again. If it keeps happening, contact the recruiter who sent you this link.");
+      }
 
-      setMessage(result.message || `Application submitted. Application ID: ${result.applicationId}`);
+      const successMessage = typeof result.message === "string" && result.message ? result.message : "";
+      setMessage(successMessage || `Application submitted. Application ID: ${String(result.applicationId ?? "")}`);
       setForm({ candidateName: "", email: "", countryCode: "+63", localContactNumber: "", resumeRoleId: roleId || "" });
       setResumeFile(null);
       setFileInputKey((value) => value + 1);
@@ -192,7 +220,17 @@ export default function CandidateApplicationForm({
       if (successRedirectTo) router.push(successRedirectTo);
       else router.refresh();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Unable to submit application.");
+      // A thrown TypeError here means the request never reached the server
+      // (no connection, request blocked). Everything else already carries a
+      // plain-language message from the checks above.
+      const isNetworkError = caught instanceof TypeError;
+      setError(
+        isNetworkError
+          ? "We could not reach the application server. Please check your internet connection and try again."
+          : caught instanceof Error && caught.message
+            ? caught.message
+            : "Your application could not be sent. Please try again in a moment.",
+      );
     } finally {
       setSaving(false);
     }
@@ -267,7 +305,7 @@ export default function CandidateApplicationForm({
               <span className="resume-file-button">Choose a resume file</span>
               <span className="resume-file-name">{resumeFile?.name || "No file selected"}</span>
             </label>
-            <small>PDF, DOC, or DOCX · up to 10 MB</small>
+            <small>PDF, DOC, or DOCX · up to {maxResumeFileLabel}</small>
             {readFieldError(fieldErrors, "resumeFile") && <small>{readFieldError(fieldErrors, "resumeFile")}</small>}
           </div>
         </div>
