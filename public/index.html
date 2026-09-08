@@ -1442,7 +1442,7 @@ input:not([type="file"]), select { border-radius: 8px; border-color: #c2c7d0; }
                   <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="M7 8l5-5 5 5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
                 </div>
                 <strong>Choose a resume file</strong>
-                <span>PDF, DOC or DOCX &middot; up to 10 MB</span>
+                <span>PDF, DOC or DOCX &middot; up to 4 MB</span>
                 <div class="file-name" id="fileName">No file selected</div>
               </label>
               <span class="field-error" id="resumeError" role="alert"></span>
@@ -1637,7 +1637,12 @@ input:not([type="file"]), select { border-radius: 8px; border-color: #c2c7d0; }
    are validated and submitted through the portal itself rather than n8n
    directly, so the portal can enforce "one use only" on the link. */
 const PORTAL_API_BASE_URL = "https://ella-recruitment.mclinkgroup.com";
-const MAX_RESUME_SIZE_BYTES = 10 * 1024 * 1024;
+// The portal runs on Vercel, which rejects any upload larger than ~4.5 MB
+// before it reaches the app and replies with a plain "Request Entity Too
+// Large" that is not JSON. Keep resumes under that so applicants get a real
+// message instead of a broken one.
+const MAX_RESUME_SIZE_BYTES = 4 * 1024 * 1024;
+const MAX_RESUME_SIZE_LABEL = "4 MB";
 const ALLOWED_RESUME_TYPES = ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
 const ALLOWED_RESUME_EXTENSIONS = ["pdf", "doc", "docx"];
 
@@ -2069,8 +2074,8 @@ function validateRecruitmentForm() {
   else {
     const extension = file.name.split(".").pop().toLowerCase();
     const typeAccepted = !file.type || ALLOWED_RESUME_TYPES.includes(file.type);
-    if (!ALLOWED_RESUME_EXTENSIONS.includes(extension) || !typeAccepted) setFieldError("resumeError", "Upload a PDF, DOC, or DOCX file.");
-    else if (file.size > MAX_RESUME_SIZE_BYTES) setFieldError("resumeError", "Resume must be 10 MB or smaller.");
+    if (!ALLOWED_RESUME_EXTENSIONS.includes(extension) || !typeAccepted) setFieldError("resumeError", "Please upload a PDF, DOC, or DOCX file.");
+    else if (file.size > MAX_RESUME_SIZE_BYTES) setFieldError("resumeError", "Your resume file is too big. Please upload a file that is " + MAX_RESUME_SIZE_LABEL + " or smaller.");
     else setFieldError("resumeError", "");
   }
   const errors = [...document.querySelectorAll(".field-error")].filter((node) => node.textContent.trim());
@@ -2113,7 +2118,15 @@ recruitmentForm.addEventListener("submit", async (event) => {
     payload.append("resumeFile", recruitmentFile.files[0], recruitmentFile.files[0].name);
     payload.append("inviteToken", inviteToken);
     response = await fetch(portalEndpoint("/api/public/applications"), { method: "POST", body: payload, headers: { Accept: "application/json" } });
-    const parsedData = await parseRecruitmentResponse(response, "Submission webhook");
+    if (response.status === 413) {
+      throw new Error("Your resume file is too big to send. Please upload a file that is " + MAX_RESUME_SIZE_LABEL + " or smaller and try again.");
+    }
+    let parsedData;
+    try {
+      parsedData = await parseRecruitmentResponse(response, "Submission webhook");
+    } catch (parseError) {
+      throw new Error("Something went wrong while sending your application, and it was not received. Please wait a moment and try again. If it keeps happening, contact the recruiter who sent you this link.");
+    }
     const data = Array.isArray(parsedData) ? (parsedData[0] || {}) : (parsedData || {});
     if (!response.ok || data.success === false) {
       if (inviteToken && activeInvitation && data.code === "INVITE_INVALID") {
@@ -2138,7 +2151,12 @@ recruitmentForm.addEventListener("submit", async (event) => {
     const retryButton = recruitmentWaiting.querySelector(".try-again");
     if (inviteToken && retryButton) retryButton.style.display = "none";
   } catch (error) {
-    showRecruitmentError(error.message || "Unable to submit the application.");
+    const isNetworkError = error instanceof TypeError;
+    showRecruitmentError(
+      isNetworkError
+        ? "We could not reach the application server. Please check your internet connection and try again."
+        : (error && error.message) || "Your application could not be sent. Please try again in a moment."
+    );
   } finally {
     applicationInProgress = false;
     recruitmentSubmit.disabled = false;
