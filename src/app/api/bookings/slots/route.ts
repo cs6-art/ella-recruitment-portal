@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { canManageInterviewAvailability, canManagePipeline } from "@/lib/access-control";
+import { canManageInterviewAvailability, canManagePipeline, canManageRolePipeline } from "@/lib/access-control";
 import { createInterviewSlot } from "@/lib/applicant-workflow";
 import { getRoleRequestById } from "@/lib/google-sheets";
 import { consumeRateLimit, rateLimitHeaders, requestClientKey } from "@/lib/rate-limit";
@@ -17,6 +17,8 @@ export async function POST(request: Request) {
     const roleId = String(body.roleId ?? "").trim();
     const role = await getRoleRequestById(roleId);
     if (!role || !canManageInterviewAvailability(role.status)) throw new Error("Interview availability can only be added for approved or active recruitment roles.");
+    // Department-scoped reviewers may only manage availability for roles they can manage.
+    if (!canManageRolePipeline(user, role)) throw new Error("You are not authorized to manage interview availability for this role.");
     if (body.interviewType === "Final Interview") throw new Error("HR interview availability is managed automatically through the connected HR Google Calendar.");
     const slot = await createInterviewSlot({ interviewType: body.interviewType, roleId, date: body.date, startTime: body.startTime, endTime: body.endTime, timezone: body.timezone });
     return NextResponse.json({ success: true, slot }, { status: 201 });

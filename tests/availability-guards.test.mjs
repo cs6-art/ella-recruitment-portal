@@ -28,10 +28,13 @@ test("availability rules reject overlapping weekday windows and deduplicate lega
 });
 
 test("availability write API blocks stacked voice schedules and rejects manual final schedules", () => {
+  const slotsRoute = fs.readFileSync("src/app/api/bookings/slots/route.ts", "utf8");
   assert.match(availabilityRoute, /availabilityRulesOverlap/);
   assert.match(availabilityRoute, /overlaps an existing active schedule/);
   assert.match(availabilityRoute, /HR interview availability is managed automatically through the connected HR Google Calendar/);
   assert.doesNotMatch(availabilityRoute, /slotMatchesHodAvailability/);
+  assert.match(slotsRoute, /canManageRolePipeline\(user, role\)/);
+  assert.match(slotsRoute, /Department-scoped reviewers may only manage availability/);
 });
 
 test("final interview setup no longer asks for manual dates or availability windows", () => {
