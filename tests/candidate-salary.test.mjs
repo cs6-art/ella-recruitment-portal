@@ -52,6 +52,7 @@ test("salary survives the webhook/sheet mapping and is visible in the applicant 
   const n8n = read("integrations/n8n/candidate-application-foundation.json");
   const applications = read("src/lib/candidate-applications.ts");
   const list = read("src/components/ApplicantsList.tsx");
+  const detail = read("src/app/applicants/[applicationId]/page.tsx");
   const schema = read("docs/GOOGLE-SHEETS-SCHEMA.md");
 
   assert.match(workflow, /salaryCurrency: text\(input\.candidate\.salaryCurrency\)/);
@@ -62,5 +63,10 @@ test("salary survives the webhook/sheet mapping and is visible in the applicant 
   assert.match(applications, /const storedSalaryCurrency = field\(record, "Salary_Currency"/);
   assert.match(list, /<th>Expected Salary<\/th>/);
   assert.match(list, /salaryValue\(applicant\)/);
+  assert.match(list, /Currency: \{applicant\.salaryCurrency \|\| "Not provided"\}/);
   assert.match(list, /Not provided/);
+  assert.match(detail, /title="Compensation"/);
+  assert.match(detail, /label="Expected Salary \(Monthly\)"/);
+  assert.match(detail, /label="Salary Currency" value=\{applicant\.salaryCurrency \|\| "Not provided"\}/);
+  assert.match(detail, /label="Approved Salary \/ Budget Range"/);
 });

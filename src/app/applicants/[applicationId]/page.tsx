@@ -26,6 +26,14 @@ function dateValue(value: string) {
   return formatPortalDateTime(value, true);
 }
 
+function salaryValue(amount: string, currency: string) {
+  const normalizedAmount = amount.trim();
+  const normalizedCurrency = currency.trim();
+  if (!normalizedAmount) return "Not provided";
+  if (!normalizedCurrency || normalizedAmount.toLowerCase().includes(normalizedCurrency.toLowerCase())) return normalizedAmount;
+  return `${normalizedCurrency} ${normalizedAmount}`;
+}
+
 function recordValue(record: Record<string, string> | undefined, ...keys: string[]) {
   if (!record) return "";
   for (const key of keys) {
@@ -149,6 +157,25 @@ function CombinedScreeningEvidence({ applicant }: { applicant: ApplicantDetails 
   </section>;
 }
 
+function CompensationCard({ applicant }: { applicant: ApplicantDetails }) {
+  const salaryMatch = applicant.salaryExpectation.trim()
+    ? applicant.salaryMatchStatus.trim() || "Not evaluated"
+    : "Not provided";
+
+  return <section className="card applicant-detail-card applicant-compensation-card">
+    <DetailCardHeader icon="briefcase" title="Compensation" description="Candidate salary expectation and the approved role budget." />
+    <div className="applicant-detail-content">
+      <div className="applicant-detail-inline-fields">
+        <DetailField label="Expected Salary (Monthly)" value={salaryValue(applicant.salaryExpectation, applicant.salaryCurrency)} />
+        <DetailField label="Salary Currency" value={applicant.salaryCurrency || "Not provided"} />
+        <DetailField label="Salary Match" value={salaryMatch} />
+        <DetailField label="Approved Salary / Budget Range" value={applicant.approvedSalaryOrBudgetRange || "Not configured"} />
+      </div>
+      {applicant.salaryMatchNotes && <div className="applicant-copy-block"><span>Salary Match Notes</span><p>{applicant.salaryMatchNotes}</p></div>}
+    </div>
+  </section>;
+}
+
 function ResumeResource({ value }: { value: string; fileId?: string; fileName?: string; expiresAt?: string }) {
   // Keep the original inline resume view. File metadata remains available to
   // the backend, but applicant details should show extracted text only.
@@ -190,6 +217,7 @@ export default async function ApplicantDetailsPage({ params }: { params: Promise
     <MarkApplicantViewed applicationId={applicant.applicationId} />
     <header className="applicant-detail-header"><Link href="/applicants" className="portal-back-link applicant-back-link"><UiIcon name="arrow-left" size={15} />Back to Applicants</Link><div className="applicant-detail-title-row"><div><span className="eyebrow-dark">APPLICANT PROFILE</span><h1>{applicant.candidateName || "Unnamed Candidate"}</h1><p>{applicant.applicationId} · {applicant.email || "No Email Provided"}</p></div><span className={applicantStageClass(applicant.currentStage)}>{applicant.currentStage}</span></div><div className="applicant-detail-actions"><Link className="btn btn-secondary" href={`/roles/${encodeURIComponent(applicant.roleId)}`}><UiIcon name="briefcase" size={15} />View Role</Link><Link className="btn btn-secondary" href={`/roles/${encodeURIComponent(applicant.roleId)}/applicants`}><UiIcon name="applicants" size={15} />Role Applicants</Link><ApplicantDetailActions applicationId={applicant.applicationId} candidateName={applicant.candidateName} canManage={canEditApplicant(user)} /></div></header>
     <div className="applicant-detail-summary"><DetailField label="Selected Role" value={applicant.selectedRole} /><DetailField label="Department" value={applicant.department} /><DetailField label="Applied" value={dateValue(applicant.appliedAt)} /><DetailField label="Match Score" value={formatMatchScore(applicant.matchScore)} /><DetailField label="Recommendation" value={applicant.recommendation} /><DetailField label="Next Action" value={applicant.nextAction} /></div>
+    <CompensationCard applicant={applicant} />
     <div className="applicant-detail-grid"><div className="applicant-detail-main">
       <CombinedScreeningEvidence applicant={applicant} />
       <ApplicantDecisionPanel applicationId={applicant.applicationId} resumeDecision={applicant.resumeDecision} resumeComments={resumeComments} voiceDecision={applicant.voiceDecision} voiceComments={voiceComments} voiceStatus={applicant.voiceStatus} finalInterviewStatus={applicant.finalInterviewStatus} finalStatus={applicant.finalStatus} finalComments={finalComments} finalBookingLink={applicant.finalBookingLink} canReview={canDecideApplicant(user)} />

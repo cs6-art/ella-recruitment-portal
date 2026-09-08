@@ -325,7 +325,7 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
                         labeled card when the table cannot fit the content column. */}
                     <td data-label="Candidate"><Link className="applicant-name-link" href={`/applicants/${encodeURIComponent(applicant.applicationId)}`}><strong>{applicant.candidateName || "Unnamed candidate"}{newApplicantIds.has(applicant.applicationId) && <span className="applicant-new-pill">New</span>}</strong><span>{applicant.email || applicant.applicationId}</span></Link></td>
                     <td data-label="Role"><strong>{applicant.selectedRole || "Role not provided"}</strong><span className="applicant-subtext">{applicant.roleId}</span></td>
-                    <td data-label="Expected salary"><strong>{salaryValue(applicant)}</strong></td>
+                    <td data-label="Expected salary"><strong>{salaryValue(applicant)}</strong><small className="field-help">Currency: {applicant.salaryCurrency || "Not provided"}</small></td>
                     <td data-label="Salary match"><strong>{salaryMatchValue(applicant)}</strong><small className="field-help">Budget: {applicant.approvedSalaryOrBudgetRange || "Not configured"}</small>{applicant.salaryMatchNotes && <small className="field-help">{applicant.salaryMatchNotes}</small>}</td>
                     <td data-label="Applied">{formatDate(applicant.appliedAt)}</td>
                     <td data-label="Match"><strong className="applicant-score">{scoreValue(applicant.matchScore)}</strong>{applicant.recommendation && <span className="applicant-subtext">{applicant.recommendation}</span>}</td>
