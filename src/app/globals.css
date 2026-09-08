@@ -1319,6 +1319,7 @@ a { color: inherit; text-decoration: none; }
 .applicant-detail-grid { grid-template-columns: minmax(0, 1.55fr) minmax(360px, .85fr); gap: 24px; }
 .applicant-detail-main, .applicant-detail-side { gap: 24px; }
 .applicant-detail-card { border-radius: 14px; }
+.applicant-compensation-card { margin-bottom: 24px; }
 .applicant-detail-card .card-header { min-height: 64px; padding: 18px 24px; }
 .applicant-detail-card .card-header h2 { font-size: 18px; }
 .applicant-section-header { align-items: flex-start; }

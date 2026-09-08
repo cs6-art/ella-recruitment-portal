@@ -10,6 +10,7 @@ import type { ApplicantMetrics, ApplicantSummary } from "@/lib/candidate-applica
 import Pagination from "@/components/Pagination";
 import { useNotificationFeed } from "@/components/notification-feed";
 import { formatMatchScore } from "@/lib/score-format";
+import { formatSalaryExpectation, salaryCurrencyLabel } from "@/lib/salary-format";
 import { formatPortalDateTime } from "@/lib/portal-time";
 
 type Props = {
@@ -92,11 +93,7 @@ function scoreValue(value: string) {
 }
 
 function salaryValue(applicant: ApplicantSummary) {
-  const amount = applicant.salaryExpectation.trim();
-  if (!amount) return "Not provided";
-  const currency = applicant.salaryCurrency.trim();
-  if (!currency || amount.toLowerCase().includes(currency.toLowerCase())) return amount;
-  return `${currency} ${amount}`;
+  return formatSalaryExpectation(applicant.salaryExpectation, applicant.salaryCurrency);
 }
 
 function salaryMatchValue(applicant: ApplicantSummary) {
@@ -325,7 +322,7 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
                         labeled card when the table cannot fit the content column. */}
                     <td data-label="Candidate"><Link className="applicant-name-link" href={`/applicants/${encodeURIComponent(applicant.applicationId)}`}><strong>{applicant.candidateName || "Unnamed candidate"}{newApplicantIds.has(applicant.applicationId) && <span className="applicant-new-pill">New</span>}</strong><span>{applicant.email || applicant.applicationId}</span></Link></td>
                     <td data-label="Role"><strong>{applicant.selectedRole || "Role not provided"}</strong><span className="applicant-subtext">{applicant.roleId}</span></td>
-                    <td data-label="Expected salary"><strong>{salaryValue(applicant)}</strong><small className="field-help">Currency: {applicant.salaryCurrency || "Not provided"}</small></td>
+                    <td data-label="Expected salary"><strong>{salaryValue(applicant)}</strong><small className="field-help">{salaryCurrencyLabel(applicant.salaryCurrency)}</small></td>
                     <td data-label="Salary match"><strong>{salaryMatchValue(applicant)}</strong><small className="field-help">Budget: {applicant.approvedSalaryOrBudgetRange || "Not configured"}</small>{applicant.salaryMatchNotes && <small className="field-help">{applicant.salaryMatchNotes}</small>}</td>
                     <td data-label="Applied">{formatDate(applicant.appliedAt)}</td>
                     <td data-label="Match"><strong className="applicant-score">{scoreValue(applicant.matchScore)}</strong>{applicant.recommendation && <span className="applicant-subtext">{applicant.recommendation}</span>}</td>

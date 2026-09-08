@@ -19,19 +19,12 @@ import type { RoleRequestDetails } from "@/lib/google-sheets";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
 import { formatMatchScore } from "@/lib/score-format";
 import { formatPortalDateTime } from "@/lib/portal-time";
+import { formatSalaryExpectation, salaryCurrencyLabel } from "@/lib/salary-format";
 
 export const dynamic = "force-dynamic";
 
 function dateValue(value: string) {
   return formatPortalDateTime(value, true);
-}
-
-function salaryValue(amount: string, currency: string) {
-  const normalizedAmount = amount.trim();
-  const normalizedCurrency = currency.trim();
-  if (!normalizedAmount) return "Not provided";
-  if (!normalizedCurrency || normalizedAmount.toLowerCase().includes(normalizedCurrency.toLowerCase())) return normalizedAmount;
-  return `${normalizedCurrency} ${normalizedAmount}`;
 }
 
 function recordValue(record: Record<string, string> | undefined, ...keys: string[]) {
@@ -166,8 +159,8 @@ function CompensationCard({ applicant }: { applicant: ApplicantDetails }) {
     <DetailCardHeader icon="briefcase" title="Compensation" description="Candidate salary expectation and the approved role budget." />
     <div className="applicant-detail-content">
       <div className="applicant-detail-inline-fields">
-        <DetailField label="Expected Salary (Monthly)" value={salaryValue(applicant.salaryExpectation, applicant.salaryCurrency)} />
-        <DetailField label="Salary Currency" value={applicant.salaryCurrency || "Not provided"} />
+        <DetailField label="Expected Salary (Monthly)" value={formatSalaryExpectation(applicant.salaryExpectation, applicant.salaryCurrency)} />
+        <DetailField label="Salary Currency" value={salaryCurrencyLabel(applicant.salaryCurrency)} />
         <DetailField label="Salary Match" value={salaryMatch} />
         <DetailField label="Approved Salary / Budget Range" value={applicant.approvedSalaryOrBudgetRange || "Not configured"} />
       </div>

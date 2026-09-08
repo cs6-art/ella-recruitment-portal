@@ -51,6 +51,7 @@ test("salary survives the webhook/sheet mapping and is visible in the applicant 
   const workflow = read("src/lib/applicant-workflow.ts");
   const n8n = read("integrations/n8n/candidate-application-foundation.json");
   const applications = read("src/lib/candidate-applications.ts");
+  const salaryFormat = read("src/lib/salary-format.ts");
   const list = read("src/components/ApplicantsList.tsx");
   const detail = read("src/app/applicants/[applicationId]/page.tsx");
   const schema = read("docs/GOOGLE-SHEETS-SCHEMA.md");
@@ -61,12 +62,16 @@ test("salary survives the webhook/sheet mapping and is visible in the applicant 
   assert.match(schema, /Salary_Expectation`, `Salary_Currency`/);
   assert.match(applications, /const salaryExpectation = field\(record, "Salary_Expectation"/);
   assert.match(applications, /const storedSalaryCurrency = field\(record, "Salary_Currency"/);
+  assert.match(salaryFormat, /PHP: \{ symbol: "₱", name: "Philippine peso" \}/);
+  assert.match(salaryFormat, /formatSalaryExpectation/);
+  assert.match(salaryFormat, /new Intl\.NumberFormat\("en-US"/);
   assert.match(list, /<th>Expected Salary<\/th>/);
   assert.match(list, /salaryValue\(applicant\)/);
-  assert.match(list, /Currency: \{applicant\.salaryCurrency \|\| "Not provided"\}/);
+  assert.match(list, /salaryCurrencyLabel\(applicant\.salaryCurrency\)/);
   assert.match(list, /Not provided/);
   assert.match(detail, /title="Compensation"/);
   assert.match(detail, /label="Expected Salary \(Monthly\)"/);
-  assert.match(detail, /label="Salary Currency" value=\{applicant\.salaryCurrency \|\| "Not provided"\}/);
+  assert.match(detail, /label="Salary Currency" value=\{salaryCurrencyLabel\(applicant\.salaryCurrency\)\}/);
   assert.match(detail, /label="Approved Salary \/ Budget Range"/);
+  assert.match(read("src/app/globals.css"), /\.applicant-compensation-card \{ margin-bottom: 24px; \}/);
 });
