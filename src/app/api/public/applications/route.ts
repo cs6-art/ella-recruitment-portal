@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import {
   buildCandidateApplicationPayload,
   candidateApplicationSubmissionSchema,
+  isCandidateSalaryCurrency,
   isPreferredMobileValid,
   normalizePreferredMobile,
   sendCandidateApplicationWebhook,
@@ -81,6 +82,14 @@ export async function POST(request: Request) {
       return responseError(request, "Full name, contact number, role, resume, and consent are required.", 422);
     }
 
+    const salaryAmount = Number(parsed.data.salaryExpectation.replace(/,/g, ""));
+    if (!Number.isFinite(salaryAmount) || salaryAmount <= 0) {
+      return responseError(request, "Expected monthly salary must be greater than zero.", 422, { field: "salaryExpectation" });
+    }
+    if (!isCandidateSalaryCurrency(parsed.data.salaryCurrency)) {
+      return responseError(request, "Select a valid salary currency.", 422, { field: "salaryCurrency" });
+    }
+
     if (!isPreferredMobileValid(parsed.data.preferredMobile)) {
       return responseError(request, "Contact number must include a valid country code and local number.", 422, { field: "preferredMobile" });
     }
@@ -107,6 +116,7 @@ export async function POST(request: Request) {
       roleId,
       jobTitle: role.jobTitle,
       department: role.department,
+      approvedSalaryOrBudgetRange: role.salaryOrBudgetRange || "",
       evaluationFields: evaluationFieldsForSetup(role.evaluationFieldToggles, role.customEvaluationFields),
       source: invitation ? "HR Invitation Link" : "Public Application Page",
       submittedAt,

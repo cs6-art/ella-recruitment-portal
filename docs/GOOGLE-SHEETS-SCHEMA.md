@@ -108,7 +108,7 @@ remain supported as a fallback.
 The portal reads and writes these candidate fields in `High_Match_Profile`:
 `Application_ID`, `Role_ID`, `Candidate_Name`, `Email`, `Phone`,
 `Contact_Number`, `Preferred_Mobile`, `Selected_Role`, `Department`,
-`Resume_Text`, `Salary_Expectation`, `Notice_Period`,
+`Resume_Text`, `Salary_Expectation`, `Salary_Currency`, `Notice_Period`,
 `Availability`, `Skills_Assessment`, `Role_Expectations`,
 `Application_Source`, `Final_Status`, `Resume_HR_Comments`,
 `Voice_HR_Comments`, `Final_Interview_Comments`, `Final_Interview_Reviewer`,
@@ -120,6 +120,12 @@ The portal reads and writes these candidate fields in `High_Match_Profile`:
 `Final_Interview_Booking_Token_Hash`, `Final_Interview_Booking_Token_Expires_At`,
 `Final_Interview_Booking_Token_Status`, `Final_Interview_Booking_Token_Used_At`,
 `Last_Updated`.
+
+Salary matching columns used by the screening workflow:
+`Salary_Expectation`, `Salary_Currency`, `Approved_Salary_or_Budget_Range`,
+`Salary_Match_Status`, and `Salary_Match_Notes`. `Salary_Match_Status` should
+be `Matched`, `Above range`, `Below range`, `Not comparable`, or `Not provided`;
+it is advisory only and never replaces an HR decision.
 
 Final booking tokens are issued when HR approves the voice interview. The
 portal writes a link using the current public app URL and marks the token

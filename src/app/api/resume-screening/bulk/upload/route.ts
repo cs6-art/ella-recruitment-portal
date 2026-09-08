@@ -33,6 +33,21 @@ const STALE_PROCESSING_MS = 30 * 60 * 1000;
 const DEFAULT_CONCURRENCY = 2;
 const MAX_CONCURRENCY = 2;
 const WORKER_START_INTERVAL_MS = 10_000;
+const SCREENING_WEBHOOK_TIMEOUT_MS = 120_000;
+
+async function fetchWithTimeout(input: string, init: RequestInit, timeoutMs: number) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (controller.signal.aborted) throw new Error(`The screening workflow timed out after ${Math.round(timeoutMs / 1000)} seconds.`);
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function resolveConcurrency(fileCount: number) {
   const configured = Number(process.env.BULK_RESUME_UPLOAD_CONCURRENCY);
   const bounded = Number.isFinite(configured) ? Math.min(Math.max(Math.trunc(configured), 1), MAX_CONCURRENCY) : DEFAULT_CONCURRENCY;
@@ -72,7 +87,6 @@ export async function POST(request: Request) {
   const configuredUatBatchId = productionUatBatchId();
 
   try {
-    const { url: webhookUrl, secret: webhookSecret } = bulkResumeWebhookConfig();
     const formData = await request.formData();
     const roleId = String(formData.get("roleId") || "").trim();
     const files = formData.getAll("resumes").filter((value): value is File => value instanceof File);
@@ -86,6 +100,28 @@ export async function POST(request: Request) {
     // the PDF/DOCX formats supported by the shared extractor.
     if (!files.length) return responseError("Choose at least one PDF, DOC, or DOCX resume.", 422);
     if (files.length > MAX_FILES_PER_BATCH) return responseError(`Upload up to ${MAX_FILES_PER_BATCH} resumes per batch.`, 422);
+    const invalidFiles = files.filter((file) => !/\.(pdf|docx?|doc)$/i.test(file.name));
+    if (invalidFiles.length > 0) {
+      return responseError("Unsupported resume file type. Use PDF, DOC, or DOCX files only.", 422, {
+        validationErrors: invalidFiles.map((file) => `${file.name || "Unnamed file"}: unsupported file type`),
+      });
+    }
+    const emptyFiles = files.filter((file) => file.size === 0);
+    if (emptyFiles.length > 0) {
+      return responseError("Empty resume files cannot be submitted.", 422, {
+        validationErrors: emptyFiles.map((file) => `${file.name || "Unnamed file"}: file is empty`),
+      });
+    }
+    const oversizedFiles = files.filter((file) => file.size > MAX_RESUME_FILE_BYTES);
+    if (oversizedFiles.length > 0) {
+      return responseError("Each resume must be 10 MB or smaller.", 422, {
+        validationErrors: oversizedFiles.map((file) => `${file.name || "Unnamed file"}: exceeds the 10 MB limit`),
+      });
+    }
+    const totalFileBytes = files.reduce((total, file) => total + file.size, 0);
+    if (totalFileBytes > MAX_BULK_REQUEST_BYTES) return responseError("The selected resumes exceed the 100 MB total upload limit.", 413);
+
+    const { url: webhookUrl, secret: webhookSecret } = bulkResumeWebhookConfig();
 
     const role = await getRoleRequestById(roleId);
     if (!role || !isPublishedRoleForIntake(role)) return responseError("The selected role is not available for bulk screening.", 409);
@@ -125,6 +161,38 @@ export async function POST(request: Request) {
       toProcess.push(item);
     }
 
+    // Reserve every accepted file before returning the 202 response. The
+    // background handoff may take a moment to start, but the status endpoint
+    // can now account for all accepted files immediately and a killed worker
+    // cannot make one file silently disappear from Role Total.
+    const priorLatestByFile = new Map(latestByFile);
+    const reservedAt = new Date().toISOString();
+    await Promise.all(toProcess.map(async ({ file, sha256, queueId }) => {
+      const previous = priorLatestByFile.get(queueId) || priorLatestByFile.get(legacyQueueIdForHash(sha256));
+      const applicationId = `${isUat ? "UAT-" : ""}APP-${crypto.createHash("sha256").update(`${roleId}:${sha256}`).digest("hex").slice(0, 24)}`;
+      await appendBulkResumeQueueEvent({
+        driveFileId: queueId,
+        driveFileName: file.name,
+        driveFileUrl: "",
+        driveFileMimeType: file.type,
+        roleId,
+        candidateName: "",
+        candidateEmail: "",
+        status: "Queued",
+        applicationId,
+        errorMessage: "",
+        discoveredAt: reservedAt,
+        processingStartedAt: "",
+        processedAt: "",
+        attemptCount: String(Number(previous?.attemptCount || 0) + 1),
+        lastUpdated: reservedAt,
+        environment: isUat ? "uat" : environment,
+        isUat,
+        batchId,
+        jobId: queueId,
+      });
+    }));
+
     async function processFile({ file, queueId }: { file: File; sha256: string; queueId: string }) {
       let stored: Awaited<ReturnType<typeof storeResumeFile>> | null = null;
       let resolvedQueueId = queueId;
@@ -133,7 +201,7 @@ export async function POST(request: Request) {
         if (file.size > MAX_RESUME_FILE_BYTES) throw new Error("Resume files must be 10 MB or smaller.");
         stored = await storeResumeFile(file, { environment });
         resolvedQueueId = queueIdForHash(roleId, stored.record.sha256);
-        const previous = latestByFile.get(resolvedQueueId) || latestByFile.get(legacyQueueIdForHash(stored.record.sha256));
+        const previous = priorLatestByFile.get(resolvedQueueId) || priorLatestByFile.get(legacyQueueIdForHash(stored.record.sha256));
         const previousStatus = previous?.status.toLowerCase() || "";
         const evidenceKey = `${roleId.toLowerCase()}|${resolvedQueueId.toLowerCase()}`;
         const previousHasSavedResult = savedScreeningEvidence.has(evidenceKey);
@@ -143,6 +211,27 @@ export async function POST(request: Request) {
         const recoveryMayBypassTerminalState = immediateUatRecovery && !previousHasSavedResult && previousStatus === "screened";
         const shouldSkip = previousIsActive && !recoveryMayBypassTerminalState && (previousHasSavedResult || previousRunIsFresh);
         if (shouldSkip) {
+          await appendBulkResumeQueueEvent({
+            driveFileId: resolvedQueueId,
+            driveFileName: stored.record.fileName,
+            driveFileUrl: driveFileUrl(stored.record.fileId),
+            driveFileMimeType: stored.record.mimeType,
+            roleId,
+            candidateName: previous?.candidateName || "",
+            candidateEmail: previous?.candidateEmail || "",
+            status: "Skipped",
+            applicationId: previous?.applicationId || "",
+            errorMessage: "",
+            discoveredAt: previous?.discoveredAt || submittedAt,
+            processingStartedAt: previous?.processingStartedAt || "",
+            processedAt: submittedAt,
+            attemptCount: previous?.attemptCount || "1",
+            lastUpdated: submittedAt,
+            environment: isUat ? "uat" : environment,
+            isUat,
+            batchId,
+            jobId: resolvedQueueId,
+          });
           if (!stored.reused) await deleteResumeFile(stored.record);
           results.push({ fileName: file.name, queueId: resolvedQueueId, status: previousHasSavedResult ? "Screened" : previous?.status || "Queued", skipped: true, message: previousHasSavedResult || previousStatus === "screened" ? "This resume was already screened for this role." : previousStatus === "queued" ? "This resume is already queued for this role." : "This resume is already being screened for this role." });
           return;
@@ -195,12 +284,12 @@ export async function POST(request: Request) {
           attemptCount: String(Number(previous?.attemptCount || 0) + 1),
           jobId: resolvedQueueId,
         };
-        const response = await fetch(webhookUrl, {
+        const response = await fetchWithTimeout(webhookUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json", "X-Webhook-Secret": webhookSecret, "X-Idempotency-Key": resolvedQueueId },
           body: JSON.stringify(payload),
           cache: "no-store",
-        });
+        }, SCREENING_WEBHOOK_TIMEOUT_MS);
         if (!response.ok) throw new Error(`The screening workflow returned HTTP ${response.status}.`);
         const workflowResult = await response.json().catch(() => ({})) as Record<string, unknown>;
         // The active intake webhook uses an immediate acknowledgement. A 2xx

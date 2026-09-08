@@ -45,6 +45,7 @@ export function getSetupReadiness(input: SetupReadinessInput, level: SetupReadin
 
   if (level === "recruitment-ready") return { valid: missingFields.length === 0, missingFields };
 
+  requireField("Salary_or_Budget_Range", "Approved salary or budget range", input.salaryOrBudgetRange);
   if (!['Disclosed', 'Not disclosed'].includes(text(input.salaryDisclosureStatus))) missingFields.push({ key: "Salary_Disclosure_Status", label: "Salary visibility (Disclosed or Not disclosed)" });
   if (!["Required", "Not required"].includes(text(input.hodInterviewRequired))) missingFields.push({ key: "HOD_Interview_Required", label: "HR interview requirement" });
   if (!["Required", "Preferred", "Not required"].includes(text(input.licenseRequirementStatus))) missingFields.push({ key: "License_Requirement_Status", label: "License or certificate requirement" });

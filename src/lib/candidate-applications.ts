@@ -40,6 +40,11 @@ export type ApplicantSummary = {
   roleId: string;
   selectedRole: string;
   department: string;
+  salaryExpectation: string;
+  salaryCurrency: string;
+  approvedSalaryOrBudgetRange: string;
+  salaryMatchStatus: string;
+  salaryMatchNotes: string;
   appliedAt: string;
   matchScore: string;
   recommendation: string;
@@ -432,6 +437,12 @@ function mapApplicant(record: SheetRow, isHistoricalDemo = false): ApplicantSumm
     "Submitted At",
   );
   const appliedAt = clampFutureApplicationDate(rawAppliedAt);
+  const salaryExpectation = field(record, "Salary_Expectation", "Salary Expectation", "Expected_Salary", "Expected Salary");
+  const storedSalaryCurrency = field(record, "Salary_Currency", "Salary Currency", "Currency");
+  const salaryCurrency = storedSalaryCurrency || salaryExpectation.match(/^(SGD|PHP|MY|RUPEE|RUPIAH)\b/i)?.[1] || "";
+  const approvedSalaryOrBudgetRange = field(record, "Approved_Salary_or_Budget_Range", "Approved Salary or Budget Range");
+  const salaryMatchStatus = field(record, "Salary_Match_Status", "Salary Match Status");
+  const salaryMatchNotes = field(record, "Salary_Match_Notes", "Salary Match Notes");
   return {
     applicationId: applicationId(record),
     candidateName: field(record, "Candidate_Name", "Candidate Name", "Name"),
@@ -440,6 +451,11 @@ function mapApplicant(record: SheetRow, isHistoricalDemo = false): ApplicantSumm
     roleId: field(record, "Role_ID", "Role ID"),
     selectedRole: field(record, "Selected_Role", "Selected Role", "Role"),
     department: field(record, "Department"),
+    salaryExpectation,
+    salaryCurrency,
+    approvedSalaryOrBudgetRange,
+    salaryMatchStatus,
+    salaryMatchNotes,
     appliedAt,
     matchScore: field(record, "Match_Score", "Match Score"),
     recommendation: displayFaceToFaceInterviewText(displayInterviewStageText(workflowRecommendationFor(record))),
@@ -849,7 +865,7 @@ export async function appendBulkResumeQueueEvent(event: BulkResumeQueueEvent) {
   });
 }
 
-/** Count every saved queue event for the selected role, including retries. */
+/** Count the latest saved queue state for each resume in the selected role. */
 export async function getBulkResumeQueueTotals(roleId = "", options: { fresh?: boolean } = {}) {
   const { rows } = await readTab("Bulk_Resume_Queue", "U", { ...options, spreadsheetId: bulkResumeSpreadsheetId() });
   const normalizedRoleId = roleId.trim().toLowerCase();
@@ -866,13 +882,8 @@ export async function getBulkResumeQueueTotals(roleId = "", options: { fresh?: b
     const previous = latestByIdentity.get(event.identity);
     if (!previous || event.timestamp >= previous.timestamp) latestByIdentity.set(event.identity, { status: event.status, timestamp: event.timestamp });
   }
-  return events.reduce<Record<string, number>>((counts, event) => {
-    const terminal = ["Screened", "Failed", "Skipped"].includes(event.status);
-    const latest = latestByIdentity.get(event.identity);
-    // Processing/Queued is a current state, while terminal rows are kept as
-    // historical attempts. This prevents the initial Processing row from
-    // inflating a completed count, without losing repeated failures.
-    if (terminal || (latest?.status === event.status && latest.timestamp === event.timestamp)) counts[event.status] = (counts[event.status] || 0) + 1;
+  return [...latestByIdentity.values()].reduce<Record<string, number>>((counts, event) => {
+    counts[event.status] = (counts[event.status] || 0) + 1;
     return counts;
   }, {});
 }

@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { canManagePipeline, passesDepartmentWall } from "@/lib/access-control";
-import { getBulkResumeQueue, getBulkResumeQueueTotals, getBulkResumeScreeningEvidence } from "@/lib/candidate-applications";
+import { getBulkResumeQueue, getBulkResumeScreeningEvidence } from "@/lib/candidate-applications";
 import { bulkResumeEnvironment, bulkResumeIsUatMarked, productionUatBatchId } from "@/lib/bulk-resume-config";
 import { getRoleRequests, isPublishedRoleForIntake } from "@/lib/google-sheets";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
@@ -35,10 +35,9 @@ export async function GET(request: Request) {
     // polled while work is active; read the queue fresh so the UI never turns
     // a stale snapshot into a misleading completion state.
     const queueItems = (await getBulkResumeQueue(roleId, { fresh: true })).filter((item) => publishedRoleIds.has(item.roleId.toLowerCase()));
-    // Keep the table on the latest state per resume, but count every saved
-    // queue event separately so retries and repeated failed batches are not
-    // silently collapsed into one historical total.
-    const roleTotals = await getBulkResumeQueueTotals(roleId, { fresh: true });
+    // Keep the table and summary cards on the same latest state per resume.
+    // Historical queue events remain available in the sheet for audit/retry
+    // purposes, but must not inflate the current Role Total.
     // Reconcile every current queue item, including historical rows that were
     // written before jobId existed. The evidence matcher falls back through
     // application ID, SHA, Drive file ID, role-scoped filename, and unique
@@ -86,7 +85,9 @@ export async function GET(request: Request) {
       environment: bulkResumeIsUatMarked() ? "uat" : bulkResumeEnvironment(),
       isUat: bulkResumeIsUatMarked(),
       counts,
-      roleTotals,
+      // Keep the legacy response property for existing clients, but make it
+      // the exact same reconciled current-state distribution as `counts`.
+      roleTotals: counts,
       items: items.slice(0, 50),
       updatedAt: new Date().toISOString(),
     });

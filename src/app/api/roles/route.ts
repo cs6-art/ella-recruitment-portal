@@ -252,6 +252,17 @@ export async function POST(request: Request) {
         : "",
     });
 
+    if (!input.recruitmentSetupDraft?.salaryOrBudgetRange?.trim()) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "ROLE_REQUEST_INCOMPLETE: Approved salary or budget range is required.",
+          missingFields: [{ key: "Salary_or_Budget_Range", label: "Approved salary or budget range" }],
+        },
+        { status: 422 },
+      );
+    }
+
     const webhookUrl =
       process.env.N8N_ROLE_REQUEST_WEBHOOK_URL ||
       process.env.N8N_ROLE_WEBHOOK_URL;

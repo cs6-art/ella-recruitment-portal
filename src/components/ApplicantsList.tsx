@@ -91,6 +91,19 @@ function scoreValue(value: string) {
   return formatMatchScore(value);
 }
 
+function salaryValue(applicant: ApplicantSummary) {
+  const amount = applicant.salaryExpectation.trim();
+  if (!amount) return "Not provided";
+  const currency = applicant.salaryCurrency.trim();
+  if (!currency || amount.toLowerCase().includes(currency.toLowerCase())) return amount;
+  return `${currency} ${amount}`;
+}
+
+function salaryMatchValue(applicant: ApplicantSummary) {
+  if (!applicant.salaryExpectation.trim()) return "Not provided";
+  return applicant.salaryMatchStatus.trim() || "Not evaluated";
+}
+
 export default function ApplicantsList({ applicants, title = "Applicants", description = "Review candidates across every published role.", topContent, publishedRoles, canManageApplicants = false, historyMetrics }: Props) {
   const router = useRouter();
   const { confirm } = useConfirmation();
@@ -149,7 +162,7 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
     const selectedRole = roleOptions.find((role) => role.value === roleFilter);
     return activeApplicants.filter((applicant) => {
       const applicantRole = applicant.selectedRole || applicant.roleId;
-      const searchable = `${applicant.applicationId} ${applicant.candidateName} ${applicant.email} ${applicant.roleId} ${applicant.selectedRole} ${applicant.department}`.toLowerCase();
+      const searchable = `${applicant.applicationId} ${applicant.candidateName} ${applicant.email} ${applicant.roleId} ${applicant.selectedRole} ${applicant.department} ${applicant.salaryExpectation} ${applicant.salaryCurrency}`.toLowerCase();
       return (!query || searchable.includes(query)) &&
         // Generated history is intentionally read-only, so it can still be
         // inspected from a dashboard stage filter even when its synthetic role
@@ -303,7 +316,7 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
         ) : (
           <div className="table-wrap">
             <table className="applicants-table">
-              <thead><tr>{canManageApplicants && <th className="selection-column"><input type="checkbox" aria-label="Select all visible applicants" checked={allVisibleSelected} disabled={selectableVisibleApplicants.length === 0} onChange={toggleAllVisibleApplicants} /></th>}<th>Candidate</th><th>Role</th><th>Applied</th><th>Match</th><th>Current Stage</th><th>Next Action</th><th>Action</th></tr></thead>
+              <thead><tr>{canManageApplicants && <th className="selection-column"><input type="checkbox" aria-label="Select all visible applicants" checked={allVisibleSelected} disabled={selectableVisibleApplicants.length === 0} onChange={toggleAllVisibleApplicants} /></th>}<th>Candidate</th><th>Role</th><th>Expected Salary</th><th>Salary Match</th><th>Applied</th><th>Match</th><th>Current Stage</th><th>Next Action</th><th>Action</th></tr></thead>
               <tbody>
                 {pagedApplicants.map((applicant, index) => (
                   <tr key={`${applicant.applicationId || "applicant"}-${applicant.roleId || "role"}-${index}`} className={[selectedIds.has(applicant.applicationId) ? "is-selected" : "", newApplicantIds.has(applicant.applicationId) ? "is-new-applicant" : ""].filter(Boolean).join(" ") || undefined}>
@@ -312,6 +325,8 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
                         labeled card when the table cannot fit the content column. */}
                     <td data-label="Candidate"><Link className="applicant-name-link" href={`/applicants/${encodeURIComponent(applicant.applicationId)}`}><strong>{applicant.candidateName || "Unnamed candidate"}{newApplicantIds.has(applicant.applicationId) && <span className="applicant-new-pill">New</span>}</strong><span>{applicant.email || applicant.applicationId}</span></Link></td>
                     <td data-label="Role"><strong>{applicant.selectedRole || "Role not provided"}</strong><span className="applicant-subtext">{applicant.roleId}</span></td>
+                    <td data-label="Expected salary"><strong>{salaryValue(applicant)}</strong></td>
+                    <td data-label="Salary match"><strong>{salaryMatchValue(applicant)}</strong><small className="field-help">Budget: {applicant.approvedSalaryOrBudgetRange || "Not configured"}</small>{applicant.salaryMatchNotes && <small className="field-help">{applicant.salaryMatchNotes}</small>}</td>
                     <td data-label="Applied">{formatDate(applicant.appliedAt)}</td>
                     <td data-label="Match"><strong className="applicant-score">{scoreValue(applicant.matchScore)}</strong>{applicant.recommendation && <span className="applicant-subtext">{applicant.recommendation}</span>}</td>
                     <td data-label="Current stage"><span className={stageClass(applicant.currentStage)}>{applicant.currentStage || "Pending HR Review"}</span></td>

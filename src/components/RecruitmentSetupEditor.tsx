@@ -115,6 +115,7 @@ const setupFieldLabels: Record<string, string> = {
   Required_Interview_Question_4: "Question 4",
   Required_Interview_Question_5: "Question 5",
   Posting_Channels: "At least one posting channel",
+  Salary_or_Budget_Range: "Approved salary or budget range",
   Salary_Disclosure_Status: "Salary visibility",
   License_Requirement_Status: "License or certificate requirement",
   License_or_Certificate_Required: "License or certificate details",
@@ -142,6 +143,7 @@ const setupFieldAnchors: Record<string, string> = {
   Required_Interview_Question_4: "#vapi-question-4",
   Required_Interview_Question_5: "#vapi-question-5",
   Posting_Channels: "#vapi-posting-channels",
+  Salary_or_Budget_Range: "#vapi-salary",
   Salary_Disclosure_Status: "#vapi-salary-disclosure",
   License_Requirement_Status: "#vapi-license-requirement",
   License_or_Certificate_Required: "#vapi-license",
@@ -152,6 +154,7 @@ const setupFieldAnchors: Record<string, string> = {
   requiredInterviewQuestion3: "#vapi-question-3",
   requiredInterviewQuestion4: "#vapi-question-4",
   requiredInterviewQuestion5: "#vapi-question-5",
+  salaryOrBudgetRange: "#vapi-salary",
   salaryDisclosureStatus: "#vapi-salary-disclosure",
   licenseRequirementStatus: "#vapi-license-requirement",
   hodInterviewRequired: "#vapi-hr-interview",
@@ -522,7 +525,7 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
           <Field id="vapi-keywords" label="Keywords to look for" value={values.keywordsToLookFor} onChange={(value) => update("keywordsToLookFor", value)} disabled={!editable || saving} placeholder="Separate keywords with commas" />
            <Field id="vapi-transferable-skills" label="Transferable skills accepted" value={values.transferableSkillsAccepted} onChange={(value) => update("transferableSkillsAccepted", value)} disabled={!editable || saving} multiline placeholder="Describe adjacent experience that may be accepted." />
            <Field id="vapi-experience" label="Minimum relevant experience" value={values.minimumYearsOfExperience} onChange={(value) => update("minimumYearsOfExperience", value)} disabled={!editable || saving} placeholder="Example: None, 3 years, or 5+ years" hint="Use None when no experience threshold applies." />
-           <Field id="vapi-salary" label="Approved salary or budget range" value={values.salaryOrBudgetRange} onChange={(value) => update("salaryOrBudgetRange", value)} disabled={!editable || saving} placeholder="Example: PHP 45,000 to PHP 60,000 per month" />
+           <Field id="vapi-salary" label="Approved salary or budget range *" value={values.salaryOrBudgetRange} onChange={(value) => update("salaryOrBudgetRange", value)} disabled={!editable || saving} required placeholder="Example: PHP 45,000 to PHP 60,000 per month" hint="Required before this role can be marked Ready for Publishing or published. Use the approved currency and pay period." />
            <Field id="vapi-availability" label="Earliest availability instructions" value={values.earliestAvailabilityRule} onChange={(value) => update("earliestAvailabilityRule", value)} disabled={!editable || saving} placeholder="Example: Ask whether the candidate can start within 30 days." />
         </div>
       </div>

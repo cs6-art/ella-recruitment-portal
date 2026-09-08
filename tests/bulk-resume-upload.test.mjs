@@ -42,7 +42,47 @@ test("every bulk file gets a saved queue event before downstream parsing", () =>
   assert.match(route, /status: "Processing"/);
   assert.match(route, /status: "Failed"/);
   assert.match(queue, /getBulkResumeQueueTotals/);
-  assert.match(queue, /including retries/);
+  assert.match(queue, /latest saved queue state/);
+});
+
+test("bulk totals count one current state per resume and match the reconciled status snapshot", () => {
+  const queue = read("src/lib/candidate-applications.ts");
+  const route = read("src/app/api/resume-screening/bulk/route.ts");
+  assert.match(queue, /\[\.\.\.latestByIdentity\.values\(\)\]\.reduce/);
+  assert.doesNotMatch(queue, /if \(terminal \|\| \(latest\?\.status === event\.status/);
+  assert.doesNotMatch(route, /getBulkResumeQueueTotals/);
+  assert.match(route, /const counts = items\.reduce/);
+  assert.match(route, /roleTotals: counts/);
+});
+
+test("accepted bulk files are reserved before the asynchronous worker starts", () => {
+  const route = read("src/app/api/resume-screening/bulk/upload/route.ts");
+  assert.match(route, /Reserve every accepted file before returning the 202 response/);
+  assert.match(route, /await Promise\.all\(toProcess\.map/);
+  assert.match(route, /status: "Queued"/);
+  assert.match(route, /after\(\(\) => processBatch\(\)/);
+});
+
+test("a hung screening webhook is converted into a failed queue item", () => {
+  const route = read("src/app/api/resume-screening/bulk/upload/route.ts");
+  assert.match(route, /SCREENING_WEBHOOK_TIMEOUT_MS = 120_000/);
+  assert.match(route, /controller\.abort\(\)/);
+  assert.match(route, /screening workflow timed out after/);
+  assert.match(route, /fetchWithTimeout\(webhookUrl/);
+});
+
+test("bulk upload validates file type, empty files, per-file size, and total size before queueing", () => {
+  const route = read("src/app/api/resume-screening/bulk/upload/route.ts");
+  assert.match(route, /invalidFiles/);
+  assert.match(route, /Unsupported resume file type/);
+  assert.match(route, /validationErrors: invalidFiles\.map/);
+  assert.match(route, /emptyFiles/);
+  assert.match(route, /Empty resume files cannot be submitted/);
+  assert.match(route, /oversizedFiles/);
+  assert.match(route, /Each resume must be 10 MB or smaller/);
+  assert.match(route, /totalFileBytes/);
+  assert.match(route, /100 MB total upload limit/);
+  assert.match(route, /bulkResumeWebhookConfig\(\)/);
 });
 
 test("application invitations can send email and lock the invited identity", () => {
@@ -193,8 +233,25 @@ test("the bulk panel supports drag-and-drop, live auto-refresh, and retrying onl
   assert.match(panel, /readBulkApiResponse/);
   assert.doesNotMatch(panel, /response\.json\(\)/);
   assert.match(panel, /successful completion must come from the queue-backed status API/);
-  assert.match(panel, /const POLL_INTERVAL_MS = 60000/);
-  assert.match(panel, /updates automatically every minute/);
+  assert.match(panel, /const POLL_INTERVAL_MS = 15000/);
+  assert.match(panel, /updating automatically every 15 seconds/);
+});
+
+test("the bulk panel reports rejected files and exposes per-file processing errors", () => {
+  const panel = read("src/components/BulkResumeScreeningPanel.tsx");
+  assert.match(panel, /MAX_RESUME_FILE_BYTES = 10 \* 1024 \* 1024/);
+  assert.match(panel, /use PDF, DOC, or DOCX/);
+  assert.match(panel, /exceeds the 10 MB limit/);
+  assert.match(panel, /already selected/);
+  assert.match(panel, /Only \$\{MAX_FILES_PER_BATCH\} files can be submitted/);
+  assert.match(panel, /validationMessage/);
+  assert.match(panel, /validationErrors/);
+  assert.match(panel, /batchFailureDetails/);
+  assert.match(panel, /role="alert"/);
+  assert.match(panel, /Retry failed/);
+  assert.match(panel, /let requestAccepted = false/);
+  assert.match(panel, /optimistic client batch/);
+  assert.match(panel, /if \(!requestAccepted\)/);
 });
 
 test("bulk upload is wired into the live Resume Screening page", () => {

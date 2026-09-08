@@ -36,6 +36,7 @@ export type CandidateApplicationInput = {
   applicantCountry: string;
   resumeText: string;
   salaryExpectation: string;
+  salaryCurrency?: string;
   noticePeriod: string;
   availability: string;
   skillsAssessment: string;
@@ -51,6 +52,8 @@ export type CandidateApplicationWebhookPayload = {
   Role_ID: string;
   jobTitle: string;
   department: string;
+  /** Canonical role-level range captured when the application enters screening. */
+  approvedSalaryOrBudgetRange: string;
   // The same role-level evaluation contract is used by resume screening and
   // the post-call voice evaluator. Keeping it on the application event means
   // the screening workflow does not need to reconstruct it from a sheet row.
@@ -63,6 +66,7 @@ export type CandidateApplicationWebhookPayload = {
     applicantCountry: string;
     resumeText: string;
     salaryExpectation: string;
+    salaryCurrency: string;
     noticePeriod: string;
     availability: string;
     skillsAssessment: string;
@@ -85,6 +89,12 @@ export const candidateApplicationSources = [
   "HR Invitation",
 ] as const;
 
+export const candidateSalaryCurrencies = ["SGD", "PHP", "MY", "RUPEE", "RUPIAH"] as const;
+
+export function isCandidateSalaryCurrency(value: string): value is typeof candidateSalaryCurrencies[number] {
+  return candidateSalaryCurrencies.includes(value as typeof candidateSalaryCurrencies[number]);
+}
+
 export const candidateApplicationSubmissionSchema = z.object({
   roleId: z.string().trim().min(1).max(200),
   candidateName: z.string().trim().min(2).max(150),
@@ -94,6 +104,7 @@ export const candidateApplicationSubmissionSchema = z.object({
   applicantCountry: z.string().trim().max(4).default(""),
   resumeText: z.string().trim().min(20).max(50000),
   salaryExpectation: z.string().trim().max(1000).default(""),
+  salaryCurrency: z.string().trim().max(20).default(""),
   noticePeriod: z.string().trim().max(1000).default(""),
   availability: z.string().trim().max(1000).default(""),
   skillsAssessment: z.string().trim().max(10000).default(""),
@@ -367,6 +378,7 @@ export function buildCandidateApplicationPayload(input: {
   department?: string;
   evaluationFields?: { key: string; label: string; description: string }[];
   source: string;
+  approvedSalaryOrBudgetRange?: string;
   candidate: CandidateApplicationInput & { consent?: boolean };
   submittedAt: string;
 }): CandidateApplicationWebhookPayload {
@@ -378,6 +390,7 @@ export function buildCandidateApplicationPayload(input: {
     Role_ID: input.roleId,
     jobTitle: text(input.jobTitle),
     department: text(input.department),
+    approvedSalaryOrBudgetRange: text(input.approvedSalaryOrBudgetRange),
     evaluationFields: input.evaluationFields || [],
     candidate: {
       name: text(input.candidate.candidateName),
@@ -387,6 +400,7 @@ export function buildCandidateApplicationPayload(input: {
       applicantCountry: text(input.candidate.applicantCountry) || inferApplicantCountry(input.candidate.preferredMobile),
       resumeText: text(input.candidate.resumeText),
       salaryExpectation: text(input.candidate.salaryExpectation),
+      salaryCurrency: text(input.candidate.salaryCurrency),
       noticePeriod: text(input.candidate.noticePeriod),
       availability: text(input.candidate.availability),
       skillsAssessment: text(input.candidate.skillsAssessment),

@@ -210,7 +210,7 @@ const submit = node({
       sendBody: true,
       contentType: 'json',
       specifyBody: 'json',
-      jsonBody: expr('{{ JSON.stringify({ eventType: "candidate_application_submitted", applicationId: "APP-BULK-" + $("Select Unscreened Resumes").item.json.driveFileId, roleId: $json.roleId, Role_ID: $json.roleId, jobTitle: "", department: "", candidate: { name: $json.candidateName, email: $json.candidateEmail, phone: $json.preferredMobile, preferredMobile: $json.preferredMobile, applicantCountry: $json.applicantCountry, resumeText: $json.resumeText, salaryExpectation: "", noticePeriod: "", availability: "", skillsAssessment: "", roleExpectations: "", applicationSource: "HR Manual Intake", consent: false }, submittedAt: $now.toISO(), source: "Bulk Google Drive Resume", applicationSource: "HR Manual Intake" }) }}'),
+      jsonBody: expr('{{ JSON.stringify({ eventType: "candidate_application_submitted", applicationId: "APP-BULK-" + $("Select Unscreened Resumes").item.json.driveFileId, roleId: $json.roleId, Role_ID: $json.roleId, jobTitle: "", department: "", candidate: { name: $json.candidateName, email: $json.candidateEmail, phone: $json.preferredMobile, preferredMobile: $json.preferredMobile, applicantCountry: $json.applicantCountry, resumeText: $json.resumeText, salaryExpectation: "", salaryCurrency: "", noticePeriod: "", availability: "", skillsAssessment: "", roleExpectations: "", applicationSource: "HR Manual Intake", consent: false }, submittedAt: $now.toISO(), source: "Bulk Google Drive Resume", applicationSource: "HR Manual Intake" }) }}'),
       response: { fullResponse: true, responseFormat: 'json', neverError: true },
     },
     position: [3080, 300],

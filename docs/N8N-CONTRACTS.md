@@ -62,6 +62,11 @@ The portal sends this payload to `N8N_RECRUITMENT_SETUP_WEBHOOK_URL`, or to
 }
 ```
 
+`Salary_or_Budget_Range` is required when submitting a new role request and
+before a role can be marked Ready for Publishing or published. The portal
+allows incomplete drafts to be autosaved, but server-side validation rejects a
+final request or stage transition when this approved range is blank.
+
 The candidate-application event also carries `evaluationFields`, using the
 same baseline, optional, and custom field definitions saved in the role's
 `Evaluation_Fields` column. The resume-screening workflow and the post-call
@@ -105,7 +110,11 @@ The rendered value must have the role and candidate placeholders resolved for
 that call; do not pass the literal `{{ella_system_prompt}}` as its value. The
 `{{system_prompt}}` placeholder must be replaced with the structured HR
 criteria at call setup; the editable template must remain available for later
-HR changes. Return HTTP 200 JSON with `{ "success": true }`.
+HR changes. For the salary context, replace `{{salary_expectation}}` with the
+candidate's submitted monthly amount and `{{salary_currency}}` with the form
+currency. Keep missing values as `Not provided`; never infer or convert them.
+The approved role range must remain in the rendered `SALARY OR BUDGET RANGE`
+criteria. Return HTTP 200 JSON with `{ "success": true }`.
 
 For candidate final-interview invitations, the portal creates or normalizes
 `Final_Interview_Booking_Link` when HR approves the voice interview. n8n
@@ -177,13 +186,15 @@ application route and the HR manual intake route:
   "Role_ID": "ROLE-...",
   "jobTitle": "Sales Manager",
   "department": "Commercial",
+  "approvedSalaryOrBudgetRange": "PHP 45,000 to PHP 60,000 per month",
   "candidate": {
     "name": "Candidate Name",
     "email": "candidate@example.com",
     "phone": "+639000000000",
     "preferredMobile": "+639171234567",
     "resumeText": "Extracted resume text only",
-    "salaryExpectation": "PHP 50,000",
+    "salaryExpectation": "50000",
+    "salaryCurrency": "PHP",
     "noticePeriod": "30 days",
     "availability": "Immediate",
     "skillsAssessment": "Strong communication",
@@ -214,6 +225,16 @@ workflows continue to work. n8n should write the same value to the candidate
 sheet's contact-number fields. The selected role is carried in `jobTitle` and
 `department` so CV analysis can populate `Selected_Role` and `Department` in
 `High_Match_Profile`; the portal reads those fields when rendering applicants.
+
+The CV-screening workflow must use `approvedSalaryOrBudgetRange` (or the
+matching `Salary_or_Budget_Range` value from the role row) together with the
+candidate's submitted `salaryExpectation` and `salaryCurrency`. Compare only
+like-for-like monthly values in the same currency. If either value is missing,
+the currency differs, or the pay periods are not comparable, record
+`Not provided` or `Not comparable` instead of guessing or silently converting.
+Salary alignment is advisory evidence for HR review and must never by itself
+approve or reject a candidate. Bulk resumes intentionally send an empty salary
+and currency because no application-form salary was submitted.
 
 The HR intake route uses the same schema, but the `source` value is
 `HR Manual Intake` and `consent` is omitted. The allowed `applicationSource`

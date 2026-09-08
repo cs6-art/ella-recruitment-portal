@@ -1433,6 +1433,25 @@ input:not([type="file"]), select { border-radius: 8px; border-color: #c2c7d0; }
             </div>
 
             <div class="form-group">
+              <label for="salaryExpectation">Expected Salary (Monthly)<span class="required-mark" aria-hidden="true">*</span></label>
+              <input id="salaryExpectation" name="salary_expectation" type="number" inputmode="decimal" min="0.01" step="0.01" autocomplete="off" required />
+              <span class="field-error" id="salaryExpectationError" role="alert"></span>
+            </div>
+
+            <div class="form-group">
+              <label for="salaryCurrency">Salary Currency<span class="required-mark" aria-hidden="true">*</span></label>
+              <select id="salaryCurrency" name="salary_currency" required>
+                <option value="">Please Select</option>
+                <option value="SGD">SGD</option>
+                <option value="PHP">PHP</option>
+                <option value="MY">MY</option>
+                <option value="RUPEE">RUPEE</option>
+                <option value="RUPIAH">RUPIAH</option>
+              </select>
+              <span class="field-error" id="salaryCurrencyError" role="alert"></span>
+            </div>
+
+            <div class="form-group">
               <label for="resume">Resume Upload<span class="required-mark" aria-hidden="true">*</span></label>
 
               <label class="file-upload" for="resume">
@@ -1721,7 +1740,7 @@ function resetRecruitmentView() {
   recruitmentErrorState.style.display = "none";
   recruitmentSubmit.disabled = false;
   recruitmentFileName.textContent = "No file selected";
-  ["candidateNameError", "contactNumberError", "emailError", "roleError", "resumeError"].forEach((id) => setFieldError(id, ""));
+  ["candidateNameError", "contactNumberError", "emailError", "roleError", "salaryExpectationError", "salaryCurrencyError", "resumeError"].forEach((id) => setFieldError(id, ""));
   validationSummary.textContent = "";
   validationSummary.classList.remove("visible");
 }
@@ -2059,6 +2078,8 @@ function validateRecruitmentForm() {
   const digits = phone.replace(/\D/g, "");
   const email = document.getElementById("email").value.trim();
   const role = recruitmentRole.value;
+  const salaryExpectation = document.getElementById("salaryExpectation").value.trim();
+  const salaryCurrency = document.getElementById("salaryCurrency").value;
   const file = recruitmentFile.files[0];
   setFieldError("candidateNameError", name ? "" : "Full name is required.");
   let phoneError = "";
@@ -2070,6 +2091,9 @@ function validateRecruitmentForm() {
   setFieldError("contactNumberError", phoneError);
   setFieldError("emailError", /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? "" : "Enter a valid email address.");
   setFieldError("roleError", role ? "" : "Select an available role.");
+  const salaryAmount = Number(salaryExpectation.replace(/,/g, ""));
+  setFieldError("salaryExpectationError", salaryExpectation && Number.isFinite(salaryAmount) && salaryAmount > 0 ? "" : "Enter a valid expected monthly salary.");
+  setFieldError("salaryCurrencyError", salaryCurrency ? "" : "Select a salary currency.");
   if (!file) setFieldError("resumeError", "Resume file is required.");
   else {
     const extension = file.name.split(".").pop().toLowerCase();
@@ -2113,6 +2137,8 @@ recruitmentForm.addEventListener("submit", async (event) => {
     payload.append("phone", preferredMobile);
     payload.append("preferredMobile", preferredMobile);
     payload.append("applicantCountry", applicantCountry);
+    payload.append("salaryExpectation", document.getElementById("salaryExpectation").value.trim());
+    payload.append("salaryCurrency", document.getElementById("salaryCurrency").value);
     payload.append("applicationSource", "HR Invitation");
     payload.append("consent", "true");
     payload.append("resumeFile", recruitmentFile.files[0], recruitmentFile.files[0].name);

@@ -94,6 +94,7 @@ const fieldLabels: Record<string, string> = {
   jobDescription: "Job Description",
   replacementEmployee: "Employee or Position Being Replaced",
   targetHiringDate: "Target Hiring Date",
+  salaryOrBudgetRange: "Approved salary or budget range",
   hodEmail: "HR interviewer email",
   customScreeningQuestion1: "Custom Screening Question 1",
   customScreeningQuestion2: "Custom Screening Question 2",
@@ -146,6 +147,15 @@ export default function RoleRequestForm({ user, roleId, status = "", initialValu
       ...(name === "requestType" && value === "Staff Addition"
         ? { replacementEmployee: "" }
         : {}),
+    }));
+    setError("");
+    setFieldErrors((current) => ({ ...current, [name]: "" }));
+  }
+
+  function updateRecruitmentSetup(name: "salaryOrBudgetRange", value: string) {
+    setForm((current) => ({
+      ...current,
+      recruitmentSetupDraft: { ...current.recruitmentSetupDraft, [name]: value },
     }));
     setError("");
     setFieldErrors((current) => ({ ...current, [name]: "" }));
@@ -262,7 +272,15 @@ export default function RoleRequestForm({ user, roleId, status = "", initialValu
         department: result.draft?.role.department || current.department,
         jobDescription: result.draft?.role.jobDescription || current.jobDescription,
         aiGeneratedScreeningQuestions: questions,
-        recruitmentSetupDraft: result.draft?.recruitmentSetup || current.recruitmentSetupDraft,
+        recruitmentSetupDraft: result.draft?.recruitmentSetup
+          ? {
+            ...current.recruitmentSetupDraft,
+            ...result.draft.recruitmentSetup,
+            // Salary approval is an HR-entered value; an AI draft must not
+            // erase it when the job description contains no compensation data.
+            salaryOrBudgetRange: result.draft.recruitmentSetup.salaryOrBudgetRange || current.recruitmentSetupDraft.salaryOrBudgetRange,
+          }
+          : current.recruitmentSetupDraft,
       }));
     } catch (error) {
       setParseError(error instanceof Error ? error.message : "Unable to generate the role draft.");
@@ -295,6 +313,12 @@ export default function RoleRequestForm({ user, roleId, status = "", initialValu
     });
 
     if (parsed.success) {
+      if (!form.recruitmentSetupDraft.salaryOrBudgetRange.trim()) {
+        setFieldErrors({ salaryOrBudgetRange: "Approved salary or budget range is required." });
+        setError("Please correct the highlighted fields before submitting.");
+        scrollToErrorSummary();
+        return false;
+      }
       setFieldErrors({});
       return true;
     }
@@ -462,6 +486,12 @@ export default function RoleRequestForm({ user, roleId, status = "", initialValu
                 <option>Temporary</option>
                 <option>Internship</option>
               </select>
+            </div>
+
+            <div className="field full">
+              <label htmlFor="salaryOrBudgetRange">Approved salary or budget range <strong className="required-mark">*</strong></label>
+              <input id="salaryOrBudgetRange" {...fieldErrorProps("salaryOrBudgetRange")} required value={form.recruitmentSetupDraft.salaryOrBudgetRange} onChange={(event) => updateRecruitmentSetup("salaryOrBudgetRange", event.target.value)} placeholder="e.g. PHP 45,000 to PHP 60,000 per month" />
+              <small className="field-help">Provide the approved currency and pay period. This is used by CV analysis and Ella when evaluating applicants.</small>
             </div>
 
             <div className="field">

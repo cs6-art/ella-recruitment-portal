@@ -22,7 +22,8 @@ type QueueItem = {
 
 const statusOrder = ["Queued", "Processing", "Completed", "Failed", "Skipped"];
 const MAX_FILES_PER_BATCH = 20;
-const POLL_INTERVAL_MS = 60000;
+const MAX_RESUME_FILE_BYTES = 10 * 1024 * 1024;
+const POLL_INTERVAL_MS = 15000;
 const TERMINAL_STATUSES = new Set(["screened", "processed", "failed", "skipped"]);
 
 function statusClass(status: string) {
@@ -32,6 +33,7 @@ function statusClass(status: string) {
 type BulkApiResponse = {
   success?: boolean;
   error?: string;
+  validationErrors?: string[];
   [key: string]: unknown;
 };
 
@@ -95,6 +97,7 @@ export default function BulkResumeScreeningPanel({ roleOptions, driveUrl }: { ro
   const [dragActive, setDragActive] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadMessage, setUploadMessage] = useState("");
+  const [validationMessage, setValidationMessage] = useState("");
   const [error, setError] = useState("");
   // Tracks the resumes submitted in the batch currently in flight, keyed by
   // the same content-hash queue ID the server computes, so the live section
@@ -102,6 +105,7 @@ export default function BulkResumeScreeningPanel({ roleOptions, driveUrl }: { ro
   // the role's entire screening history.
   const [activeBatch, setActiveBatch] = useState<Map<string, string>>(new Map());
   const [batchResultStatuses, setBatchResultStatuses] = useState<Map<string, string>>(new Map());
+  const [batchResultMessages, setBatchResultMessages] = useState<Map<string, string>>(new Map());
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const batchFiles = useRef<Map<string, File>>(new Map());
   const refreshInFlight = useRef(false);
@@ -125,7 +129,9 @@ export default function BulkResumeScreeningPanel({ roleOptions, driveUrl }: { ro
       // slow poll from overwriting a newer queue snapshot.
       if (requestId !== statusRequestId.current) return;
       setItems(result.items || []);
-      setCounts(result.roleTotals || result.counts || {});
+      // Both fields are supported for compatibility with older deployments;
+      // the current API returns the same reconciled snapshot in both fields.
+      setCounts(result.counts || result.roleTotals || {});
       setConfigured(result.configured !== false);
       if (result.error) setError(result.error);
     } catch (caught) {
@@ -149,9 +155,11 @@ export default function BulkResumeScreeningPanel({ roleOptions, driveUrl }: { ro
     setCounts({});
     setActiveBatch(new Map());
     setBatchResultStatuses(new Map());
+    setBatchResultMessages(new Map());
     batchFiles.current.clear();
     setFiles([]);
     setUploadMessage("");
+    setValidationMessage("");
     setError("");
   }
 
@@ -184,11 +192,35 @@ export default function BulkResumeScreeningPanel({ roleOptions, driveUrl }: { ro
   }, [roleId, anyPending, refreshStatus]);
 
   function addFiles(nextFiles: FileList | File[]) {
-    const incoming = Array.from(nextFiles).filter((file) => /\.(pdf|docx?|doc)$/i.test(file.name));
+    const incoming = Array.from(nextFiles);
+    const currentKeys = new Set(files.map((file) => `${file.name}:${file.size}`));
+    const accepted: File[] = [];
+    const issues: string[] = [];
+    for (const file of incoming) {
+      const displayName = file.name || "Unnamed file";
+      if (!/\.(pdf|docx?|doc)$/i.test(file.name)) {
+        issues.push(`${displayName}: use PDF, DOC, or DOCX.`);
+      } else if (file.size === 0) {
+        issues.push(`${displayName}: file is empty.`);
+      } else if (file.size > MAX_RESUME_FILE_BYTES) {
+        issues.push(`${displayName}: exceeds the 10 MB limit.`);
+      } else if (currentKeys.has(`${file.name}:${file.size}`) || accepted.some((entry) => entry.name === file.name && entry.size === file.size)) {
+        issues.push(`${displayName}: already selected.`);
+      } else {
+        accepted.push(file);
+      }
+    }
+    const availableSlots = Math.max(0, MAX_FILES_PER_BATCH - files.length);
+    if (accepted.length > availableSlots) {
+      const omitted = accepted.length - availableSlots;
+      issues.push(`Only ${MAX_FILES_PER_BATCH} files can be submitted in one batch; ${omitted} file${omitted === 1 ? " was" : "s were"} not added.`);
+      accepted.splice(availableSlots);
+    }
+    setValidationMessage(issues.join(" "));
     setFiles((current) => {
       const seen = new Set(current.map((file) => `${file.name}:${file.size}`));
       const merged = [...current];
-      for (const file of incoming) {
+      for (const file of accepted) {
         const key = `${file.name}:${file.size}`;
         if (!seen.has(key) && merged.length < MAX_FILES_PER_BATCH) { merged.push(file); seen.add(key); }
       }
@@ -205,6 +237,8 @@ export default function BulkResumeScreeningPanel({ roleOptions, driveUrl }: { ro
     setUploading(true);
     setError("");
     setUploadMessage("");
+    setValidationMessage("");
+    let requestAccepted = false;
     try {
       // Pre-compute each file's queue ID client-side (same hash the server
       // uses) so the live section below can track this exact batch from the
@@ -225,10 +259,17 @@ export default function BulkResumeScreeningPanel({ roleOptions, driveUrl }: { ro
       fileList.forEach((file) => formData.append("resumes", file));
       const response = await fetch("/api/resume-screening/bulk/upload", { method: "POST", body: formData });
       const result = await readBulkApiResponse(response, "Bulk resume upload");
-      if (!response.ok || result.success !== true) throw new Error(result.error || "Unable to submit the bulk resumes.");
+      if (!response.ok || result.success !== true) {
+        const validationDetails = Array.isArray(result.validationErrors) && result.validationErrors.length > 0
+          ? ` ${result.validationErrors.join(" ")}`
+          : "";
+        throw new Error(`${result.error || "Unable to submit the bulk resumes."}${validationDetails}`);
+      }
+      requestAccepted = true;
       const submitted = Number(result.submitted || 0);
-      const results = (result.results || []) as Array<{ fileName?: string; queueId?: string; status?: string; skipped?: boolean; message?: string }>;
+      const results = (result.results || []) as Array<{ fileName?: string; queueId?: string; status?: string; skipped?: boolean; message?: string; error?: string }>;
       setBatchResultStatuses(new Map(results.filter((item) => item.queueId).map((item) => [item.queueId as string, String(item.status || "Queued")])));
+      setBatchResultMessages(new Map(results.filter((item) => item.queueId).map((item) => [item.queueId as string, String(item.message || item.error || "")])));
       const notificationStatus = String(result.notificationStatus || "not_requested");
       const skippedResults = results.filter((item) => item.skipped);
       const alreadyScreened = skippedResults.filter((item) => item.status?.toLowerCase() === "screened").length;
@@ -250,6 +291,15 @@ export default function BulkResumeScreeningPanel({ roleOptions, driveUrl }: { ro
       setFiles((current) => current.filter((file) => !fileList.includes(file) || failedFileSet.has(file)));
       await refreshStatus();
     } catch (caught) {
+      // A rejected upload never created an accepted batch. Do not leave the
+      // optimistic client batch behind, or it will poll phantom Queued items
+      // forever after a validation/API error.
+      if (!requestAccepted) {
+        setActiveBatch(new Map());
+        setBatchResultStatuses(new Map());
+        setBatchResultMessages(new Map());
+        batchFiles.current.clear();
+      }
       setError(caught instanceof Error ? caught.message : "Unable to submit the bulk resumes.");
     } finally {
       setUploading(false);
@@ -280,13 +330,20 @@ export default function BulkResumeScreeningPanel({ roleOptions, driveUrl }: { ro
   const batchProcessed = batchTerminal.completed + batchTerminal.failed + batchTerminal.skipped;
   const batchPercent = batchTotal > 0 ? Math.round((batchProcessed / batchTotal) * 100) : 0;
   const batchFinished = batchTotal > 0 && batchTerminal.queued === 0 && batchTerminal.processing === 0;
-  const failedFiles = useMemo(() => {
-    const failedIds = [...activeBatch.keys()].filter((queueId) => {
+  const batchFailureDetails = useMemo(() => {
+    return [...activeBatch.keys()].flatMap((queueId) => {
       const item = items.find((entry) => entry.driveFileId === queueId);
-      return (item?.status || batchResultStatuses.get(queueId) || "").toLowerCase() === "failed";
+      const status = (item?.status || batchResultStatuses.get(queueId) || "").toLowerCase();
+      if (status !== "failed") return [];
+      return [{
+        queueId,
+        file: batchFiles.current.get(queueId),
+        name: item?.driveFileName || activeBatch.get(queueId) || queueId,
+        message: item?.errorMessage || batchResultMessages.get(queueId) || "The screening workflow could not process this resume.",
+      }];
     });
-    return failedIds.map((queueId) => batchFiles.current.get(queueId)).filter((file): file is File => Boolean(file));
-  }, [activeBatch, batchResultStatuses, items]);
+  }, [activeBatch, batchResultMessages, batchResultStatuses, items]);
+  const failedFiles = useMemo(() => batchFailureDetails.map((failure) => failure.file).filter((file): file is File => Boolean(file)), [batchFailureDetails]);
   const visibleCounts = useMemo(() => {
     const normalized: Record<string, number> = {};
     for (const [rawStatus, count] of Object.entries(counts)) {
@@ -355,11 +412,15 @@ export default function BulkResumeScreeningPanel({ roleOptions, driveUrl }: { ro
           <button type="button" className="btn btn-primary" disabled={!roleId || files.length === 0 || uploading} onClick={() => void uploadResumes(files)}>{uploading ? "Uploading and screening..." : `Start screening${files.length ? ` (${files.length})` : ""}`}</button>
         </div>
 
+        {validationMessage && <div className="warning-box bulk-screening-validation" role="alert">{validationMessage}</div>}
         {uploadMessage && <div className="success-box">{uploadMessage}</div>}
-        {failedFiles.length > 0 && !uploading && !batchFinished && (
-          <div className="warning-box bulk-screening-retry-box">
-            <span>{failedFiles.length} resume{failedFiles.length === 1 ? "" : "s"} failed to process.</span>
-            <button type="button" className="btn btn-secondary" onClick={() => void uploadResumes(failedFiles)}>Retry failed ({failedFiles.length})</button>
+        {batchFailureDetails.length > 0 && !uploading && (
+          <div className="error-box bulk-screening-retry-box" role="alert">
+            <div>
+              <strong>{batchFailureDetails.length} resume{batchFailureDetails.length === 1 ? "" : "s"} failed to process.</strong>
+              <ul>{batchFailureDetails.map((failure) => <li key={failure.queueId}><strong>{failure.name}</strong>: {failure.message}</li>)}</ul>
+            </div>
+            {failedFiles.length > 0 && <button type="button" className="btn btn-secondary" onClick={() => void uploadResumes(failedFiles)}>Retry failed ({failedFiles.length})</button>}
           </div>
         )}
 
@@ -402,12 +463,12 @@ export default function BulkResumeScreeningPanel({ roleOptions, driveUrl }: { ro
         )}
 
         <div className="bulk-screening-status-header">
-          <div><strong>Role Total</strong><small>{roleId ? `All saved screening records for ${roleId}${anyPending ? " · latest status updates automatically every minute" : ""}` : "Select a role to view its records"}</small></div>
+          <div><strong>Role Total</strong><small>{roleId ? `Current status for each saved screening record in ${roleId}${anyPending ? " · updating automatically every 15 seconds" : ""}` : "Select a role to view its records"}</small></div>
           <button type="button" className="btn btn-secondary" onClick={() => void refreshStatus()} disabled={loading}>{loading ? "Refreshing..." : "Refresh status"}</button>
         </div>
 
-        {!configured && <div className="warning-box">{error || "Create the Bulk_Resume_Queue tab to view processing status."}</div>}
-        {configured && error && <div className="error-box">{error}</div>}
+        {!configured && <div className="warning-box" role="alert">{error || "Create the Bulk_Resume_Queue tab to view processing status."}</div>}
+        {configured && error && <div className="error-box" role="alert">{error}</div>}
 
         <div className="bulk-screening-counts">
           {statusOrder.map((status) => <div key={status} className="bulk-count-card"><span>{status}</span><strong>{visibleCounts[status] || 0}</strong></div>)}

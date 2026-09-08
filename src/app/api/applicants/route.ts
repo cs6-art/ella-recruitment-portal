@@ -69,6 +69,7 @@ export async function POST(request: Request) {
       roleId,
       jobTitle: role.jobTitle,
       department: role.department,
+      approvedSalaryOrBudgetRange: role.salaryOrBudgetRange || "",
       evaluationFields: evaluationFieldsForSetup(role.evaluationFieldToggles, role.customEvaluationFields),
       source: "HR Manual Intake",
       submittedAt,
