@@ -22,6 +22,19 @@ test("public application form collects and validates monthly salary", () => {
   assert.match(form, /payload\.append\("salaryCurrency"/);
 });
 
+test("portal resume screening form collects the same monthly salary fields", () => {
+  const form = read("src/components/CandidateApplicationForm.tsx");
+  const route = read("src/app/api/applicants/route.ts");
+
+  assert.match(form, /id="candidate-salary-expectation"[^>]*required[^>]*type="number"/);
+  assert.match(form, /id="candidate-salary-currency"[^>]*required/);
+  assert.match(form, /Expected Salary \(Monthly\)/);
+  assert.match(form, /salaryExpectation/);
+  assert.match(form, /salaryCurrency/);
+  assert.match(route, /Expected monthly salary must be greater than zero/);
+  assert.match(route, /Select a valid salary currency/);
+});
+
 test("public application API rejects missing, invalid, and unsupported salary data", () => {
   const route = read("src/app/api/public/applications/route.ts");
   const workflow = read("src/lib/applicant-workflow.ts");

@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import {
   buildCandidateApplicationPayload,
   candidateApplicationSubmissionSchema,
+  isCandidateSalaryCurrency,
   isPreferredMobileValid,
   normalizePreferredMobile,
   sendCandidateApplicationWebhook,
@@ -45,6 +46,14 @@ export async function POST(request: Request) {
 
     if (!isPreferredMobileValid(parsed.data.preferredMobile)) {
       return responseError("Contact number must include a valid country code and local number.", 422, { field: "preferredMobile" });
+    }
+
+    const salaryAmount = Number(parsed.data.salaryExpectation.replace(/,/g, ""));
+    if (!Number.isFinite(salaryAmount) || salaryAmount <= 0) {
+      return responseError("Expected monthly salary must be greater than zero.", 422, { field: "salaryExpectation" });
+    }
+    if (!isCandidateSalaryCurrency(parsed.data.salaryCurrency)) {
+      return responseError("Select a valid salary currency.", 422, { field: "salaryCurrency" });
     }
 
     const roleId = parsed.data.roleId.trim();
