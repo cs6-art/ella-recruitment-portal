@@ -28,6 +28,42 @@ function statusClass(status: string) {
   return `bulk-status bulk-status-${status.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
 }
 
+type BulkApiResponse = {
+  success?: boolean;
+  error?: string;
+  [key: string]: unknown;
+};
+
+type BulkStatusApiResponse = BulkApiResponse & {
+  configured?: boolean;
+  counts?: Record<string, number>;
+  items?: QueueItem[];
+  roleTotals?: Record<string, number>;
+};
+
+/**
+ * A reverse proxy or an unavailable Next.js route can return plain text or an
+ * HTML error page. Read the body as text first so that those failures do not
+ * surface as the opaque browser error: `Unexpected token ... is not valid
+ * JSON`.
+ */
+async function readBulkApiResponse<T extends BulkApiResponse = BulkApiResponse>(response: Response, operation: string): Promise<T> {
+  const raw = await response.text();
+  if (!raw.trim()) {
+    throw new Error(`${operation} returned an empty response (HTTP ${response.status}). Please try again.`);
+  }
+
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    throw new Error(
+      response.status >= 500
+        ? `${operation} is temporarily unavailable (HTTP ${response.status}). Please try again.`
+        : `${operation} returned an invalid response (HTTP ${response.status}). Please try again.`,
+    );
+  }
+}
+
 // Human-facing label + result text for the live table, matching the coarse
 // Queued / Uploading / Processing / Completed / Failed states HR cares
 // about, distinct from the raw sheet status string used for logic.
@@ -82,7 +118,7 @@ export default function BulkResumeScreeningPanel({ roleOptions, driveUrl }: { ro
     setLoading(true);
     try {
       const response = await fetch(`/api/resume-screening/bulk?roleId=${encodeURIComponent(roleId)}`, { cache: "no-store", signal: controller.signal });
-      const result = await response.json();
+      const result = await readBulkApiResponse<BulkStatusApiResponse>(response, "Bulk screening status");
       if (!response.ok || result.success !== true) throw new Error(result.error || "Unable to load bulk screening status.");
       // Ignore a response that belongs to an older role/request. This keeps a
       // slow poll from overwriting a newer queue snapshot.
@@ -187,7 +223,7 @@ export default function BulkResumeScreeningPanel({ roleOptions, driveUrl }: { ro
       formData.set("roleId", roleId);
       fileList.forEach((file) => formData.append("resumes", file));
       const response = await fetch("/api/resume-screening/bulk/upload", { method: "POST", body: formData });
-      const result = await response.json();
+      const result = await readBulkApiResponse(response, "Bulk resume upload");
       if (!response.ok || result.success !== true) throw new Error(result.error || "Unable to submit the bulk resumes.");
       const submitted = Number(result.submitted || 0);
       const results = (result.results || []) as Array<{ fileName?: string; queueId?: string; status?: string; skipped?: boolean; message?: string }>;

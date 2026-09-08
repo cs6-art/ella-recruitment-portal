@@ -186,6 +186,8 @@ test("the bulk panel supports drag-and-drop, live auto-refresh, and retrying onl
   assert.match(panel, /Retry \{failedFiles\.length\} Failed/);
   assert.match(panel, /refreshInFlight/);
   assert.match(panel, /AbortController/);
+  assert.match(panel, /readBulkApiResponse/);
+  assert.doesNotMatch(panel, /response\.json\(\)/);
   assert.match(panel, /successful completion must come from the queue-backed status API/);
   assert.match(panel, /const POLL_INTERVAL_MS = 60000/);
   assert.match(panel, /updates automatically every minute/);
