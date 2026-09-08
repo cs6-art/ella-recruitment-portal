@@ -11,6 +11,8 @@ function read(relativePath) {
 
 test("bulk resume upload processes files with bounded, configurable concurrency instead of one at a time", () => {
   const route = read("src/app/api/resume-screening/bulk/upload/route.ts");
+  assert.match(route, /const MAX_FILES_PER_BATCH = 20/);
+  assert.match(route, /export const maxDuration = 300/);
   assert.match(route, /BULK_RESUME_UPLOAD_CONCURRENCY/);
   assert.match(route, /DEFAULT_CONCURRENCY = 2/);
   assert.match(route, /MAX_CONCURRENCY = 2/);
@@ -176,6 +178,8 @@ test("uploaded resumes keep a traceable Drive link back to the candidate/applica
 
 test("the bulk panel supports drag-and-drop, live auto-refresh, and retrying only failed files", () => {
   const panel = read("src/components/BulkResumeScreeningPanel.tsx");
+  assert.match(panel, /const MAX_FILES_PER_BATCH = 20/);
+  assert.match(panel, /Up to \{MAX_FILES_PER_BATCH\}/);
   assert.match(panel, /onDrop=/);
   assert.match(panel, /setInterval\(\(\) => \{ void refreshStatus\(\); \}, POLL_INTERVAL_MS\)/);
   assert.match(panel, /Retry failed/);

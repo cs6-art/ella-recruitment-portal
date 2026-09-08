@@ -21,6 +21,7 @@ type QueueItem = {
 };
 
 const statusOrder = ["Queued", "Processing", "Completed", "Failed", "Skipped"];
+const MAX_FILES_PER_BATCH = 20;
 const POLL_INTERVAL_MS = 60000;
 const TERMINAL_STATUSES = new Set(["screened", "processed", "failed", "skipped"]);
 
@@ -189,7 +190,7 @@ export default function BulkResumeScreeningPanel({ roleOptions, driveUrl }: { ro
       const merged = [...current];
       for (const file of incoming) {
         const key = `${file.name}:${file.size}`;
-        if (!seen.has(key)) { merged.push(file); seen.add(key); }
+        if (!seen.has(key) && merged.length < MAX_FILES_PER_BATCH) { merged.push(file); seen.add(key); }
       }
       return merged;
     });
@@ -238,6 +239,8 @@ export default function BulkResumeScreeningPanel({ roleOptions, driveUrl }: { ro
       const uploadSummary = submitted ? `${submitted} resume${submitted === 1 ? "" : "s"} submitted for processing` : "No new resumes were submitted";
       const notificationSummary = notificationStatus === "sent"
         ? " Internal completion email sent to HR and management."
+        : notificationStatus === "pending"
+          ? " Completion email will be sent after processing finishes."
         : notificationStatus === "disabled"
           ? " Success email notifications are currently disabled for bulk processing."
           : notificationStatus === "failed"
@@ -332,7 +335,7 @@ export default function BulkResumeScreeningPanel({ roleOptions, driveUrl }: { ro
           <input type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple disabled={!roleId || uploading} onChange={(event) => { if (event.target.files) addFiles(event.target.files); event.target.value = ""; }} />
           <div className="bulk-screening-dropzone-copy">
             <strong>Drag and drop resumes here, or click to choose files</strong>
-            <span>Up to 25 PDF, DOC, or DOCX files per batch, 10 MB each. {files.length > 0 ? `${files.length} file${files.length === 1 ? "" : "s"} selected.` : "No files selected yet."}</span>
+            <span>Up to {MAX_FILES_PER_BATCH} PDF, DOC, or DOCX files per batch, 10 MB each. {files.length > 0 ? `${files.length} file${files.length === 1 ? "" : "s"} selected.` : "No files selected yet."}</span>
           </div>
         </label>
 

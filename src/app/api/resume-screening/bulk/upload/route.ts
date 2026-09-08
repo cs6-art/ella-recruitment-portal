@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { cookies } from "next/headers";
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 
 import { canManagePipeline, canManageRolePipeline } from "@/lib/access-control";
 import { appendBulkResumeQueueEvent, getBulkResumeQueue, getBulkResumeScreeningEvidence, type BulkResumeQueueItem } from "@/lib/candidate-applications";
@@ -13,8 +13,9 @@ import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
-const MAX_FILES_PER_BATCH = 25;
+const MAX_FILES_PER_BATCH = 20;
 const MAX_BULK_REQUEST_BYTES = 100 * 1024 * 1024;
 const STALE_PROCESSING_MS = 30 * 60 * 1000;
 
@@ -257,77 +258,97 @@ export async function POST(request: Request) {
       }
     }
 
-    // Controlled-concurrency worker pool: a fixed number of files are ever
-    // in flight at once, each independently going through Drive storage +
-    // the two-stage n8n screening chain. This is what raises throughput
-    // beyond one-resume-at-a-time; it does not change what each file's
-    // pipeline does, only how many run at the same time.
     const concurrency = resolveConcurrency(toProcess.length);
-    let cursor = 0;
-    let startedWorkers = 0;
-    let nextWorkerStartAt = 0;
-    async function waitForWorkerStart() {
-      const workerNumber = startedWorkers++;
-      if (workerNumber < concurrency) {
-        if (workerNumber === concurrency - 1) nextWorkerStartAt = Date.now() + WORKER_START_INTERVAL_MS;
-        return;
-      }
-      const startAt = Math.max(Date.now(), nextWorkerStartAt);
-      nextWorkerStartAt = startAt + WORKER_START_INTERVAL_MS;
-      const delay = startAt - Date.now();
-      if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
-    }
-    async function worker() {
-      while (cursor < toProcess.length) {
-        const index = cursor++;
-        await waitForWorkerStart();
-        await processFile(toProcess[index]);
-      }
-    }
-    await Promise.all(Array.from({ length: concurrency }, worker));
-
-    // Bulk completion emails are disabled by default while this feature is
-    // rolled out; set BULK_RESUME_NOTIFY_ON_SUCCESS=true to re-enable them.
-    // Keep the notification contract available for a synchronous/terminal
-    // integration, but never emit a completion email for an asynchronous
-    // acknowledgement. The queue remains authoritative for that case.
     const notifyOnSuccess = String(process.env.BULK_RESUME_NOTIFY_ON_SUCCESS || "").trim().toLowerCase() === "true";
-    let notificationStatus: "sent" | "failed" | "disabled" | "not_requested" = notifyOnSuccess ? "not_requested" : "disabled";
-    const notificationUrl = (process.env.N8N_ROLE_REQUEST_WEBHOOK_URL || process.env.N8N_ROLE_WEBHOOK_URL || "").trim();
-    const terminalResults = new Set(["screened", "processed", "failed", "skipped"]);
-    const allResultsTerminal = results.length > 0 && results.every((result) => terminalResults.has(String(result.status || "").toLowerCase()));
-    if (notifyOnSuccess && !isUat && allResultsTerminal && notificationUrl && webhookSecret && files.length > 0) {
-      try {
-        const notificationResponse = await fetch(notificationUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "X-Webhook-Secret": webhookSecret, "X-Idempotency-Key": `bulk-batch-${batchId}` },
-          body: JSON.stringify({
-            eventType: "bulk_resume_batch_complete",
-            batchId,
-            roleId,
-            roleTitle: role.jobTitle || "",
-            submittedByEmail: user.email,
-            totalFiles: files.length,
-            submitted: results.filter((result) => ["Screened", "Processed"].includes(String(result.status))).length,
-            skipped: results.filter((result) => result.skipped === true).length,
-            failed: results.filter((result) => result.status === "Failed").length,
-            results,
-            completedAt: new Date().toISOString(),
-            source: "Portal Bulk Upload",
-          }),
-          cache: "no-store",
-        });
-        notificationStatus = notificationResponse.ok ? "sent" : "failed";
-      } catch (error) {
-        // Upload success must not be rolled back because an internal alert is
-        // temporarily unavailable; the queue records remain authoritative.
-        console.error("[Bulk Resume Upload] completion notification failed:", error);
-        notificationStatus = "failed";
+    /**
+     * The upload request only reserves the batch. The expensive Drive and n8n
+     * work continues after the 202 response so a large batch cannot hit the
+     * hosting proxy timeout while the queue is still making progress.
+     */
+    const processBatch = async () => {
+      // Controlled-concurrency worker pool: a fixed number of files are ever
+      // in flight at once, each independently going through Drive storage +
+      // the two-stage n8n screening chain.
+      let cursor = 0;
+      let startedWorkers = 0;
+      let nextWorkerStartAt = 0;
+      async function waitForWorkerStart() {
+        const workerNumber = startedWorkers++;
+        if (workerNumber < concurrency) {
+          if (workerNumber === concurrency - 1) nextWorkerStartAt = Date.now() + WORKER_START_INTERVAL_MS;
+          return;
+        }
+        const startAt = Math.max(Date.now(), nextWorkerStartAt);
+        nextWorkerStartAt = startAt + WORKER_START_INTERVAL_MS;
+        const delay = startAt - Date.now();
+        if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
       }
-    }
+      async function worker() {
+        while (cursor < toProcess.length) {
+          const index = cursor++;
+          await waitForWorkerStart();
+          await processFile(toProcess[index]);
+        }
+      }
+      await Promise.all(Array.from({ length: concurrency }, worker));
 
-    const submitted = results.filter((result) => !result.skipped && String(result.status || "").toLowerCase() !== "failed").length;
-    return NextResponse.json({ success: true, roleId, batchId, environment: isUat ? "uat" : environment, isUat, results, notificationStatus, concurrency, submitted }, { status: 202 });
+      // Bulk completion emails are disabled by default; when enabled, send the
+      // message only after every queue-backed file result is terminal.
+      let notificationStatus: "sent" | "failed" | "disabled" | "not_requested" = notifyOnSuccess ? "not_requested" : "disabled";
+      const notificationUrl = (process.env.N8N_ROLE_REQUEST_WEBHOOK_URL || process.env.N8N_ROLE_WEBHOOK_URL || "").trim();
+      const terminalResults = new Set(["screened", "processed", "failed", "skipped"]);
+      const allResultsTerminal = results.length > 0 && results.every((result) => terminalResults.has(String(result.status || "").toLowerCase()));
+      if (notifyOnSuccess && !isUat && allResultsTerminal && notificationUrl && webhookSecret && files.length > 0) {
+        try {
+          const notificationResponse = await fetch(notificationUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-Webhook-Secret": webhookSecret, "X-Idempotency-Key": `bulk-batch-${batchId}` },
+            body: JSON.stringify({
+              eventType: "bulk_resume_batch_complete",
+              batchId,
+              roleId,
+              roleTitle: role.jobTitle || "",
+              submittedByEmail: user.email,
+              totalFiles: files.length,
+              submitted: results.filter((result) => ["Screened", "Processed"].includes(String(result.status))).length,
+              skipped: results.filter((result) => result.skipped === true).length,
+              failed: results.filter((result) => result.status === "Failed").length,
+              results,
+              completedAt: new Date().toISOString(),
+              source: "Portal Bulk Upload",
+            }),
+            cache: "no-store",
+          });
+          notificationStatus = notificationResponse.ok ? "sent" : "failed";
+        } catch (error) {
+          // Upload success must not be rolled back because an internal alert is
+          // temporarily unavailable; the queue records remain authoritative.
+          console.error("[Bulk Resume Upload] completion notification failed:", error);
+          notificationStatus = "failed";
+        }
+      }
+      console.info("[Bulk Resume Upload] Batch finished", { batchId, roleId, results: results.length, notificationStatus });
+    };
+
+    after(() => processBatch().catch((error) => {
+      console.error("[Bulk Resume Upload] Background batch failed:", error);
+    }));
+
+    const acceptedResults = [
+      ...results,
+      ...toProcess.map(({ file, queueId }) => ({ fileName: file.name, queueId, status: "Queued" })),
+    ];
+    return NextResponse.json({
+      success: true,
+      roleId,
+      batchId,
+      environment: isUat ? "uat" : environment,
+      isUat,
+      results: acceptedResults,
+      notificationStatus: notifyOnSuccess ? "pending" : "disabled",
+      concurrency,
+      submitted: toProcess.length,
+    }, { status: 202 });
   } catch (error) {
     console.error("[Bulk Resume Upload] POST failed:", error);
     return responseError(error instanceof Error ? error.message : "Unable to upload bulk resumes.", 400);
