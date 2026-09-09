@@ -252,8 +252,19 @@ test("resume processing is bounded and standalone uploads require HR review acce
   assert.match(resumeFiles, /CLEANUP_INTERVAL_MS/);
   assert.match(resumeFiles, /expiresAt/);
   assert.match(limiter, /MAX_BUCKETS/);
-  assert.match(instrumentation, /cleanupExpiredResumeFiles/);
-  assert.match(instrumentation, /setInterval/);
+  // Recurring maintenance must NOT be scheduled from instrumentation.register()
+  // — that burns idle CPU on every warm Vercel instance and every Preview
+  // deployment. It is driven by the protected /api/internal/maintenance route
+  // from a single external scheduler instead.
+  assert.doesNotMatch(instrumentation, /setInterval\(/);
+  assert.doesNotMatch(instrumentation, /setTimeout\(/);
+  const maintenanceRoute = read("src/app/api/internal/maintenance/route.ts");
+  assert.match(maintenanceRoute, /INTERNAL_API_SECRET/);
+  assert.match(maintenanceRoute, /timingSafeEqual/);
+  assert.match(maintenanceRoute, /isBackgroundMaintenanceAllowed/);
+  assert.match(maintenanceRoute, /cleanupExpiredResumeFiles/);
+  assert.match(maintenanceRoute, /syncPastBookedInterviewsNoShow/);
+  assert.match(maintenanceRoute, /syncPastAvailableInterviewSlots/);
 });
 
 test("candidate screening contract is role-bound and HR-owned", () => {

@@ -1416,6 +1416,45 @@ export async function syncPastBookedInterviewsNoShow() {
     let queueData: { rows: Row[]; rowNumbers: number[] } = { rows: [], rowNumbers: [] };
     try { queueData = await readSheet("Voice_Call_Queue", "X"); } catch { /* Older workbooks may not have this tab. */ }
 
+    // Index every side sheet by (lowercased) Application_ID once, up front.
+    // Previously each booked past slot did a full `findIndex` over the
+    // applicant sheet plus repeated `.map().filter()` scans over the queue and
+    // tracking sheets — O(slots x rows) with a fresh `.toLowerCase()` per cell
+    // on every pass. These maps make each lookup O(1).
+    const idKey = (value: string) => value.trim().toLowerCase();
+    const applicantIndexById = new Map<string, number>();
+    applicantsData.rows.forEach((row, index) => {
+      const id = idKey(field(row, "Application_ID", "Application ID"));
+      if (id && !applicantIndexById.has(id)) applicantIndexById.set(id, index);
+    });
+    const groupByApplication = (rows: Row[], rowNumbers?: number[]) => {
+      const grouped = new Map<string, { row: Row; rowNumber: number }[]>();
+      rows.forEach((row, index) => {
+        const id = idKey(field(row, "Application_ID", "Application ID"));
+        if (!id) return;
+        const bucket = grouped.get(id);
+        const entry = { row, rowNumber: rowNumbers ? rowNumbers[index] : index };
+        if (bucket) bucket.push(entry);
+        else grouped.set(id, [entry]);
+      });
+      return grouped;
+    };
+    const queueByApplication = groupByApplication(queueData.rows, queueData.rowNumbers);
+    const trackingByApplication = finalTrackingData
+      ? groupByApplication(finalTrackingData.rows, finalTrackingData.rowNumbers)
+      : new Map<string, { row: Row; rowNumber: number }[]>();
+    const voiceResultRows = [...(voiceResultsData?.rows ?? []), ...(callLogsData?.rows ?? [])];
+    const voiceResultsByApplication = groupByApplication(voiceResultRows);
+    const finalResultsByApplication = groupByApplication(finalTrackingData?.rows ?? []);
+    const todayByTimezone = new Map<string, string>();
+    const todayFor = (timezone: string) => {
+      const cached = todayByTimezone.get(timezone);
+      if (cached) return cached;
+      const value = todayInTimezone(timezone);
+      todayByTimezone.set(timezone, value);
+      return value;
+    };
+
     const updates: CellUpdate[] = [];
     const historyRows: string[][] = [];
     let changed = 0;
@@ -1423,10 +1462,11 @@ export async function syncPastBookedInterviewsNoShow() {
       if (field(slot, "Status").toLowerCase() !== "booked") return;
       const timezone = field(slot, "Timezone", "Time Zone") || "Asia/Singapore";
       const date = calendarDateKey(field(slot, "Date"), timezone);
-      if (!date || date >= todayInTimezone(timezone)) return;
+      if (!date || date >= todayFor(timezone)) return;
 
       const applicationId = field(slot, "Application_ID", "Application ID");
-      const applicantIndex = applicantsData.rows.findIndex((row) => field(row, "Application_ID", "Application ID").toLowerCase() === applicationId.toLowerCase());
+      const applicationIdKey = idKey(applicationId);
+      const applicantIndex = applicantIndexById.get(applicationIdKey) ?? -1;
       const isVoice = field(slot, "Interview_Type", "Interview Type").toLowerCase().includes("voice");
       const applicant = applicantIndex >= 0 ? applicantsData.rows[applicantIndex] : undefined;
       if (!isDemoSideEffectAllowed(field(
@@ -1441,9 +1481,9 @@ export async function syncPastBookedInterviewsNoShow() {
         "Submitted At",
       ))) return;
       const interviewStatus = field(applicant || {}, isVoice ? "Status 2 (Voice Interview)" : "Status 3 (Final Interview)").toLowerCase();
-      const resultRows = isVoice
-        ? [...(voiceResultsData?.rows ?? []), ...(callLogsData?.rows ?? [])]
-        : finalTrackingData?.rows;
+      const resultRows = (isVoice
+        ? voiceResultsByApplication.get(applicationIdKey) ?? []
+        : finalResultsByApplication.get(applicationIdKey) ?? []).map((entry) => entry.row);
       const hasAttendanceResult = interviewStatus.includes("interviewed")
         || interviewStatus.includes("completed")
         || hasCompletedInterviewResult(resultRows, applicationId, isVoice ? "voice" : "final");
@@ -1491,19 +1531,15 @@ export async function syncPastBookedInterviewsNoShow() {
           }
         }
         if (isVoice) {
-          queueData.rows
-            .map((queueRow, queueIndex) => ({ queueRow, rowNumber: queueData.rowNumbers[queueIndex] }))
-            .filter(({ queueRow }) => field(queueRow, "Application_ID", "Application ID").toLowerCase() === applicationId.toLowerCase()
-              && ["scheduled", "queued", "calling", "initiated", "in progress"].includes(field(queueRow, "Voice_Call_Status").toLowerCase()))
+          (queueByApplication.get(applicationIdKey) ?? [])
+            .filter(({ row }) => ["scheduled", "queued", "calling", "initiated", "in progress"].includes(field(row, "Voice_Call_Status").toLowerCase()))
             .forEach(({ rowNumber }) => updates.push(
               { tab: "Voice_Call_Queue", row: rowNumber, header: "Voice_Call_Status", value: "Completed" },
               { tab: "Voice_Call_Queue", row: rowNumber, header: "Last_Updated", value: now },
             ));
         }
         if (!isVoice && finalTrackingData) {
-          finalTrackingData.rows
-            .map((trackingRow, trackingIndex) => ({ trackingRow, rowNumber: finalTrackingData.rowNumbers[trackingIndex] }))
-            .filter(({ trackingRow }) => field(trackingRow, "Application_ID", "Application ID").toLowerCase() === applicationId.toLowerCase())
+          (trackingByApplication.get(applicationIdKey) ?? [])
             .forEach(({ rowNumber }) => updates.push(
               { tab: "Final_Interview_Tracking", row: rowNumber, header: "Final_Interview_Status", value: "Completed" },
               { tab: "Final_Interview_Tracking", row: rowNumber, header: "Last_Updated", value: now },
@@ -1515,7 +1551,7 @@ export async function syncPastBookedInterviewsNoShow() {
 
       // Only an appointment with no attendance/result after its day has
       // passed is a No Show. Future bookings stay Scheduled/Booked.
-      if (!date || date >= todayInTimezone(timezone)) return;
+      if (!date || date >= todayFor(timezone)) return;
 
       const now = new Date().toISOString();
       updates.push(
@@ -1532,18 +1568,15 @@ export async function syncPastBookedInterviewsNoShow() {
         if (isVoice) updates.push({ tab: "High_Match_Profile", row: applicantRow, header: "Voice_Interview_Booking_Status", value: "No Show" });
       }
       if (isVoice) {
-        queueData.rows
-          .map((queueRow, queueIndex) => ({ queueRow, rowNumber: queueData.rowNumbers[queueIndex] }))
-          .filter(({ queueRow }) => field(queueRow, "Application_ID", "Application ID").toLowerCase() === applicationId.toLowerCase() && ["scheduled", "queued"].includes(field(queueRow, "Voice_Call_Status").toLowerCase()))
+        (queueByApplication.get(applicationIdKey) ?? [])
+          .filter(({ row }) => ["scheduled", "queued"].includes(field(row, "Voice_Call_Status").toLowerCase()))
           .forEach(({ rowNumber }) => updates.push(
             { tab: "Voice_Call_Queue", row: rowNumber, header: "Voice_Call_Status", value: "No Show" },
             { tab: "Voice_Call_Queue", row: rowNumber, header: "Last_Updated", value: now },
           ));
       }
       if (!isVoice && finalTrackingData) {
-        finalTrackingData.rows
-          .map((trackingRow, trackingIndex) => ({ trackingRow, rowNumber: finalTrackingData.rowNumbers[trackingIndex] }))
-          .filter(({ trackingRow }) => field(trackingRow, "Application_ID", "Application ID").toLowerCase() === applicationId.toLowerCase())
+        (trackingByApplication.get(applicationIdKey) ?? [])
           .forEach(({ rowNumber }) => updates.push(
             { tab: "Final_Interview_Tracking", row: rowNumber, header: "Final_Interview_Status", value: "No Show" },
             { tab: "Final_Interview_Tracking", row: rowNumber, header: "Final_Recommendation", value: "No Show - Reschedule Required" },

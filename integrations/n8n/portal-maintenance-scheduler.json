@@ -1,0 +1,89 @@
+{
+  "name": "McLink - Portal Maintenance Scheduler",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "minutes", "minutesInterval": 15 }
+          ]
+        }
+      },
+      "id": "interview-sync-schedule",
+      "name": "Every 15 minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [260, 240]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "cronExpression", "expression": "0 2 * * *" }
+          ]
+        }
+      },
+      "id": "resume-cleanup-schedule",
+      "name": "Daily 02:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [260, 440]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { jobs: ['interview-no-show', 'interview-slots'] } }];"
+      },
+      "id": "interview-jobs-body",
+      "name": "Interview jobs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [500, 240]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { jobs: ['resume-cleanup'] } }];"
+      },
+      "id": "cleanup-jobs-body",
+      "name": "Cleanup job",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [500, 440]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.PORTAL_BASE_URL }}/api/internal/maintenance",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-internal-secret", "value": "={{ $env.PORTAL_INTERNAL_API_SECRET }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 300000,
+          "response": { "response": { "neverError": false } }
+        }
+      },
+      "id": "call-maintenance",
+      "name": "POST /api/internal/maintenance",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [760, 340]
+    }
+  ],
+  "connections": {
+    "Every 15 minutes": { "main": [[{ "node": "Interview jobs", "type": "main", "index": 0 }]] },
+    "Daily 02:00": { "main": [[{ "node": "Cleanup job", "type": "main", "index": 0 }]] },
+    "Interview jobs": { "main": [[{ "node": "POST /api/internal/maintenance", "type": "main", "index": 0 }]] },
+    "Cleanup job": { "main": [[{ "node": "POST /api/internal/maintenance", "type": "main", "index": 0 }]] }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "notes": "Single controlled scheduler for portal maintenance. Create ONLY in the production n8n project. Requires n8n env vars PORTAL_BASE_URL (prod portal origin, no trailing slash) and PORTAL_INTERNAL_API_SECRET (must equal the portal's INTERNAL_API_SECRET). The endpoint refuses non-production (Preview) deployments with 403, so a pilot copy would no-op by design - do not create one."
+  }
+}

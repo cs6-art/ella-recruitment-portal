@@ -1,41 +1,24 @@
-const RESUME_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
-const INTERVIEW_MAINTENANCE_INTERVAL_MS = 5 * 60 * 1000;
-
+/**
+ * Next.js `register()` runs once per server process start. On Vercel Fluid
+ * Compute that means once per *warm serverless instance* — and any recurring
+ * timer started here keeps burning Active CPU on that instance for as long as
+ * it stays warm, even with nobody using the portal, and independently on every
+ * Preview deployment.
+ *
+ * Recurring maintenance therefore does NOT live here any more. The three jobs
+ * that used to be scheduled from this file —
+ *
+ *   - syncPastBookedInterviewsNoShow()   (was every 5 minutes)
+ *   - syncPastAvailableInterviewSlots()  (was every 5 minutes)
+ *   - cleanupExpiredResumeFiles()        (was every 60 minutes)
+ *
+ * are now driven by a single external scheduler (n8n) calling the protected
+ * endpoint `POST /api/internal/maintenance` with `INTERNAL_API_SECRET`. That
+ * gives exactly one controlled execution per job, no idle CPU on warm
+ * instances, and no background execution from Preview deployments.
+ *
+ * See docs/VERCEL-CPU-REDUCTION.md for the scheduler setup.
+ */
 export async function register() {
-  if (process.env.NEXT_RUNTIME !== "nodejs") return;
-
-  // Keep scheduled Drive cleanup away from protected historical files while
-  // demo safety is enabled. New uploads still retain their normal expiry.
-  const { isDemoMode } = await import("./lib/demo-mode");
-  if (!isDemoMode()) {
-    const { cleanupExpiredResumeFiles } = await import("./lib/resume-files");
-    const runCleanup = () => {
-      void cleanupExpiredResumeFiles().catch((error) => {
-        console.warn("[Resume Cleanup] Scheduled cleanup failed:", error);
-      });
-    };
-
-    runCleanup();
-    const timer = setInterval(runCleanup, RESUME_CLEANUP_INTERVAL_MS);
-    timer.unref?.();
-  }
-
-  // Interview maintenance is safe in demo mode because each writer enforces
-  // the fixed August 20 cutoff and skips protected historical records.
-  const { syncPastBookedInterviewsNoShow, syncPastAvailableInterviewSlots } = await import("./lib/applicant-workflow");
-  const runInterviewMaintenance = () => {
-    void (async () => {
-      await syncPastBookedInterviewsNoShow();
-      await syncPastAvailableInterviewSlots();
-    })().catch((error) => {
-      console.warn("[Interview Maintenance] Scheduled sync failed:", error);
-    });
-  };
-
-  // Delay the first pass so application startup and the first navigation are
-  // not competing with the maintenance sheet reads.
-  const initialMaintenance = setTimeout(runInterviewMaintenance, 15_000);
-  initialMaintenance.unref?.();
-  const maintenanceTimer = setInterval(runInterviewMaintenance, INTERVIEW_MAINTENANCE_INTERVAL_MS);
-  maintenanceTimer.unref?.();
+  // Intentionally empty. Never schedule recurring timers here — see above.
 }
