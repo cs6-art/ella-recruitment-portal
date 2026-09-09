@@ -87,7 +87,7 @@ const fieldLabels: Record<string, string> = {
   candidateName: "Full Name",
   localContactNumber: "Contact Number",
   email: "Email Address",
-  resumeRoleId: "Role Applied For",
+  resumeRoleId: "Role",
   salaryExpectation: "Expected Salary (Monthly)",
   resumeFile: "Resume Upload",
 };
@@ -284,7 +284,7 @@ export default function CandidateApplicationForm({
 
           {showRoleSelect ? (
             <label className="field">
-              <span>Role Applied For *</span>
+              <span>Role *</span>
               <select id="candidate-role" required value={form.resumeRoleId} disabled={saving} onChange={(event) => update("resumeRoleId", event.target.value)}>
                 <option value="">Select a role</option>
                 {roleOptions.map((option) => <option key={option.roleId} value={option.roleId}>{option.label}</option>)}

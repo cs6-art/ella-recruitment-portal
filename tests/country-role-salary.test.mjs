@@ -62,3 +62,27 @@ test("applicant country filtering and server-side salary derivation are wired", 
   assert.match(manualRoute, /salaryCurrency: country\.currencyCode/);
   assert.match(rolesRoute, /roleCountry/);
 });
+
+test("public role loading is not blocked by the removed country picker", () => {
+  for (const path of ["public/index.html", "G:\\My Drive\\Downloads\\indexsept.html"]) {
+    if (!fs.existsSync(path)) continue;
+    const form = read(path);
+    assert.doesNotMatch(form, /updateCountryPicker\(recruitmentCountry\.value\)/);
+    if (path.includes("indexsept.html")) assert.match(form, /loadAvailableRoles\(\);/);
+    assert.match(form, /normalizeRecruitmentRole/);
+    assert.match(form, /source\.Role_Country, "PH"/);
+    assert.match(form, /<label for="role">Role<span/);
+  }
+});
+
+test("role editing persists country and keeps CRUD actions visible", () => {
+  const detailsRoute = read("src/app/api/roles/[roleId]/route.ts");
+  const rolesList = read("src/components/RolesList.tsx");
+  const styles = read("src/app/globals.css");
+  assert.match(detailsRoute, /Role_Country: patchText\(body\.roleCountry, role\.roleCountry, 2\)/);
+  assert.match(detailsRoute, /Role_Country: input\.roleCountry/);
+  assert.match(read("src/components/RoleRequestForm.tsx"), /roleCountry: "PH"/);
+  assert.match(rolesList, /<th>Action<\/th>/);
+  assert.match(styles, /\.roles-table th:last-child,[\s\S]*position: sticky/);
+  assert.match(styles, /\.roles-table th:nth-child\(6\),[\s\S]*width: 70px/);
+});

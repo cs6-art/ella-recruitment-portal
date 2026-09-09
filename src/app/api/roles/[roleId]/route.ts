@@ -42,6 +42,7 @@ function roleDraftFieldsForPatch(body: Record<string, unknown>, role: RoleReques
   const setupQuestions = [1, 2, 3, 4, 5].map((index) => patchText(setup[`requiredInterviewQuestion${index}`], role[`requiredInterviewQuestion${index}` as keyof RoleRequestDetails] as string || "", 1000));
   return {
     Request_Type: patchText(body.requestType, role.requestType, 50),
+    Role_Country: patchText(body.roleCountry, role.roleCountry, 2),
     Department: patchText(body.department, role.department, 100),
     Job_Title: patchText(body.jobTitle, role.jobTitle, 150),
     Number_Of_Vacancies: patchText(body.numberOfVacancies, String(role.numberOfVacancies || 1), 10),
@@ -249,6 +250,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     await updateRoleRequestFields(access.role.roleId, {
       Request_Type: input.requestType,
+      Role_Country: input.roleCountry,
       Department: input.department,
       Job_Title: input.jobTitle,
       Employment_Type: input.employmentType,
