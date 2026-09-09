@@ -125,6 +125,7 @@ export default function RoleRequestForm({ user, roleId, status = "", initialValu
   const [parseError, setParseError] = useState("");
   const errorSummaryRef = useRef<HTMLDivElement>(null);
   const draftClientId = useRef(globalThis.crypto.randomUUID());
+  const creationSubmissionId = useRef(globalThis.crypto.randomUUID());
   const submittingRef = useRef(false);
   const exitSaveSuppressedRef = useRef(false);
   const initialFormKey = useMemo(() => JSON.stringify(initialForm), [initialForm]);
@@ -376,6 +377,7 @@ export default function RoleRequestForm({ user, roleId, status = "", initialValu
           body: JSON.stringify({
             ...form,
             ...availabilityPayload(),
+            ...(!isEditing ? { submissionId: creationSubmissionId.current } : {}),
             requesterName: user.name,
             requesterEmail: user.email,
             replacementEmployee: form.requestType === "Staff Replacement" ? form.replacementEmployee : "",

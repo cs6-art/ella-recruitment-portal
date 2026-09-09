@@ -64,6 +64,7 @@ export type DirectoryUser = {
 
 export type RoleRequestSummary = {
   roleId: string;
+  submissionId?: string;
   createdAt: string;
   requesterEmail: string;
   targetHiringDate: string;
@@ -92,6 +93,7 @@ export type RoleRequestSummary = {
 
 export type RoleRequestDetails = {
   roleId: string;
+  submissionId: string;
   createdAt: string;
 
   submittedByEmail: string;
@@ -391,6 +393,11 @@ function mapRoleRequest(
     roleId: getField(record, [
       "Role_ID",
       "Role ID",
+      "Submission_ID",
+      "Submission ID",
+    ]),
+
+    submissionId: getField(record, [
       "Submission_ID",
       "Submission ID",
     ]),
@@ -956,11 +963,11 @@ export async function updateDirectoryUser(originalEmail: string, user: Directory
   invalidateSheetsCache("User_Directory");
 }
 
-export async function getRoleRequests(options: { liveOnly?: boolean } = {}): Promise<
+export async function getRoleRequests(options: { liveOnly?: boolean; fresh?: boolean } = {}): Promise<
   RoleRequestSummary[]
 > {
   const records =
-    await getRoleRequestRecords();
+    await getRoleRequestRecords({ fresh: options.fresh });
 
   const roles: RoleRequestSummary[] =
     records
@@ -972,6 +979,7 @@ export async function getRoleRequests(options: { liveOnly?: boolean } = {}): Pro
       )
       .map((role) => ({
         roleId: role.roleId,
+        submissionId: role.submissionId,
         createdAt: role.createdAt,
         requesterEmail: role.requesterEmail,
         targetHiringDate: role.targetHiringDate,

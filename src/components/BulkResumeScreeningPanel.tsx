@@ -352,6 +352,33 @@ export default function BulkResumeScreeningPanel({ roleOptions, driveUrl }: { ro
     }
     return normalized;
   }, [counts]);
+  // The upload endpoint reserves every item before returning, but a fresh
+  // Sheets read can briefly lag or omit one event while concurrent append
+  // requests settle. Keep the accepted batch visible from the client-side
+  // manifest until the queue snapshot catches up, instead of showing a
+  // progress item that has no corresponding row below it.
+  const visibleItems = useMemo(() => {
+    if (activeBatch.size === 0) return items;
+    const itemsById = new Map(items.map((item) => [item.driveFileId, item]));
+    const activeItems = [...activeBatch.entries()].map(([queueId, fileName]) => itemsById.get(queueId) || {
+      driveFileId: queueId,
+      driveFileName: fileName,
+      driveFileUrl: "",
+      roleId,
+      candidateName: "",
+      candidateEmail: "",
+      status: batchResultStatuses.get(queueId) || "Queued",
+      applicationId: "",
+      errorMessage: batchResultMessages.get(queueId) || "",
+      discoveredAt: "",
+      processingStartedAt: "",
+      processedAt: "",
+      attemptCount: "",
+      lastUpdated: "",
+    });
+    const activeIds = new Set(activeBatch.keys());
+    return [...activeItems, ...items.filter((item) => !activeIds.has(item.driveFileId))];
+  }, [activeBatch, batchResultMessages, batchResultStatuses, items, roleId]);
 
   return (
     <section className="bulk-screening-panel" aria-labelledby="bulk-screening-title">
@@ -474,12 +501,12 @@ export default function BulkResumeScreeningPanel({ roleOptions, driveUrl }: { ro
           {statusOrder.map((status) => <div key={status} className="bulk-count-card"><span>{status}</span><strong>{visibleCounts[status] || 0}</strong></div>)}
         </div>
 
-        {roleId && items.length > 0 ? (
+        {roleId && visibleItems.length > 0 ? (
           <div className="bulk-screening-table-wrap">
             <table className="bulk-screening-table">
               <thead><tr><th>Resume</th><th>Candidate</th><th>Status</th><th>Result</th><th>Updated</th></tr></thead>
               <tbody>
-                {items.map((item) => {
+                {visibleItems.map((item) => {
                   const { label, result } = displayStatus(item.status || "Queued");
                   return <tr key={item.driveFileId}>
                     <td>{item.driveFileUrl ? <a href={item.driveFileUrl} target="_blank" rel="noreferrer">{item.driveFileName || item.driveFileId}</a> : item.driveFileName || item.driveFileId}</td>

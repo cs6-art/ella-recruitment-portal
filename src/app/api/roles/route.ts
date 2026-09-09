@@ -23,6 +23,11 @@ function draftList(value: unknown, maxItems = 5) {
   return value.map((item) => draftText(item, 1000)).filter(Boolean).slice(0, maxItems);
 }
 
+function requestId(value: unknown) {
+  const normalized = draftText(value, 200);
+  return /^[A-Za-z0-9][A-Za-z0-9._:-]*$/.test(normalized) ? normalized : "";
+}
+
 function roleDraftFields(input: Record<string, unknown>, roleId: string, now: string, user: { name: string; email: string; accessRole?: string; department?: string }, hodEmail: string) {
   const setup = input.recruitmentSetupDraft && typeof input.recruitmentSetupDraft === "object"
     ? input.recruitmentSetupDraft as Record<string, unknown>
@@ -264,6 +269,29 @@ export async function POST(request: Request) {
       );
     }
 
+    // A browser can receive a timeout/error after n8n has already appended
+    // the row. Reusing one client request ID lets a corrected retry return
+    // the existing role instead of creating a second requisition.
+    const clientSubmissionId = requestId(clientInput.submissionId);
+    if (clientInput.submissionId !== undefined && !clientSubmissionId) {
+      return NextResponse.json({ success: false, error: "Invalid role submission ID." }, { status: 400 });
+    }
+    const submissionId = clientSubmissionId || crypto.randomUUID();
+    const existingRoles = await getRoleRequests({ fresh: true });
+    const existingSubmission = existingRoles.find((role) => role.submissionId === submissionId);
+    if (existingSubmission) {
+      if (existingSubmission.requesterEmail.trim().toLowerCase() !== sessionEmail) {
+        return NextResponse.json({ success: false, error: "This role submission ID belongs to another requester." }, { status: 409 });
+      }
+      return NextResponse.json({
+        success: true,
+        roleId: existingSubmission.roleId,
+        status: existingSubmission.status || "Pending HR Discussion",
+        message: "Role request was already submitted.",
+        idempotentReplay: true,
+      }, { status: 200 });
+    }
+
     const webhookUrl =
       process.env.N8N_ROLE_REQUEST_WEBHOOK_URL ||
       process.env.N8N_ROLE_WEBHOOK_URL;
@@ -282,8 +310,6 @@ export async function POST(request: Request) {
       );
     }
 
-    const submissionId = crypto.randomUUID();
-    const existingRoles = await getRoleRequests();
     const roleId = generateRoleId(
       input.jobTitle,
       existingRoles.map((role) => role.roleId),
@@ -322,6 +348,7 @@ export async function POST(request: Request) {
       Last_Updated_By_Email: performerEmail,
       Latest_Comments: "",
       Resume_Target_Status: "",
+      Submission_ID: submissionId,
       History_ID: submissionId,
       Changed_At: createdAt,
       Changed_By_Name: user.name,
@@ -333,7 +360,10 @@ export async function POST(request: Request) {
       Action_Request_ID: submissionId,
       Action: "role_request_created",
       Access_Role: user.accessRole,
-      Department: user.department,
+      // The role department is selected in the requisition form. Keep the
+      // submitter's own department separately as audit metadata.
+      Department: input.department,
+      Submitted_By_Department: user.department || "",
       Notification_Status: "",
       Notification_Error: "",
       Recruitment_Setup_Status: "Draft",
@@ -452,6 +482,11 @@ export async function POST(request: Request) {
       },
 
       source: "Role Creation Website",
+      // Keep requester identity separate from requisition fields for older
+      // auto-mapped workflows that also consume audit metadata.
+      auditFields: {
+        Department: user.department || "",
+      },
     };
 
     const controller = new AbortController();
@@ -466,6 +501,7 @@ export async function POST(request: Request) {
             "Content-Type": "application/json",
             "X-Webhook-Secret":
               webhookSecret,
+            "X-Idempotency-Key": submissionId,
           },
           body: JSON.stringify(payload),
           cache: "no-store",
