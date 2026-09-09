@@ -40,6 +40,7 @@ export type ApplicantSummary = {
   roleId: string;
   selectedRole: string;
   department: string;
+  applicantCountry: string;
   salaryExpectation: string;
   salaryCurrency: string;
   approvedSalaryOrBudgetRange: string;
@@ -439,7 +440,9 @@ function mapApplicant(record: SheetRow, isHistoricalDemo = false): ApplicantSumm
   const appliedAt = clampFutureApplicationDate(rawAppliedAt);
   const salaryExpectation = field(record, "Salary_Expectation", "Salary Expectation", "Expected_Salary", "Expected Salary");
   const storedSalaryCurrency = field(record, "Salary_Currency", "Salary Currency", "Currency");
-  const salaryCurrency = storedSalaryCurrency || salaryExpectation.match(/^(SGD|PHP|MY|RUPEE|RUPIAH)\b/i)?.[1] || "";
+  const salaryCurrency = storedSalaryCurrency || salaryExpectation.match(/^(SGD|PHP|MYR|MY|RUPEE|RUPIAH)\b/i)?.[1] || "";
+  const contactNumber = field(record, "Contact_Number", "Contact Number", "Phone");
+  const applicantCountry = field(record, "Applicant_Country", "Applicant Country") || (contactNumber.startsWith("+63") ? "PH" : contactNumber.startsWith("+65") ? "SG" : contactNumber.startsWith("+60") ? "MY" : "");
   const approvedSalaryOrBudgetRange = field(record, "Approved_Salary_or_Budget_Range", "Approved Salary or Budget Range");
   const salaryMatchStatus = field(record, "Salary_Match_Status", "Salary Match Status");
   const salaryMatchNotes = field(record, "Salary_Match_Notes", "Salary Match Notes");
@@ -447,10 +450,11 @@ function mapApplicant(record: SheetRow, isHistoricalDemo = false): ApplicantSumm
     applicationId: applicationId(record),
     candidateName: field(record, "Candidate_Name", "Candidate Name", "Name"),
     email: field(record, "Email", "Candidate_Email"),
-    contactNumber: field(record, "Contact_Number", "Contact Number", "Phone"),
+    contactNumber,
     roleId: field(record, "Role_ID", "Role ID"),
     selectedRole: field(record, "Selected_Role", "Selected Role", "Role"),
     department: field(record, "Department"),
+    applicantCountry,
     salaryExpectation,
     salaryCurrency,
     approvedSalaryOrBudgetRange,

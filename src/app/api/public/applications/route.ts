@@ -4,7 +4,6 @@ import { NextResponse } from "next/server";
 import {
   buildCandidateApplicationPayload,
   candidateApplicationSubmissionSchema,
-  isCandidateSalaryCurrency,
   isPreferredMobileValid,
   normalizePreferredMobile,
   sendCandidateApplicationWebhook,
@@ -17,6 +16,7 @@ import { consumeRateLimit, rateLimitHeaders, requestClientKey } from "@/lib/rate
 import { deleteResumeFile, MAX_RESUME_REQUEST_BYTES, storeResumeFile } from "@/lib/resume-files";
 import { getResumeScreeningInvitationByToken, markResumeScreeningInvitationUsed } from "@/lib/resume-screening-invite";
 import { invalidateSheetsCache } from "@/lib/sheets-cache";
+import { roleCountryProfile } from "@/lib/role-countries";
 
 export const runtime = "nodejs";
 
@@ -86,18 +86,15 @@ export async function POST(request: Request) {
     if (!Number.isFinite(salaryAmount) || salaryAmount <= 0) {
       return responseError(request, "Expected monthly salary must be greater than zero.", 422, { field: "salaryExpectation" });
     }
-    if (!isCandidateSalaryCurrency(parsed.data.salaryCurrency)) {
-      return responseError(request, "Select a valid salary currency.", 422, { field: "salaryCurrency" });
-    }
-
-    if (!isPreferredMobileValid(parsed.data.preferredMobile)) {
-      return responseError(request, "Contact number must include a valid country code and local number.", 422, { field: "preferredMobile" });
-    }
-
     const roleId = parsed.data.roleId.trim();
     const role = roleId ? await getRoleRequestById(roleId) : null;
     if (!role || !isPublishedRoleForIntake(role)) {
       return responseError(request, "This role is not accepting applications.", 404);
+    }
+    const country = roleCountryProfile(role.roleCountry);
+    if (!country) return responseError(request, "This role does not have a supported country configured.", 409, { field: "roleId" });
+    if (!isPreferredMobileValid(parsed.data.preferredMobile) || !parsed.data.preferredMobile.startsWith(`+${country.dialCode}`)) {
+      return responseError(request, `Contact number must be a valid ${country.name} number.`, 422, { field: "preferredMobile" });
     }
 
     const webhookUrl = process.env.N8N_CANDIDATE_APPLICATION_WEBHOOK_URL;
@@ -116,12 +113,15 @@ export async function POST(request: Request) {
       roleId,
       jobTitle: role.jobTitle,
       department: role.department,
+      roleCountry: country.code,
       approvedSalaryOrBudgetRange: role.salaryOrBudgetRange || "",
       evaluationFields: evaluationFieldsForSetup(role.evaluationFieldToggles, role.customEvaluationFields),
       source: invitation ? "HR Invitation Link" : "Public Application Page",
       submittedAt,
       candidate: {
         ...parsed.data,
+        applicantCountry: country.code,
+        salaryCurrency: country.currencyCode,
         resumeText: storedResume?.extractedText || parsed.data.resumeText,
         ...(storedResume ? { resumeFile: storedResume.record } : {}),
         preferredMobile: normalizePreferredMobile(parsed.data.preferredMobile),

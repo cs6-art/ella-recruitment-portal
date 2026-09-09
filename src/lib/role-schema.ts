@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { roleAiRecruitmentSetupDraftSchema } from "@/lib/role-ai-draft-schema";
+import { ROLE_COUNTRY_CODES } from "@/lib/role-countries";
 
 const hodAvailabilitySlotSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Select a valid availability date."),
@@ -23,6 +24,7 @@ const optionalMoney = z.preprocess(
 
 export const roleRequestSchema = z.object({
   requestType: z.enum(["Staff Addition", "Staff Replacement"]),
+  roleCountry: z.enum(ROLE_COUNTRY_CODES, { message: "Select the country for this role." }),
   department: z.string().trim().min(2, "Enter the department name, for example Inside Sales.").max(100),
   jobTitle: z.string().trim().min(2, "Enter the job title, for example Inside Sales Specialist.").max(150),
   numberOfVacancies: z.coerce.number().int().min(1).max(100),

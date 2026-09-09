@@ -69,6 +69,7 @@ export type RoleRequestSummary = {
   targetHiringDate: string;
   requesterName: string;
   department: string;
+  roleCountry: string;
   requestType: string;
   jobTitle: string;
   numberOfVacancies: number;
@@ -103,6 +104,7 @@ export type RoleRequestDetails = {
 
   requestType: string;
   department: string;
+  roleCountry: string;
   jobTitle: string;
   numberOfVacancies: number;
 
@@ -436,6 +438,13 @@ function mapRoleRequest(
     department: getField(record, [
       "Department",
     ]),
+
+    roleCountry: getField(record, [
+      "Role_Country",
+      "Role Country",
+      "Country Code",
+      "Country",
+    ]).toUpperCase(),
 
     jobTitle: getField(record, [
       "Job_Title",
@@ -969,6 +978,7 @@ export async function getRoleRequests(options: { liveOnly?: boolean } = {}): Pro
         requesterName:
           role.requesterName,
         department: role.department,
+        roleCountry: role.roleCountry,
         requestType: role.requestType,
         jobTitle: role.jobTitle,
         numberOfVacancies:

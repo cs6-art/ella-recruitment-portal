@@ -1,6 +1,7 @@
 const CURRENCY_DETAILS: Record<string, { symbol: string; name: string }> = {
   SGD: { symbol: "S$", name: "Singapore dollar" },
   PHP: { symbol: "₱", name: "Philippine peso" },
+  MYR: { symbol: "RM", name: "Malaysian ringgit" },
   MY: { symbol: "RM", name: "Malaysian ringgit" },
   RUPEE: { symbol: "₹", name: "rupee" },
   RUPIAH: { symbol: "Rp", name: "rupiah" },

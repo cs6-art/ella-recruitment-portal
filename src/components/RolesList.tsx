@@ -31,6 +31,7 @@ type RoleRequest = {
   requesterName: string;
   requesterEmail: string;
   department: string;
+  roleCountry: string;
   requestType: string;
   jobTitle: string;
   numberOfVacancies: number;
@@ -419,6 +420,7 @@ export default function RolesList({
                   <tr>
                     <th className="selection-column"><input type="checkbox" aria-label="Select all selectable role requests on this page" checked={allVisibleRolesSelected} onChange={toggleAllVisibleRoles} disabled={selectableRoles.length === 0} /></th>
                     <th className="roles-column-role">Role</th>
+                    <th>Country</th>
                     <th>Department</th>
                     <th>Request Type</th>
                     <th>Vacancies</th>
@@ -455,6 +457,7 @@ export default function RolesList({
                           <span>{role.roleId}</span>
                         </Link>
                       </td>
+                      <td>{role.roleCountry || "Not configured"}</td>
                       <td>
                         {role.department || "Not provided"}
                       </td>

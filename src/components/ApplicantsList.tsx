@@ -12,6 +12,7 @@ import { useNotificationFeed } from "@/components/notification-feed";
 import { formatMatchScore } from "@/lib/score-format";
 import { formatSalaryExpectation, salaryCurrencyLabel } from "@/lib/salary-format";
 import { formatPortalDateTime } from "@/lib/portal-time";
+import { ROLE_COUNTRY_CODES, ROLE_COUNTRY_PROFILES } from "@/lib/role-countries";
 
 type Props = {
   applicants: ApplicantSummary[];
@@ -109,6 +110,7 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("All Roles");
   const [stageFilter, setStageFilter] = useState("All Stages");
+  const [countryFilter, setCountryFilter] = useState("All Countries");
   const [deletingId, setDeletingId] = useState("");
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
   const [actionError, setActionError] = useState("");
@@ -159,7 +161,7 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
     const selectedRole = roleOptions.find((role) => role.value === roleFilter);
     return activeApplicants.filter((applicant) => {
       const applicantRole = applicant.selectedRole || applicant.roleId;
-      const searchable = `${applicant.applicationId} ${applicant.candidateName} ${applicant.email} ${applicant.roleId} ${applicant.selectedRole} ${applicant.department} ${applicant.salaryExpectation} ${applicant.salaryCurrency}`.toLowerCase();
+      const searchable = `${applicant.applicationId} ${applicant.candidateName} ${applicant.email} ${applicant.roleId} ${applicant.selectedRole} ${applicant.department} ${applicant.applicantCountry} ${applicant.salaryExpectation} ${applicant.salaryCurrency}`.toLowerCase();
       return (!query || searchable.includes(query)) &&
         // Generated history is intentionally read-only, so it can still be
         // inspected from a dashboard stage filter even when its synthetic role
@@ -171,7 +173,8 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
         // an internal audit view and should not hide a successfully processed
         // applicant merely because the role metadata is behind it.
         (roleFilter === "All Roles" || applicant.roleId === selectedRole?.roleId || applicantRole === roleFilter || applicant.selectedRole === selectedRole?.label) &&
-        (stageFilter === "All Stages" || dashboardStageLabel(applicant.currentStage) === stageFilter || applicant.currentStage === stageFilter);
+        (stageFilter === "All Stages" || dashboardStageLabel(applicant.currentStage) === stageFilter || applicant.currentStage === stageFilter) &&
+        (countryFilter === "All Countries" || applicant.applicantCountry === countryFilter);
     }).sort((left, right) => {
       const dateDifference = applicantSortTimestamp(right) - applicantSortTimestamp(left);
       if (dateDifference !== 0) return dateDifference;
@@ -179,7 +182,7 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
       // date-only value.
       return right.applicationId.localeCompare(left.applicationId);
     });
-  }, [activeApplicants, roleFilter, roleOptions, search, stageFilter]);
+  }, [activeApplicants, countryFilter, roleFilter, roleOptions, search, stageFilter]);
 
   const totalPages = Math.max(1, Math.ceil(visibleApplicants.length / pageSize));
   const pagedApplicants = visibleApplicants.slice((page - 1) * pageSize, page * pageSize);
@@ -205,7 +208,7 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
   const summaryHr = historyMetrics?.hrActivity ?? finalInterviewCount;
   // Keep the pipeline headline aligned with the history-backed summary. Demo
   // history is read-only and appears only after an explicit stage filter.
-  const hasApplicantFilters = Boolean(search.trim()) || roleFilter !== "All Roles" || stageFilter !== "All Stages";
+  const hasApplicantFilters = Boolean(search.trim()) || roleFilter !== "All Roles" || stageFilter !== "All Stages" || countryFilter !== "All Countries";
   const matchingApplicantCount = hasApplicantFilters ? visibleApplicants.length : summaryTotal;
 
   async function deleteApplicants(applicantsToDelete: ApplicantSummary[]) {
@@ -300,6 +303,7 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
             <input aria-label="Search applicants" placeholder="Search candidate, role, or ID" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} />
             <select aria-label="Filter by role" value={roleFilter} onChange={(event) => { setRoleFilter(event.target.value); setPage(1); }}><option>All Roles</option>{roleOptions.map((role) => <option key={role.value} value={role.value}>{role.label}</option>)}</select>
             <select aria-label="Filter by stage" value={stageFilter} onChange={(event) => { setStageFilter(event.target.value); setPage(1); }}><option>All Stages</option>{stages.map((stage) => <option key={stage}>{stage}</option>)}</select>
+            <select aria-label="Filter by country" value={countryFilter} onChange={(event) => { setCountryFilter(event.target.value); setPage(1); }}><option>All Countries</option>{ROLE_COUNTRY_CODES.map((country) => <option key={country} value={country}>{country} — {ROLE_COUNTRY_PROFILES[country].name}</option>)}</select>
             <label className="pagination-size-control">Rows
               <select aria-label="Applicants per page" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }}>
                 <option value="10">10</option><option value="25">25</option><option value="50">50</option>
@@ -313,7 +317,7 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
         ) : (
           <div className="table-wrap">
             <table className="applicants-table">
-              <thead><tr>{canManageApplicants && <th className="selection-column"><input type="checkbox" aria-label="Select all visible applicants" checked={allVisibleSelected} disabled={selectableVisibleApplicants.length === 0} onChange={toggleAllVisibleApplicants} /></th>}<th>Candidate</th><th>Role</th><th>Expected Salary</th><th>Salary Match</th><th>Applied</th><th>Match</th><th>Current Stage</th><th>Next Action</th><th>Action</th></tr></thead>
+              <thead><tr>{canManageApplicants && <th className="selection-column"><input type="checkbox" aria-label="Select all visible applicants" checked={allVisibleSelected} disabled={selectableVisibleApplicants.length === 0} onChange={toggleAllVisibleApplicants} /></th>}<th>Candidate</th><th>Role</th><th>Country</th><th>Expected Salary</th><th>Salary Match</th><th>Applied</th><th>Match</th><th>Current Stage</th><th>Next Action</th><th>Action</th></tr></thead>
               <tbody>
                 {pagedApplicants.map((applicant, index) => (
                   <tr key={`${applicant.applicationId || "applicant"}-${applicant.roleId || "role"}-${index}`} className={[selectedIds.has(applicant.applicationId) ? "is-selected" : "", newApplicantIds.has(applicant.applicationId) ? "is-new-applicant" : ""].filter(Boolean).join(" ") || undefined}>
@@ -322,6 +326,7 @@ export default function ApplicantsList({ applicants, title = "Applicants", descr
                         labeled card when the table cannot fit the content column. */}
                     <td data-label="Candidate"><Link className="applicant-name-link" href={`/applicants/${encodeURIComponent(applicant.applicationId)}`}><strong>{applicant.candidateName || "Unnamed candidate"}{newApplicantIds.has(applicant.applicationId) && <span className="applicant-new-pill">New</span>}</strong><span>{applicant.email || applicant.applicationId}</span></Link></td>
                     <td data-label="Role"><strong>{applicant.selectedRole || "Role not provided"}</strong><span className="applicant-subtext">{applicant.roleId}</span></td>
+                    <td data-label="Country"><strong>{applicant.applicantCountry || "Not provided"}</strong>{applicant.applicantCountry && <span className="applicant-subtext">{ROLE_COUNTRY_PROFILES[applicant.applicantCountry as typeof ROLE_COUNTRY_CODES[number]]?.name || ""}</span>}</td>
                     <td data-label="Expected salary"><strong>{salaryValue(applicant)}</strong><small className="field-help">{salaryCurrencyLabel(applicant.salaryCurrency)}</small></td>
                     <td data-label="Salary match"><strong>{salaryMatchValue(applicant)}</strong><small className="field-help">Budget: {applicant.approvedSalaryOrBudgetRange || "Not configured"}</small>{applicant.salaryMatchNotes && <small className="field-help">{applicant.salaryMatchNotes}</small>}</td>
                     <td data-label="Applied">{formatDate(applicant.appliedAt)}</td>

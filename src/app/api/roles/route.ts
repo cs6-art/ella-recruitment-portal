@@ -36,6 +36,7 @@ function roleDraftFields(input: Record<string, unknown>, roleId: string, now: st
     Created_At: now,
     Status: "Draft",
     Request_Type: draftText(input.requestType, 50) || "Staff Addition",
+    Role_Country: draftText(input.roleCountry, 2),
     Department: draftText(input.department, 100),
     Job_Title: draftText(input.jobTitle, 150),
     Number_Of_Vacancies: draftText(input.numberOfVacancies, 10) || "1",
@@ -313,6 +314,7 @@ export async function POST(request: Request) {
     // part of the client form or the request schema.
     const workflowFields = {
       Role_ID: roleId,
+      Role_Country: input.roleCountry,
       Created_At: createdAt,
       Status: initialStatus,
       Last_Updated_At: createdAt,
@@ -377,6 +379,7 @@ export async function POST(request: Request) {
 
       role: {
         requestType: input.requestType,
+        roleCountry: input.roleCountry,
         department: input.department,
         jobTitle: input.jobTitle,
         numberOfVacancies:

@@ -4,6 +4,7 @@
       "assignments": [
         {"name":"Role_ID","value":"={{ $json.roleId }}","type":"string"},
         {"name":"Request_Type","value":"={{ $json.role.requestType || '' }}","type":"string"},
+        {"name":"Role_Country","value":"={{ $json.role.roleCountry || '' }}","type":"string"},
         {"name":"Department","value":"={{ $json.role.department || '' }}","type":"string"},
         {"name":"Job_Title","value":"={{ $json.role.jobTitle || '' }}","type":"string"},
         {"name":"Number_Of_Vacancies","value":"={{ $json.role.numberOfVacancies || 0 }}","type":"number"},

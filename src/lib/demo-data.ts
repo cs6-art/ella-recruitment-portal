@@ -322,6 +322,7 @@ function buildDataset(today: string): DemoDataset {
       // sheet's historical creation date.
       targetHiringDate: futureTargetHiringDate(today, index),
       department: seed.department,
+      roleCountry: "PH",
       requestType: index % 5 === 0 ? "Staff Replacement" : "Staff Addition",
       jobTitle: seed.jobTitle,
       numberOfVacancies: seed.vacancies,

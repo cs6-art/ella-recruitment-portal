@@ -52,6 +52,7 @@ export type CandidateApplicationWebhookPayload = {
   Role_ID: string;
   jobTitle: string;
   department: string;
+  roleCountry: string;
   /** Canonical role-level range captured when the application enters screening. */
   approvedSalaryOrBudgetRange: string;
   // The same role-level evaluation contract is used by resume screening and
@@ -376,6 +377,7 @@ export function buildCandidateApplicationPayload(input: {
   roleId: string;
   jobTitle?: string;
   department?: string;
+  roleCountry?: string;
   evaluationFields?: { key: string; label: string; description: string }[];
   source: string;
   approvedSalaryOrBudgetRange?: string;
@@ -390,6 +392,7 @@ export function buildCandidateApplicationPayload(input: {
     Role_ID: input.roleId,
     jobTitle: text(input.jobTitle),
     department: text(input.department),
+    roleCountry: text(input.roleCountry),
     approvedSalaryOrBudgetRange: text(input.approvedSalaryOrBudgetRange),
     evaluationFields: input.evaluationFields || [],
     candidate: {

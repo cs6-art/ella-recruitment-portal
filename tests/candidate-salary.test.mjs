@@ -4,47 +4,45 @@ import fs from "node:fs";
 
 const read = (path) => fs.readFileSync(path, "utf8");
 
-test("public application form collects and validates monthly salary", () => {
+test("public application form collects salary and derives country currency from the role", () => {
   const form = read("public/index.html");
 
   assert.match(form, /for="salaryExpectation">Expected Salary \(Monthly\)/);
   assert.match(form, /id="salaryExpectation"[^>]*type="number"[^>]*required/);
   assert.match(form, /id="salaryExpectationError"/);
-  assert.match(form, /for="salaryCurrency">Salary Currency/);
-  assert.match(form, /id="salaryCurrency"[^>]*required/);
-  assert.match(form, /<option value="">Please Select<\/option>/);
-  for (const currency of ["SGD", "PHP", "MY", "RUPEE", "RUPIAH"]) {
-    assert.match(form, new RegExp(`<option value="${currency}">${currency}<\\/option>`));
-  }
+  assert.doesNotMatch(form, /id="salaryCurrency"/);
+  assert.doesNotMatch(form, /id="applicantCountry"/);
+  assert.match(form, /roleCountryProfiles/);
+  assert.match(form, /roleCountry.*country/);
   assert.match(form, /Enter a valid expected monthly salary/);
-  assert.match(form, /Select a salary currency/);
   assert.match(form, /payload\.append\("salaryExpectation"/);
-  assert.match(form, /payload\.append\("salaryCurrency"/);
+  assert.match(form, /roleCountryProfiles\[applicantCountry\]/);
 });
 
-test("portal resume screening form collects the same monthly salary fields", () => {
+test("portal resume screening form derives phone country and currency from the selected role", () => {
   const form = read("src/components/CandidateApplicationForm.tsx");
   const route = read("src/app/api/applicants/route.ts");
 
   assert.match(form, /id="candidate-salary-expectation"[^>]*required[^>]*type="number"/);
-  assert.match(form, /id="candidate-salary-currency"[^>]*required/);
+  assert.doesNotMatch(form, /candidate-salary-currency/);
+  assert.doesNotMatch(form, /CountrySelect/);
   assert.match(form, /Expected Salary \(Monthly\)/);
   assert.match(form, /salaryExpectation/);
-  assert.match(form, /salaryCurrency/);
+  assert.match(form, /roleCountryProfile/);
   assert.match(route, /Expected monthly salary must be greater than zero/);
-  assert.match(route, /Select a valid salary currency/);
+  assert.match(route, /salaryCurrency: country\.currencyCode/);
 });
 
-test("public application API rejects missing, invalid, and unsupported salary data", () => {
+test("public application API rejects invalid salary and validates the selected role country", () => {
   const route = read("src/app/api/public/applications/route.ts");
   const workflow = read("src/lib/applicant-workflow.ts");
 
-  assert.match(workflow, /candidateSalaryCurrencies = \["SGD", "PHP", "MY", "RUPEE", "RUPIAH"\]/);
+  assert.match(workflow, /candidateSalaryCurrencies/);
   assert.match(workflow, /salaryCurrency: z\.string\(\)\.trim\(\)\.max\(20\)\.default\(""\)/);
   assert.match(route, /Expected monthly salary must be greater than zero/);
-  assert.match(route, /Select a valid salary currency/);
   assert.match(route, /field: "salaryExpectation"/);
-  assert.match(route, /field: "salaryCurrency"/);
+  assert.match(route, /roleCountryProfile/);
+  assert.match(route, /This role does not have a supported country configured/);
 });
 
 test("salary survives the webhook/sheet mapping and is visible in the applicant list", () => {

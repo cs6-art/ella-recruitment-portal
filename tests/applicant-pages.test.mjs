@@ -171,7 +171,8 @@ test("candidate intake forms and decisions expose the required fields", () => {
   const scoreFormat = read("src/lib/score-format.ts");
 
   assert.match(screening, /title="CV Analysis"/);
-  assert.match(form, /countryCode/);
+  assert.match(form, /roleCountryProfile/);
+  assert.doesNotMatch(form, /CountrySelect/);
   assert.match(form, /localContactNumber/);
   assert.match(form, /Contact Number/);
   assert.match(countryOptions, /flag: "ph"/);

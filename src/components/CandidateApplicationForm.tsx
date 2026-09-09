@@ -4,12 +4,13 @@ import { useMemo, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 
 import ActionFeedback from "@/components/ActionFeedback";
-import { countryOptions, CountrySelect } from "@/components/CountryOptions";
 import ValidationSummary from "@/components/ValidationSummary";
+import { roleCountryProfile } from "@/lib/role-countries";
 
 type RoleOption = {
   roleId: string;
   label: string;
+  roleCountry?: string;
   status?: string;
 };
 
@@ -22,17 +23,16 @@ type Props = {
   submitLabel?: string;
   requireConsent?: boolean;
   showRoleSelect?: boolean;
+  roleCountry?: string;
   successRedirectTo?: string;
 };
 
 type FormState = {
   candidateName: string;
   email: string;
-  countryCode: string;
   localContactNumber: string;
   resumeRoleId: string;
   salaryExpectation: string;
-  salaryCurrency: string;
 };
 
 // Vercel caps a serverless function's entire request body at ~4.5 MB and
@@ -89,7 +89,6 @@ const fieldLabels: Record<string, string> = {
   email: "Email Address",
   resumeRoleId: "Role Applied For",
   salaryExpectation: "Expected Salary (Monthly)",
-  salaryCurrency: "Salary Currency",
   resumeFile: "Resume Upload",
 };
 
@@ -99,11 +98,8 @@ const fieldAnchors: Record<string, string> = {
   email: "#candidate-email",
   resumeRoleId: "#candidate-role",
   salaryExpectation: "#candidate-salary-expectation",
-  salaryCurrency: "#candidate-salary-currency",
   resumeFile: "#candidate-resume",
 };
-
-const salaryCurrencies = ["SGD", "PHP", "MY", "RUPEE", "RUPIAH"] as const;
 
 export default function CandidateApplicationForm({
   roleId = "",
@@ -114,17 +110,16 @@ export default function CandidateApplicationForm({
   submitLabel = "Submit My Application",
   requireConsent = true,
   showRoleSelect = false,
+  roleCountry = "",
   successRedirectTo,
 }: Props) {
   const router = useRouter();
   const [form, setForm] = useState<FormState>({
     candidateName: "",
     email: "",
-    countryCode: "+63",
     localContactNumber: "",
     resumeRoleId: roleId,
     salaryExpectation: "",
-    salaryCurrency: "",
   });
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -138,7 +133,10 @@ export default function CandidateApplicationForm({
     () => roleOptions.find((option) => option.roleId === form.resumeRoleId)?.label || "",
     [form.resumeRoleId, roleOptions],
   );
-  const selectedCountry = countryOptions.find((country) => country.code === form.countryCode) || countryOptions[0];
+  const selectedRoleCountry = useMemo(
+    () => roleCountryProfile(roleOptions.find((option) => option.roleId === form.resumeRoleId)?.roleCountry || roleCountry),
+    [form.resumeRoleId, roleOptions, roleCountry],
+  );
 
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -149,7 +147,7 @@ export default function CandidateApplicationForm({
 
   function validate() {
     const nextErrors: Partial<Record<keyof FormState | "resumeFile", string>> = {};
-    const contactNumber = normalizedContactNumber(form.countryCode, form.localContactNumber);
+    const contactNumber = normalizedContactNumber(selectedRoleCountry?.dialCode || "", form.localContactNumber);
 
     if (!form.candidateName.trim()) nextErrors.candidateName = "Full name is required.";
     if (!/^\S+@\S+\.\S+$/.test(form.email.trim().toLowerCase())) nextErrors.email = "Enter a valid email address.";
@@ -158,7 +156,7 @@ export default function CandidateApplicationForm({
     if (showRoleSelect && !form.resumeRoleId.trim()) nextErrors.resumeRoleId = "Choose a role.";
     const salaryAmount = Number(form.salaryExpectation.replace(/,/g, "").trim());
     if (!form.salaryExpectation.trim() || !Number.isFinite(salaryAmount) || salaryAmount <= 0) nextErrors.salaryExpectation = "Enter a valid expected monthly salary.";
-    if (!salaryCurrencies.includes(form.salaryCurrency as typeof salaryCurrencies[number])) nextErrors.salaryCurrency = "Select a salary currency.";
+    if (!selectedRoleCountry) nextErrors.resumeRoleId = "The selected role has no supported country configured. Please choose another role.";
 
     setFieldErrors(nextErrors);
     return nextErrors;
@@ -198,7 +196,7 @@ export default function CandidateApplicationForm({
     }
 
     try {
-      const contactNumber = normalizedContactNumber(form.countryCode, form.localContactNumber);
+      const contactNumber = normalizedContactNumber(selectedRoleCountry?.dialCode || "", form.localContactNumber);
       const body = new FormData();
       body.append("candidateName", form.candidateName.trim());
       body.append("email", form.email.trim().toLowerCase());
@@ -208,9 +206,7 @@ export default function CandidateApplicationForm({
       body.append("contactNumber", contactNumber);
       body.append("phone", contactNumber);
       body.append("preferredMobile", contactNumber);
-      body.append("applicantCountry", selectedCountry.country);
       body.append("salaryExpectation", form.salaryExpectation.trim());
-      body.append("salaryCurrency", form.salaryCurrency);
       body.append("applicationSource", "Direct Application");
       body.append("consent", String(requireConsent));
       if (resumeFile) body.append("resumeFile", resumeFile, resumeFile.name);
@@ -227,7 +223,7 @@ export default function CandidateApplicationForm({
 
       const successMessage = typeof result.message === "string" && result.message ? result.message : "";
       setMessage(successMessage || `Application submitted. Application ID: ${String(result.applicationId ?? "")}`);
-      setForm({ candidateName: "", email: "", countryCode: "+63", localContactNumber: "", resumeRoleId: roleId || "", salaryExpectation: "", salaryCurrency: "" });
+      setForm({ candidateName: "", email: "", localContactNumber: "", resumeRoleId: roleId || "", salaryExpectation: "" });
       setResumeFile(null);
       setFileInputKey((value) => value + 1);
       if (fileInput.current) fileInput.current.value = "";
@@ -275,16 +271,8 @@ export default function CandidateApplicationForm({
 
           <div className="field contact-number-field">
             <span>Contact Number *</span>
-            <div className="contact-number-controls">
-              <label>
-                <CountrySelect ariaLabel="Country code" value={form.countryCode} disabled={saving} onChange={(value) => update("countryCode", value)} />
-              </label>
-              <label>
-                <span className="sr-only">Local contact number</span>
-                <input id="candidate-contact-number" required aria-label="Local contact number" inputMode="numeric" placeholder={selectedCountry.placeholder} value={form.localContactNumber} disabled={saving} onChange={(event) => update("localContactNumber", cleanDigits(event.target.value))} />
-              </label>
-            </div>
-            <small>Enter the local number only, without the country code.</small>
+            <input id="candidate-contact-number" required aria-label="Local contact number" inputMode="numeric" placeholder={selectedRoleCountry?.phonePlaceholder || "Select a role first"} value={form.localContactNumber} disabled={saving} onChange={(event) => update("localContactNumber", cleanDigits(event.target.value))} />
+            <small>{selectedRoleCountry ? `${selectedRoleCountry.name} (+${selectedRoleCountry.dialCode}) — enter the local number only.` : "Select a role to set the country code automatically."}</small>
             {readFieldError(fieldErrors, "localContactNumber") && <small>{readFieldError(fieldErrors, "localContactNumber")}</small>}
           </div>
 
@@ -309,15 +297,6 @@ export default function CandidateApplicationForm({
             <span>Expected Salary (Monthly) *</span>
             <input id="candidate-salary-expectation" required type="number" min="0.01" step="0.01" inputMode="decimal" value={form.salaryExpectation} disabled={saving} onChange={(event) => update("salaryExpectation", event.target.value)} placeholder="Enter expected monthly salary" />
             {readFieldError(fieldErrors, "salaryExpectation") && <small>{readFieldError(fieldErrors, "salaryExpectation")}</small>}
-          </label>
-
-          <label className="field">
-            <span>Salary Currency *</span>
-            <select id="candidate-salary-currency" required value={form.salaryCurrency} disabled={saving} onChange={(event) => update("salaryCurrency", event.target.value)}>
-              <option value="">Please Select</option>
-              {salaryCurrencies.map((currency) => <option value={currency} key={currency}>{currency}</option>)}
-            </select>
-            {readFieldError(fieldErrors, "salaryCurrency") && <small>{readFieldError(fieldErrors, "salaryCurrency")}</small>}
           </label>
 
           <div className="field full resume-upload-field">

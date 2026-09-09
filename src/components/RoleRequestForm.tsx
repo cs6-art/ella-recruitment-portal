@@ -11,6 +11,7 @@ import { DEPARTMENT_OPTIONS, isKnownDepartment } from "@/lib/department-options"
 import { toDateInputValue } from "@/lib/date-only";
 import { roleRequestSchema } from "@/lib/role-schema";
 import type { RoleAiDraft } from "@/lib/role-ai-draft-schema";
+import { ROLE_COUNTRY_PROFILES, ROLE_COUNTRY_CODES } from "@/lib/role-countries";
 
 type RoleRequestFormProps = {
   user: {
@@ -31,6 +32,7 @@ type RoleSubmissionResult = {
 
 type FormState = {
   requestType: string;
+  roleCountry: string;
   department: string;
   jobTitle: string;
   employmentType: string;
@@ -53,6 +55,7 @@ const HR_INTERVIEW_EMAIL = "hrsg@mclinkgroup.com";
 
 const initial: FormState = {
   requestType: "Staff Addition",
+  roleCountry: "PH",
   department: "",
   jobTitle: "",
   employmentType: "Full-Time",
@@ -87,6 +90,7 @@ const initial: FormState = {
 
 const fieldLabels: Record<string, string> = {
   requestType: "Request Type",
+  roleCountry: "Role Country",
   department: "Department",
   jobTitle: "Job Title",
   numberOfVacancies: "Number of Vacancies",
@@ -466,6 +470,18 @@ export default function RoleRequestForm({ user, roleId, status = "", initialValu
                 <option>Staff Addition</option>
                 <option>Staff Replacement</option>
               </select>
+            </div>
+
+            <div className="field">
+              <label htmlFor="roleCountry">Role Country <strong className="required-mark">*</strong></label>
+              <select id="roleCountry" {...fieldErrorProps("roleCountry")} required value={form.roleCountry} onChange={(event) => update("roleCountry", event.target.value)}>
+                <option value="">Select a country</option>
+                {ROLE_COUNTRY_CODES.map((country) => {
+                  const profile = ROLE_COUNTRY_PROFILES[country];
+                  return <option key={country} value={country}>{country} — {profile.name} ({profile.currencyCode})</option>;
+                })}
+              </select>
+              <small className="field-help">Applicants will see this country on the role and salary will use its currency automatically.</small>
             </div>
 
             <div className="field">

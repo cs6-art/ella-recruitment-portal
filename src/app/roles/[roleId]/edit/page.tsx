@@ -41,6 +41,7 @@ export default async function EditRolePage({ params }: EditRolePageProps) {
 
   const initialValues: Partial<RoleRequestFormValues> = {
     requestType: role.requestType || "Staff Addition",
+    roleCountry: role.roleCountry || "",
     department: role.department,
     jobTitle: role.jobTitle,
     employmentType: role.employmentType || "Full-Time",

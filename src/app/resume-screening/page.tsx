@@ -9,6 +9,7 @@ import { canManagePipeline } from "@/lib/access-control";
 import { getRoleRequests, isPublishedRoleForIntake } from "@/lib/google-sheets";
 import { isBulkResumeUatMode } from "@/lib/bulk-resume-config";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
+import { roleCountryProfile, roleOptionLabel } from "@/lib/role-countries";
 
 export const dynamic = "force-dynamic";
 
@@ -21,8 +22,8 @@ export default async function ResumeScreeningPage() {
   // published role is available, not just the synthetic catalogue roles.
   const roles = await getRoleRequests({ liveOnly: true });
   const roleOptions = roles
-    .filter(isPublishedRoleForIntake)
-    .map((role) => ({ roleId: role.roleId, label: `${role.jobTitle || role.roleId} (${role.roleId})` }))
+    .filter((role) => isPublishedRoleForIntake(role) && Boolean(roleCountryProfile(role.roleCountry)))
+    .map((role) => ({ roleId: role.roleId, roleCountry: role.roleCountry, label: roleOptionLabel(role.jobTitle, role.roleId, role.roleCountry) }))
     // Keep every resume-screening role selector predictable as the published
     // role catalogue grows; IDs remain the option values.
     .sort((left, right) => left.label.localeCompare(right.label, undefined, { sensitivity: "base" }));
