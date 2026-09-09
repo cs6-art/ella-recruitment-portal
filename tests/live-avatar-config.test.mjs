@@ -4,12 +4,6 @@ import test from "node:test";
 import { isLiveAvatarConfigured } from "../src/lib/live-avatar.ts";
 
 const KEYS = ["LIVEAVATAR_API_KEY", "LIVEAVATAR_AVATAR_ID", "LIVEAVATAR_VOICE_AGENT_ID"];
-import assert from "node:assert/strict";
-import test from "node:test";
-
-import { isLiveAvatarConfigured } from "../src/lib/live-avatar.ts";
-
-const KEYS = ["LIVEAVATAR_API_KEY", "LIVEAVATAR_AVATAR_ID", "LIVEAVATAR_VOICE_AGENT_ID"];
 
 function withEnv(overrides, fn) {
   const original = {};
