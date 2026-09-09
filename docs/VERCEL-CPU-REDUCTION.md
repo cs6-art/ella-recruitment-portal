@@ -46,19 +46,29 @@ Import `integrations/n8n/portal-maintenance-scheduler.json` into the
 
 - Schedule: every 15 minutes (interview sync) + a daily 02:00 call with
   `{"jobs":["resume-cleanup"]}`.
-- URL: `https://<prod-portal-domain>/api/internal/maintenance`
-- Header: `x-internal-secret` = credential `Portal internal maintenance secret`
+- URL: edit the HTTP Request node — replace `REPLACE-WITH-PROD-PORTAL-ORIGIN`
+  with the production portal origin (no trailing slash).
+- Auth: create an n8n **Header Auth** credential named
+  `Portal internal maintenance secret` with **Name** `x-internal-secret` and
+  **Value** = the portal's `INTERNAL_API_SECRET`, then attach it to the node.
+- No n8n environment variables are required. The portal's own
+  `N8N_BULK_RESUME_PORTAL_BASE_URL` is a Vercel variable read by the portal —
+  n8n cannot see it — so the origin is set directly on the node instead.
 - **Only create this in the production n8n project.** Do not create a
   `*-pilot` copy — pilot/preview must not run maintenance (see
   `docs/PILOT-PROD-ISOLATION.md`).
 
 ### 4. Env var
 
-Add to the **production** Vercel environment only (not Preview/Development):
+One **new** variable, added to the **production** Vercel environment only (not
+Preview/Development):
 
 ```
 INTERNAL_API_SECRET=<32+ random bytes, hex>
 ```
+
+Nothing else. `VERCEL_ENV` is set automatically by Vercel. The maintenance
+route reads no base-URL variable.
 
 ### 5. Notification polling
 `src/components/notification-feed.ts`: background poll `180_000ms → 900_000ms`

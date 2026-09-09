@@ -52,13 +52,9 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.PORTAL_BASE_URL }}/api/internal/maintenance",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            { "name": "x-internal-secret", "value": "={{ $env.PORTAL_INTERNAL_API_SECRET }}" }
-          ]
-        },
+        "url": "https://REPLACE-WITH-PROD-PORTAL-ORIGIN/api/internal/maintenance",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($json) }}",
@@ -71,7 +67,13 @@
       "name": "POST /api/internal/maintenance",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [760, 340]
+      "position": [760, 340],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Portal internal maintenance secret"
+        }
+      }
     }
   ],
   "connections": {
@@ -84,6 +86,6 @@
     "executionOrder": "v1"
   },
   "meta": {
-    "notes": "Single controlled scheduler for portal maintenance. Create ONLY in the production n8n project. Requires n8n env vars PORTAL_BASE_URL (prod portal origin, no trailing slash) and PORTAL_INTERNAL_API_SECRET (must equal the portal's INTERNAL_API_SECRET). The endpoint refuses non-production (Preview) deployments with 403, so a pilot copy would no-op by design - do not create one."
+    "notes": "Single controlled scheduler for portal maintenance. Create ONLY in the production n8n project. Setup: (1) replace REPLACE-WITH-PROD-PORTAL-ORIGIN in the HTTP Request URL with the production portal origin, e.g. https://recruitment.mclinkgroup.com (no trailing slash); (2) create an n8n 'Header Auth' credential named 'Portal internal maintenance secret' with Name = x-internal-secret and Value = the portal's INTERNAL_API_SECRET, and attach it to the HTTP Request node. No n8n environment variables are needed. The endpoint refuses non-production (Preview) deployments with 403, so a pilot copy would no-op by design - do not create one."
   }
 }
