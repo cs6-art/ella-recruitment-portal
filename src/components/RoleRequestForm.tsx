@@ -113,15 +113,10 @@ export default function RoleRequestForm({ user, roleId, status = "", initialValu
     hodEmail: HR_INTERVIEW_EMAIL,
   }), [initialValues]);
   const [form, setForm] = useState<FormState>(() => initialForm);
-  const [draftRoleId, setDraftRoleId] = useState(roleId || "");
-  const effectiveRoleId = roleId || draftRoleId;
+  const effectiveRoleId = roleId || "";
   const isEditing = Boolean(effectiveRoleId);
-  const isAutoDraft = !roleId && Boolean(draftRoleId);
-  const isDraftRole = isAutoDraft || status === "Draft";
+  const isDraftRole = status === "Draft";
   const [loading, setLoading] = useState(false);
-  const [draftSaving, setDraftSaving] = useState(false);
-  const [draftSavedAt, setDraftSavedAt] = useState("");
-  const [draftError, setDraftError] = useState("");
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [success, setSuccess] = useState<{ roleId: string; status: string } | null>(null);
@@ -129,11 +124,17 @@ export default function RoleRequestForm({ user, roleId, status = "", initialValu
   const [parsing, setParsing] = useState(false);
   const [parseError, setParseError] = useState("");
   const errorSummaryRef = useRef<HTMLDivElement>(null);
-  const draftSaveInFlight = useRef<Promise<void> | null>(null);
   const draftClientId = useRef(globalThis.crypto.randomUUID());
+  const submittingRef = useRef(false);
+  const exitSaveSuppressedRef = useRef(false);
   const initialFormKey = useMemo(() => JSON.stringify(initialForm), [initialForm]);
   const [savedFormKey, setSavedFormKey] = useState(initialFormKey);
   const hasChanges = JSON.stringify(form) !== savedFormKey;
+  const latestDraftRef = useRef({ form, hasChanges, loading, parsing, effectiveRoleId, requesterName: user.name, requesterEmail: user.email });
+
+  useEffect(() => {
+    latestDraftRef.current = { form, hasChanges, loading, parsing, effectiveRoleId, requesterName: user.name, requesterEmail: user.email };
+  }, [effectiveRoleId, form, hasChanges, loading, parsing, user.email, user.name]);
 
   useEffect(() => {
     setSavedFormKey(initialFormKey);
@@ -176,52 +177,46 @@ export default function RoleRequestForm({ user, roleId, status = "", initialValu
     };
   }
 
-  async function autosaveDraft() {
-    if (!hasChanges || loading || parsing || draftSaveInFlight.current) return;
-    const snapshot = form;
-    const request = (async () => {
-      setDraftSaving(true);
-      setDraftError("");
-      try {
-        const endpoint = effectiveRoleId ? `/api/roles/${encodeURIComponent(effectiveRoleId)}` : "/api/roles";
-        const response = await fetch(endpoint, {
-          method: effectiveRoleId ? "PATCH" : "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "same-origin",
-          body: JSON.stringify({
-            ...snapshot,
-            ...availabilityPayload(),
-            requesterName: user.name,
-            requesterEmail: user.email,
-            replacementEmployee: snapshot.requestType === "Staff Replacement" ? snapshot.replacementEmployee : "",
-            draft: true,
-            draftId: draftClientId.current,
-          }),
-        });
-        const result = await response.json() as RoleSubmissionResult;
-        if (!response.ok || result.success !== true || !result.roleId) throw new Error(result.error || "Unable to autosave this draft.");
-        if (!effectiveRoleId) {
-          setDraftRoleId(result.roleId);
-          window.history.replaceState(null, "", `/roles/${encodeURIComponent(result.roleId)}/edit`);
-        }
-        setSavedFormKey(JSON.stringify(snapshot));
-        setDraftSavedAt(new Date().toISOString());
-      } catch (caught) {
-        setDraftError(caught instanceof Error ? caught.message : "Unable to autosave this draft.");
-      } finally {
-        setDraftSaving(false);
-        draftSaveInFlight.current = null;
-      }
-    })();
-    draftSaveInFlight.current = request;
-    await request;
-  }
-
   useEffect(() => {
-    if (!hasChanges) return;
-    const timer = window.setTimeout(() => void autosaveDraft(), 850);
-    return () => window.clearTimeout(timer);
-  }, [form, hasChanges, effectiveRoleId, loading, parsing]);
+    function saveDraftOnPageExit() {
+      const current = latestDraftRef.current;
+      if (!current.hasChanges || current.loading || current.parsing || submittingRef.current || exitSaveSuppressedRef.current) return;
+
+      const endpoint = current.effectiveRoleId
+        ? `/api/roles/${encodeURIComponent(current.effectiveRoleId)}`
+        : "/api/roles";
+      const body = JSON.stringify({
+        ...current.form,
+        ...availabilityPayload(),
+        requesterName: current.requesterName,
+        requesterEmail: current.requesterEmail,
+        replacementEmployee: current.form.requestType === "Staff Replacement" ? current.form.replacementEmployee : "",
+        draft: true,
+        draftId: draftClientId.current,
+      });
+
+      // `keepalive` lets the browser finish this small request while the
+      // document is being unloaded. It also preserves PATCH for existing
+      // roles; sendBeacon cannot choose that method.
+      void fetch(endpoint, {
+        method: current.effectiveRoleId ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body,
+        keepalive: true,
+      }).catch(() => {
+        // There is no page left on which to show an error. The next edit or
+        // explicit save will retry through the normal error-reporting path.
+      });
+    }
+
+    window.addEventListener("pagehide", saveDraftOnPageExit);
+    return () => {
+      window.removeEventListener("pagehide", saveDraftOnPageExit);
+      // Next.js client navigation may unmount without firing pagehide.
+      saveDraftOnPageExit();
+    };
+  }, []);
 
   async function populateFromJobDescription() {
     if (!jobDescriptionFile && form.jobDescription.trim().length < 20) {
@@ -342,6 +337,7 @@ export default function RoleRequestForm({ user, roleId, status = "", initialValu
     event.preventDefault();
     if (!validateForm()) return;
 
+    submittingRef.current = true;
     setLoading(true);
     setError("");
     setSuccess(null);
@@ -349,10 +345,6 @@ export default function RoleRequestForm({ user, roleId, status = "", initialValu
     try {
       let response: Response;
       if (isDraftRole) {
-        // Do not submit while the initial autosave is still being persisted.
-        // Otherwise the PATCH can race the POST that created this draft.
-        if (draftSaveInFlight.current) await draftSaveInFlight.current;
-
         // Save the final form snapshot first, then use the audited status
         // transition so submitting a draft cannot create a duplicate role.
         response = await fetch(`/api/roles/${encodeURIComponent(effectiveRoleId)}`, {
@@ -397,6 +389,8 @@ export default function RoleRequestForm({ user, roleId, status = "", initialValu
       }
 
       const savedRoleId = result.roleId || effectiveRoleId || "";
+      exitSaveSuppressedRef.current = true;
+      setSavedFormKey(JSON.stringify(form));
       setSuccess({
         roleId: savedRoleId || "Not provided",
         status: result.status || "Pending HR Discussion",
@@ -416,6 +410,7 @@ export default function RoleRequestForm({ user, roleId, status = "", initialValu
       setError(submissionError instanceof Error ? submissionError.message : "Submission failed.");
       scrollToErrorSummary();
     } finally {
+      submittingRef.current = false;
       setLoading(false);
     }
   }
@@ -434,7 +429,7 @@ export default function RoleRequestForm({ user, roleId, status = "", initialValu
         )}
 
         {error && <div className="section"><ValidationSummary error={error} issues={Object.entries(fieldErrors).map(([field, message]) => { const formatted = formatFieldError(field, message); return { field, label: formatted.label, message: formatted.message, href: `#${field}` }; })} summaryRef={errorSummaryRef} /></div>}
-        {(isDraftRole || draftSaving || draftSavedAt || draftError) && <div className="draft-autosave-status" role="status"><strong>Draft</strong>{draftSaving ? " · Saving automatically..." : draftError ? ` · ${draftError}` : draftSavedAt ? ` · Saved ${new Date(draftSavedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : " · Changes will be saved automatically"}</div>}
+        {isDraftRole && <div className="draft-autosave-status" role="status"><strong>Draft</strong> · Changes save when you leave this page or submit.</div>}
 
         <section className="section">
           <div className="section-title">

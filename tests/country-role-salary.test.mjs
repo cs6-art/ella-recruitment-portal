@@ -61,6 +61,8 @@ test("applicant country filtering and server-side salary derivation are wired", 
   assert.match(manualRoute, /applicantCountry: country\.code/);
   assert.match(manualRoute, /salaryCurrency: country\.currencyCode/);
   assert.match(rolesRoute, /roleCountry/);
+  assert.match(applicantData, /phoneDigits = contactNumber\.replace/);
+  assert.match(applicantData, /PH: "PHP", SG: "SGD", MY: "MYR"/);
 });
 
 test("public role loading is not blocked by the removed country picker", () => {
@@ -73,6 +75,15 @@ test("public role loading is not blocked by the removed country picker", () => {
     assert.match(form, /source\.Role_Country, "PH"/);
     assert.match(form, /<label for="role">Role<span/);
   }
+});
+
+test("legacy public submissions preserve country and currency fields", () => {
+  const externalPath = "G:\\My Drive\\Downloads\\indexsept.html";
+  if (!fs.existsSync(externalPath)) return;
+  const form = read(externalPath);
+  assert.match(form, /payload\.append\("applicantCountry", applicantCountry\)/);
+  assert.match(form, /payload\.append\("salaryCurrency", countryProfile\?\.currency/);
+  assert.match(read("src/lib/salary-format.ts"), /PHP: \{ symbol: "₱"/);
 });
 
 test("role editing persists country and keeps CRUD actions visible", () => {

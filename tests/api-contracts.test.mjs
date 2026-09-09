@@ -37,15 +37,21 @@ test("role creation uses the canonical n8n event", () => {
   assert.match(source, /\/roles\/\$\{encodeURIComponent\(roleId\)\}/);
 });
 
-test("role forms autosave drafts without invoking the creation workflow", () => {
+test("role forms preserve draft writes without invoking the creation workflow", () => {
   const route = fs.readFileSync("src/app/api/roles/route.ts", "utf8");
   const detailsRoute = fs.readFileSync("src/app/api/roles/[roleId]/route.ts", "utf8");
   const form = fs.readFileSync("src/components/RoleRequestForm.tsx", "utf8");
   assert.match(route, /clientInput\.draft === true/);
   assert.match(route, /appendRoleRequestDraft/);
   assert.match(detailsRoute, /body\.draft === true/);
-  assert.match(form, /autosaveDraft/);
   assert.match(form, /draft: true/);
+});
+
+test("role forms save unsent changes on page exit instead of using a typing timer", () => {
+  const form = fs.readFileSync("src/components/RoleRequestForm.tsx", "utf8");
+  assert.match(form, /addEventListener\("pagehide"/);
+  assert.match(form, /keepalive: true/);
+  assert.doesNotMatch(form, /setTimeout\(\(\) => void autosaveDraft/);
 });
 
 test("draft writes use fresh role reads across app instances", () => {
@@ -59,7 +65,7 @@ test("draft writes use fresh role reads across app instances", () => {
   assert.match(createRoute, /getRoleRequestById\(roleId, \{ fresh: true \}\)/);
   assert.match(detailsRoute, /getRoleRequestById\(roleId, \{ fresh: true \}\)/);
   assert.match(statusRoute, /getRoleRequestById\(roleId, \{ fresh: true \}\)/);
-  assert.match(form, /await draftSaveInFlight\.current/);
+  assert.match(form, /keepalive: true/);
 });
 
 test("draft submission has an audited transition into HR review", () => {
