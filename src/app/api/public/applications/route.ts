@@ -93,6 +93,8 @@ export async function POST(request: Request) {
     }
     const country = roleCountryProfile(role.roleCountry);
     if (!country) return responseError(request, "This role does not have a supported country configured.", 409, { field: "roleId" });
+    const applicantCountry = roleCountryProfile(parsed.data.applicantCountry);
+    if (applicantCountry && applicantCountry.code !== country.code) return responseError(request, "Choose a role available in the selected applicant country.", 422, { field: "roleId" });
     if (!isPreferredMobileValid(parsed.data.preferredMobile) || !parsed.data.preferredMobile.startsWith(`+${country.dialCode}`)) {
       return responseError(request, `Contact number must be a valid ${country.name} number.`, 422, { field: "preferredMobile" });
     }

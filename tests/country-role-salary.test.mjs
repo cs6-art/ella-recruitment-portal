@@ -28,20 +28,25 @@ test("role requests require a country and persist the country for downstream wor
   assert.match(foundation, /Role_Country:role\.roleCountry/);
 });
 
-test("applicant intake does not expose country or currency choices", () => {
+test("applicant intake derives currency from role while country filters manual role choices", () => {
   const portalForm = read("src/components/CandidateApplicationForm.tsx");
   const publicForm = read("public/index.html");
   const externalFormPath = "G:\\My Drive\\Downloads\\indexsept.html";
   assert.doesNotMatch(portalForm, /CountrySelect/);
   assert.doesNotMatch(portalForm, /candidate-salary-currency/);
   assert.match(portalForm, /roleCountryProfile/);
+  assert.match(portalForm, /id="candidate-country"/);
+  assert.match(portalForm, /filteredRoleOptions/);
+  assert.match(portalForm, /applicantCountry/);
   assert.doesNotMatch(publicForm, /id="applicantCountry"/);
   assert.doesNotMatch(publicForm, /id="salaryCurrency"/);
   assert.match(publicForm, /roleCountryProfiles/);
   if (fs.existsSync(externalFormPath)) {
     const externalForm = read(externalFormPath);
-    assert.doesNotMatch(externalForm, /id="applicantCountry"/);
+    assert.match(externalForm, /id="applicantCountry"/);
     assert.doesNotMatch(externalForm, /id="salaryCurrency"/);
+    assert.match(externalForm, /renderRecruitmentRoles/);
+    assert.match(externalForm, /availableRoles\.filter/);
     assert.match(externalForm, /roleCountryProfiles/);
   }
 });
@@ -59,6 +64,7 @@ test("applicant country filtering and server-side salary derivation are wired", 
   assert.match(publicRoute, /applicantCountry: country\.code/);
   assert.match(publicRoute, /salaryCurrency: country\.currencyCode/);
   assert.match(manualRoute, /applicantCountry: country\.code/);
+  assert.match(manualRoute, /Choose a role available in the selected applicant country/);
   assert.match(manualRoute, /salaryCurrency: country\.currencyCode/);
   assert.match(rolesRoute, /roleCountry/);
   assert.match(applicantData, /phoneDigits = contactNumber\.replace/);

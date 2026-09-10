@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 
 import ActionFeedback from "@/components/ActionFeedback";
 import ValidationSummary from "@/components/ValidationSummary";
-import { roleCountryProfile } from "@/lib/role-countries";
+import { ROLE_COUNTRY_CODES, roleCountryProfile } from "@/lib/role-countries";
 
 type RoleOption = {
   roleId: string;
@@ -30,6 +30,7 @@ type Props = {
 type FormState = {
   candidateName: string;
   email: string;
+  applicantCountry: string;
   localContactNumber: string;
   resumeRoleId: string;
   salaryExpectation: string;
@@ -85,6 +86,7 @@ function readFieldError(errors: Partial<Record<keyof FormState | "resumeFile", s
 
 const fieldLabels: Record<string, string> = {
   candidateName: "Full Name",
+  applicantCountry: "Country / Country Code",
   localContactNumber: "Contact Number",
   email: "Email Address",
   resumeRoleId: "Role",
@@ -94,6 +96,7 @@ const fieldLabels: Record<string, string> = {
 
 const fieldAnchors: Record<string, string> = {
   candidateName: "#candidate-name",
+  applicantCountry: "#candidate-country",
   localContactNumber: "#candidate-contact-number",
   email: "#candidate-email",
   resumeRoleId: "#candidate-role",
@@ -117,6 +120,7 @@ export default function CandidateApplicationForm({
   const [form, setForm] = useState<FormState>({
     candidateName: "",
     email: "",
+    applicantCountry: roleCountry || "",
     localContactNumber: "",
     resumeRoleId: roleId,
     salaryExpectation: "",
@@ -134,9 +138,18 @@ export default function CandidateApplicationForm({
     [form.resumeRoleId, roleOptions],
   );
   const selectedRoleCountry = useMemo(
-    () => roleCountryProfile(roleOptions.find((option) => option.roleId === form.resumeRoleId)?.roleCountry || roleCountry),
-    [form.resumeRoleId, roleOptions, roleCountry],
+    () => roleCountryProfile(roleOptions.find((option) => option.roleId === form.resumeRoleId)?.roleCountry || (showRoleSelect ? form.applicantCountry : roleCountry)),
+    [form.applicantCountry, form.resumeRoleId, roleOptions, roleCountry, showRoleSelect],
   );
+  const selectedApplicantCountry = useMemo(
+    () => showRoleSelect ? roleCountryProfile(form.applicantCountry) : selectedRoleCountry,
+    [form.applicantCountry, selectedRoleCountry, showRoleSelect],
+  );
+  const filteredRoleOptions = useMemo(() => {
+    if (!showRoleSelect) return roleOptions;
+    if (!selectedApplicantCountry) return [];
+    return roleOptions.filter((option) => roleCountryProfile(option.roleCountry)?.code === selectedApplicantCountry.code);
+  }, [roleOptions, selectedApplicantCountry, showRoleSelect]);
 
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -145,18 +158,29 @@ export default function CandidateApplicationForm({
     setFieldErrors((current) => ({ ...current, [key]: "" }));
   };
 
+  function selectApplicantCountry(value: string) {
+    setForm((current) => ({ ...current, applicantCountry: value, resumeRoleId: "" }));
+    setError("");
+    setMessage("");
+    setFieldErrors((current) => ({ ...current, applicantCountry: "", resumeRoleId: "" }));
+  }
+
   function validate() {
     const nextErrors: Partial<Record<keyof FormState | "resumeFile", string>> = {};
-    const contactNumber = normalizedContactNumber(selectedRoleCountry?.dialCode || "", form.localContactNumber);
+    const contactNumber = normalizedContactNumber(selectedApplicantCountry?.dialCode || "", form.localContactNumber);
 
     if (!form.candidateName.trim()) nextErrors.candidateName = "Full name is required.";
+    if (showRoleSelect && !selectedApplicantCountry) nextErrors.applicantCountry = "Choose a supported country code.";
     if (!/^\S+@\S+\.\S+$/.test(form.email.trim().toLowerCase())) nextErrors.email = "Enter a valid email address.";
-    if (!/^\+[1-9]\d{7,14}$/.test(contactNumber)) nextErrors.localContactNumber = "Enter a valid local contact number.";
+    if (!selectedApplicantCountry) nextErrors.localContactNumber = "Choose a country code first.";
+    else if (!/^\+[1-9]\d{7,14}$/.test(contactNumber)) nextErrors.localContactNumber = "Enter a valid local contact number.";
     if (!resumeFile) nextErrors.resumeFile = "Choose a PDF, DOC, or DOCX resume file.";
     if (showRoleSelect && !form.resumeRoleId.trim()) nextErrors.resumeRoleId = "Choose a role.";
+    if (showRoleSelect && form.resumeRoleId && !filteredRoleOptions.some((option) => option.roleId === form.resumeRoleId)) nextErrors.resumeRoleId = "Choose a role available in the selected country.";
     const salaryAmount = Number(form.salaryExpectation.replace(/,/g, "").trim());
     if (!form.salaryExpectation.trim() || !Number.isFinite(salaryAmount) || salaryAmount <= 0) nextErrors.salaryExpectation = "Enter a valid expected monthly salary.";
     if (!selectedRoleCountry) nextErrors.resumeRoleId = "The selected role has no supported country configured. Please choose another role.";
+    if (showRoleSelect && selectedRoleCountry && selectedApplicantCountry && selectedRoleCountry.code !== selectedApplicantCountry.code) nextErrors.resumeRoleId = "Choose a role available in the selected country.";
 
     setFieldErrors(nextErrors);
     return nextErrors;
@@ -196,11 +220,12 @@ export default function CandidateApplicationForm({
     }
 
     try {
-      const contactNumber = normalizedContactNumber(selectedRoleCountry?.dialCode || "", form.localContactNumber);
+      const contactNumber = normalizedContactNumber(selectedApplicantCountry?.dialCode || "", form.localContactNumber);
       const body = new FormData();
       body.append("candidateName", form.candidateName.trim());
       body.append("email", form.email.trim().toLowerCase());
       body.append("roleId", form.resumeRoleId || roleId);
+      body.append("applicantCountry", selectedApplicantCountry?.code || "");
       // Keep the two existing backend/sheet aliases identical while the UI
       // exposes one contact number only.
       body.append("contactNumber", contactNumber);
@@ -223,7 +248,7 @@ export default function CandidateApplicationForm({
 
       const successMessage = typeof result.message === "string" && result.message ? result.message : "";
       setMessage(successMessage || `Application submitted. Application ID: ${String(result.applicationId ?? "")}`);
-      setForm({ candidateName: "", email: "", localContactNumber: "", resumeRoleId: roleId || "", salaryExpectation: "" });
+      setForm({ candidateName: "", email: "", applicantCountry: showRoleSelect ? "" : (roleCountry || ""), localContactNumber: "", resumeRoleId: roleId || "", salaryExpectation: "" });
       setResumeFile(null);
       setFileInputKey((value) => value + 1);
       if (fileInput.current) fileInput.current.value = "";
@@ -269,9 +294,23 @@ export default function CandidateApplicationForm({
             {readFieldError(fieldErrors, "candidateName") && <small>{readFieldError(fieldErrors, "candidateName")}</small>}
           </label>
 
+          {showRoleSelect && (
+            <label className="field">
+              <span>Country / Country Code *</span>
+              <select id="candidate-country" required value={form.applicantCountry} disabled={saving} onChange={(event) => selectApplicantCountry(event.target.value)}>
+                <option value="">Select country code first</option>
+                {ROLE_COUNTRY_CODES.map((countryCode) => {
+                  const country = roleCountryProfile(countryCode);
+                  return <option key={countryCode} value={countryCode}>{country?.name} (+{country?.dialCode})</option>;
+                })}
+              </select>
+              {readFieldError(fieldErrors, "applicantCountry") && <small>{readFieldError(fieldErrors, "applicantCountry")}</small>}
+            </label>
+          )}
+
           <div className="field contact-number-field">
             <span>Contact Number *</span>
-            <input id="candidate-contact-number" required aria-label="Local contact number" inputMode="numeric" placeholder={selectedRoleCountry?.phonePlaceholder || "Select a role first"} value={form.localContactNumber} disabled={saving} onChange={(event) => update("localContactNumber", cleanDigits(event.target.value))} />
+            <input id="candidate-contact-number" required aria-label="Local contact number" inputMode="numeric" placeholder={selectedApplicantCountry?.phonePlaceholder || (showRoleSelect ? "Select country code first" : "Enter local number")} value={form.localContactNumber} disabled={saving || (showRoleSelect && !selectedApplicantCountry)} onChange={(event) => update("localContactNumber", cleanDigits(event.target.value))} />
             <small>{selectedRoleCountry ? `${selectedRoleCountry.name} (+${selectedRoleCountry.dialCode}) — enter the local number only.` : "Select a role to set the country code automatically."}</small>
             {readFieldError(fieldErrors, "localContactNumber") && <small>{readFieldError(fieldErrors, "localContactNumber")}</small>}
           </div>
@@ -285,9 +324,9 @@ export default function CandidateApplicationForm({
           {showRoleSelect ? (
             <label className="field">
               <span>Role *</span>
-              <select id="candidate-role" required value={form.resumeRoleId} disabled={saving} onChange={(event) => update("resumeRoleId", event.target.value)}>
-                <option value="">Select a role</option>
-                {roleOptions.map((option) => <option key={option.roleId} value={option.roleId}>{option.label}</option>)}
+              <select id="candidate-role" required value={form.resumeRoleId} disabled={saving || !selectedApplicantCountry} onChange={(event) => update("resumeRoleId", event.target.value)}>
+                <option value="">{selectedApplicantCountry ? "Select a role" : "Select country code first"}</option>
+                {filteredRoleOptions.map((option) => <option key={option.roleId} value={option.roleId}>{option.label}</option>)}
               </select>
               {readFieldError(fieldErrors, "resumeRoleId") && <small>{readFieldError(fieldErrors, "resumeRoleId")}</small>}
             </label>
