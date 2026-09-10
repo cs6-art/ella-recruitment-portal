@@ -1054,8 +1054,8 @@ async function reserveBookingInternal(kind: BookingKind, token: string, slotId: 
       { tab: "High_Match_Profile", row: applicantRow, header: "Booking_Token_Status", value: "Used" },
       // The confirmation email is delivered by the separate n8n confirmation
       // workflow. Mark it as pending in the same booking transaction so that
-      // workflow has an explicit claim to process.
-      { tab: "High_Match_Profile", row: applicantRow, header: "Voice_Interview_Confirmation_Email_Sent", value: "Sending" },
+      // workflow can claim and send it on its next poll.
+      { tab: "High_Match_Profile", row: applicantRow, header: "Voice_Interview_Confirmation_Email_Sent", value: "Pending" },
       { tab: "High_Match_Profile", row: applicantRow, header: "Voice_Interview_Scheduled_Date", value: field(matchingSlot, "Date") },
       { tab: "High_Match_Profile", row: applicantRow, header: "Voice_Interview_Scheduled_Time", value: field(matchingSlot, "Start_Time", "Start Time") },
       { tab: "High_Match_Profile", row: applicantRow, header: "Voice_Interview_Timezone", value: field(matchingSlot, "Timezone", "Time Zone") },

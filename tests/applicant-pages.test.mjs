@@ -303,7 +303,7 @@ test("booking links render a branded unavailable page when the token is not vali
 
 test("voice booking marks the confirmation email as pending for n8n", () => {
   const workflow = read("src/lib/applicant-workflow.ts");
-  assert.match(workflow, /header: "Voice_Interview_Confirmation_Email_Sent", value: "Sending"/);
+  assert.match(workflow, /header: "Voice_Interview_Confirmation_Email_Sent", value: "Pending"/);
 });
 
 test("past booked interviews reconcile to No Show without overwriting completed results", () => {
