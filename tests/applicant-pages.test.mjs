@@ -301,6 +301,17 @@ test("booking links render a branded unavailable page when the token is not vali
   assert.match(unavailablePage, /already been used, expired, or been replaced/i);
 });
 
+test("voice review requires answer evidence before assessing communication and renders one analysis", () => {
+  const source = read("src/lib/candidate-applications.ts");
+  const page = read("src/app/applicants/[applicationId]/page.tsx");
+  assert.match(source, /hasNoVoiceAnswerEvidence/);
+  assert.match(source, /Cannot be assessed because no candidate answer was captured/);
+  assert.match(source, /noVoiceAnswerEvidence \|\| \/incomplete\|no answer/);
+  assert.doesNotMatch(page, /applicant\.voiceStrengths/);
+  assert.doesNotMatch(page, /applicant\.voiceCommunicationQuality/);
+  assert.doesNotMatch(page, /applicant\.voiceAnswerCompleteness/);
+});
+
 test("voice booking marks the confirmation email as pending for n8n", () => {
   const workflow = read("src/lib/applicant-workflow.ts");
   assert.match(workflow, /header: "Voice_Interview_Confirmation_Email_Sent", value: "Pending"/);

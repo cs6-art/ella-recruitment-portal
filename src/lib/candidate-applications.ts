@@ -210,6 +210,39 @@ function field(record: SheetRow, ...names: string[]) {
   return "";
 }
 
+function answeredQuestionCount(...values: string[]) {
+  for (const value of values) {
+    const match = value.match(/\b(\d+)\s*(?:out of|of|\/)\s*(\d+)\s+questions?\s+answered\b/i);
+    if (match) return Number.parseInt(match[1], 10);
+  }
+  return null;
+}
+
+function hasNoVoiceAnswerEvidence({ summary, completeness, transcript, result, callLog }: {
+  summary: string;
+  completeness: string;
+  transcript: string;
+  result?: SheetRow;
+  callLog?: SheetRow;
+}) {
+  if (!result && !callLog) return false;
+  const answerCount = answeredQuestionCount(completeness, summary);
+  const evidenceText = `${summary} ${completeness} ${field(result || {}, "Call_Status", "Status", "Outcome", "Ended_Reason", "Ended Reason")} ${field(callLog || {}, "Call_Status", "Status", "Outcome", "Ended_Reason", "Ended Reason")}`;
+  const noAnswerSignal = /no answer captured|\bno answer\b|\bbusy\b|wrong person|call back|0\s*(?:out of|of|\/)\s*\d+\s+questions?\s+answered/i.test(evidenceText);
+  const transcriptIsEmpty = !transcript.trim() || /no transcript|no answer captured/i.test(transcript);
+  return answerCount === 0 || (transcriptIsEmpty && noAnswerSignal);
+}
+
+function normalizeVoiceSummaryForEvidence(summary: string, noAnswerEvidence: boolean) {
+  if (!noAnswerEvidence) return summary;
+  const correction = "Communication quality: Cannot be assessed because no candidate answer was captured.";
+  if (!summary.trim()) return "No candidate answer was captured, so communication quality cannot be assessed.";
+  const corrected = summary
+    .replace(/communication quality\s*:\s*[^.!?]*(?:[.!?]|$)/i, correction)
+    .replace(/the candidate provided enough detail[^.!?]*(?:[.!?]|$)/i, "No candidate answer was captured, so communication quality cannot be assessed.");
+  return /communication quality\s*:/i.test(corrected) ? corrected : `${corrected} ${correction}`;
+}
+
 function configuredEvaluationValues(
   fields: EvaluationField[],
   result: SheetRow | undefined,
@@ -1056,15 +1089,22 @@ export async function getApplicantById(id: string): Promise<ApplicantDetails | n
     ? await getRoleRequestById(summary.roleId)
     : null;
   const configuredEvaluationFields = evaluationFieldsForSetup(role?.evaluationFieldToggles, role?.customEvaluationFields);
-  const voiceSummary = normalizeInterviewQuestionCount(
-    field(voiceResult ?? {}, "AI_Voice_Summary", "AI Voice Summary")
-      || field(callLog ?? {}, "AI_Voice_Summary", "AI Voice Summary")
-      || (isGeneratedDemoRecord && summary.voiceStatus ? "Historical voice interview activity is represented by the status and outcome recorded for this demonstration applicant." : ""),
-  );
+  const rawVoiceSummary = field(voiceResult ?? {}, "AI_Voice_Summary", "AI Voice Summary")
+    || field(callLog ?? {}, "AI_Voice_Summary", "AI Voice Summary")
+    || (isGeneratedDemoRecord && summary.voiceStatus ? "Historical voice interview activity is represented by the status and outcome recorded for this demonstration applicant." : "");
   const voiceAnswerCompleteness = normalizeInterviewQuestionCount(
     field(voiceResult ?? {}, "Answer_Completeness", "Answer Completeness")
       || field(callLog ?? {}, "Answer_Completeness", "Answer Completeness"),
   );
+  const voiceTranscript = field(voiceResult ?? {}, "Transcript", "Voice_Transcript", "Call_Transcript") || field(callLog ?? {}, "Transcript", "Voice_Transcript", "Call_Transcript");
+  const noVoiceAnswerEvidence = hasNoVoiceAnswerEvidence({
+    summary: rawVoiceSummary,
+    completeness: voiceAnswerCompleteness,
+    transcript: voiceTranscript,
+    result: voiceResult,
+    callLog,
+  });
+  const voiceSummary = normalizeInterviewQuestionCount(normalizeVoiceSummaryForEvidence(rawVoiceSummary, noVoiceAnswerEvidence));
   const rawVoiceScore = field(voiceResult ?? {}, "Voice_Score", "Voice Score")
     || field(callLog ?? {}, "Voice_Score", "Voice Score");
   // The n8n evaluator ("Prepare Final Result") deliberately leaves the score
@@ -1079,7 +1119,8 @@ export async function getApplicantById(id: string): Promise<ApplicantDetails | n
   const voiceOutcome = field(record, "Status 2 (Voice Interview)").toLowerCase();
   const voiceInterviewEndedUngraded = !rawVoiceScore
     && Boolean(voiceResult || callLog)
-    && /incomplete|no answer|no show|busy|wrong person|rejected|call back/.test(voiceOutcome);
+    && (noVoiceAnswerEvidence || /incomplete|no answer|no show|busy|wrong person|rejected|call back/.test(voiceOutcome));
+  const rawVoiceCommunicationQuality = field(voiceResult ?? {}, "Communication_Quality", "Communication Quality") || field(callLog ?? {}, "Communication_Quality", "Communication Quality");
 
   return {
     ...displaySummary,
@@ -1116,7 +1157,9 @@ export async function getApplicantById(id: string): Promise<ApplicantDetails | n
       || (isGeneratedDemoRecord && summary.voiceStatus ? "Clear responses and relevant examples." : ""),
     voiceConcerns: field(voiceResult ?? {}, "Voice_Concerns", "Voice Concerns") || field(callLog ?? {}, "Voice_Concerns", "Voice Concerns")
       || (isGeneratedDemoRecord && summary.voiceStatus ? "Role-specific details should be validated by HR." : ""),
-    voiceCommunicationQuality: field(voiceResult ?? {}, "Communication_Quality", "Communication Quality") || field(callLog ?? {}, "Communication_Quality", "Communication Quality"),
+    voiceCommunicationQuality: noVoiceAnswerEvidence
+      ? "Cannot be assessed because no candidate answer was captured."
+      : rawVoiceCommunicationQuality,
     voiceAnswerCompleteness,
     voiceFollowUpQuestions: field(voiceResult ?? {}, "Recommended_Follow_Up_Questions", "Recommended Follow Up Questions") || field(callLog ?? {}, "Recommended_Follow_Up_Questions", "Recommended Follow Up Questions"),
     // Communication Quality and Answer Completeness have dedicated voice
@@ -1124,7 +1167,7 @@ export async function getApplicantById(id: string): Promise<ApplicantDetails | n
     // the role's optional evaluation-field configuration.
     voiceEvaluationFields: configuredEvaluationValues(configuredEvaluationFields, voiceResult, callLog)
       .filter((evaluation) => !["communication_quality", "answer_completeness"].includes(evaluation.key)),
-    voiceTranscript: field(voiceResult ?? {}, "Transcript", "Voice_Transcript", "Call_Transcript") || field(callLog ?? {}, "Transcript", "Voice_Transcript", "Call_Transcript"),
+    voiceTranscript,
     voiceScheduledDate: field(record, "Voice_Interview_Scheduled_Date"),
     voiceScheduledTime: field(record, "Voice_Interview_Scheduled_Time"),
     voiceBookingStatus: field(record, "Voice_Interview_Booking_Status"),

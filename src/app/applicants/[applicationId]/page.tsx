@@ -140,8 +140,6 @@ function CombinedScreeningEvidence({ applicant }: { applicant: ApplicantDetails 
           <DetailField label="AI Recommendation" value={applicant.voiceRecommendation || "Awaiting AI evaluation"} />
         </div>
         <div className="applicant-copy-block"><span>AI Summary</span><p>{applicant.voiceSummary || "No AI summary is available."}</p></div>
-        <div className="applicant-copy-columns"><div><span>Strengths</span><p>{applicant.voiceStrengths || "No strengths recorded."}</p></div><div><span>Concerns</span><p>{applicant.voiceConcerns || "No concerns recorded."}</p></div></div>
-        <div className="applicant-copy-columns"><div><span>Communication Quality</span><p>{applicant.voiceCommunicationQuality || "Not provided."}</p></div><div><span>Answer Completeness</span><p>{applicant.voiceAnswerCompleteness || "Not provided."}</p></div></div>
         {applicant.voiceEvaluationFields.length > 0 && <div className="applicant-copy-columns">{applicant.voiceEvaluationFields.map((evaluation) => <div key={evaluation.key}><span>{evaluation.label}</span><p>{evaluation.value}</p></div>)}</div>}
         <div className="applicant-copy-block"><span>Recommended Follow-up Questions</span><p>{applicant.voiceFollowUpQuestions || "No follow-up questions were recommended."}</p></div>
         {applicant.voiceTranscript ? <details className="applicant-transcript"><summary>View full transcript</summary><pre>{applicant.voiceTranscript}</pre></details> : <div className="applicant-copy-block"><span>Transcript</span><p>No transcript is available.</p></div>}
