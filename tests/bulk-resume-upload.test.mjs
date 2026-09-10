@@ -296,7 +296,8 @@ test("invite links can use a separate candidate page origin without breaking por
   assert.match(proxy, /searchParams\.get\("invite"\)/);
   assert.match(candidatePage, /showInviteLinkError\("required"\)/);
   assert.doesNotMatch(candidatePage, /recruitmentEndpoint\("\/recruitment\/apply"\)/);
-  assert.match(applications, /code: "INVITE_REQUIRED"/);
+  assert.doesNotMatch(applications, /code: "INVITE_REQUIRED"/);
+  assert.match(applications, /const applicationId = `APP-\$\{crypto\.randomUUID\(\)\}`/);
 });
 
 test("bulk UAT mode is fail-closed and carries environment correlation metadata", () => {

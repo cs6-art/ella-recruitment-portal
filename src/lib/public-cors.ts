@@ -6,6 +6,7 @@ function allowedOrigins() {
     process.env.RESUME_SCREENING_INVITE_BASE_URL,
     process.env.N8N_BULK_RESUME_PORTAL_BASE_URL,
     process.env.NEXT_PUBLIC_APP_URL,
+    ...(process.env.PUBLIC_APPLICATION_ORIGINS || "").split(","),
   ]
     .map((value) => {
       const cleanValue = value?.trim();
@@ -25,7 +26,11 @@ function allowedOrigins() {
 export function publicCorsHeaders(request: Request) {
   const origin = request.headers.get("origin") || "";
   const headers = new Headers();
-  if (origin && allowedOrigins().includes(origin)) {
+  // The downloadable standalone application form is also opened directly
+  // from a local file during HR testing, which browsers identify as the
+  // opaque `null` origin. The endpoint is public and rate-limited, so allow
+  // that origin without exposing authenticated portal responses.
+  if (origin === "null" || (origin && allowedOrigins().includes(origin))) {
     headers.set("Access-Control-Allow-Origin", origin);
     headers.set("Vary", "Origin");
   }
