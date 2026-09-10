@@ -298,7 +298,7 @@ export default function CandidateApplicationForm({
             <label className="field">
               <span>Country / Country Code *</span>
               <select id="candidate-country" required value={form.applicantCountry} disabled={saving} onChange={(event) => selectApplicantCountry(event.target.value)}>
-                <option value="">Select country code first</option>
+                <option value="">Select country code</option>
                 {ROLE_COUNTRY_CODES.map((countryCode) => {
                   const country = roleCountryProfile(countryCode);
                   return <option key={countryCode} value={countryCode}>{country?.name} (+{country?.dialCode})</option>;
@@ -310,7 +310,7 @@ export default function CandidateApplicationForm({
 
           <div className="field contact-number-field">
             <span>Contact Number *</span>
-            <input id="candidate-contact-number" required aria-label="Local contact number" inputMode="numeric" placeholder={selectedApplicantCountry?.phonePlaceholder || (showRoleSelect ? "Select country code first" : "Enter local number")} value={form.localContactNumber} disabled={saving || (showRoleSelect && !selectedApplicantCountry)} onChange={(event) => update("localContactNumber", cleanDigits(event.target.value))} />
+            <input id="candidate-contact-number" required aria-label="Local contact number" inputMode="numeric" placeholder={selectedApplicantCountry?.phonePlaceholder || (showRoleSelect ? "Select country code" : "Enter local number")} value={form.localContactNumber} disabled={saving || (showRoleSelect && !selectedApplicantCountry)} onChange={(event) => update("localContactNumber", cleanDigits(event.target.value))} />
             <small>{selectedRoleCountry ? `${selectedRoleCountry.name} (+${selectedRoleCountry.dialCode}) — enter the local number only.` : "Select a role to set the country code automatically."}</small>
             {readFieldError(fieldErrors, "localContactNumber") && <small>{readFieldError(fieldErrors, "localContactNumber")}</small>}
           </div>
@@ -325,7 +325,7 @@ export default function CandidateApplicationForm({
             <label className="field">
               <span>Role *</span>
               <select id="candidate-role" required value={form.resumeRoleId} disabled={saving || !selectedApplicantCountry} onChange={(event) => update("resumeRoleId", event.target.value)}>
-                <option value="">{selectedApplicantCountry ? "Select a role" : "Select country code first"}</option>
+                <option value="">{selectedApplicantCountry ? "Select a role" : "Select country code"}</option>
                 {filteredRoleOptions.map((option) => <option key={option.roleId} value={option.roleId}>{option.label}</option>)}
               </select>
               {readFieldError(fieldErrors, "resumeRoleId") && <small>{readFieldError(fieldErrors, "resumeRoleId")}</small>}
