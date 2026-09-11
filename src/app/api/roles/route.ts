@@ -132,12 +132,14 @@ export async function GET(request: Request) {
     const requestedPage = Math.max(1, Number(query.get("page") || "1") || 1);
     const pageSize = Math.min(50, Math.max(1, Number(query.get("pageSize") || "25") || 25));
     const status = query.get("status")?.trim() || "";
+    const country = query.get("country")?.trim().toUpperCase() || "";
     const department = query.get("department")?.trim().toLowerCase() || "";
     const requester = query.get("requester")?.trim().toLowerCase() || "";
     const search = query.get("search")?.trim().toLowerCase() || "";
     const sort = query.get("sort") || "newest";
     let roles = filterVisibleRoles(await getRoleRequests(), user).filter((role) =>
       (!status || role.status === status) &&
+      (!country || role.roleCountry.toUpperCase() === country) &&
       (!department || role.department.toLowerCase().includes(department)) &&
       (!requester || `${role.requesterName} ${role.requesterEmail}`.toLowerCase().includes(requester)) &&
       (!search || `${role.roleId} ${role.jobTitle}`.toLowerCase().includes(search)),

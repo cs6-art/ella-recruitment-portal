@@ -10,6 +10,7 @@ import Pagination from "@/components/Pagination";
 import UiIcon from "@/components/UiIcon";
 import { canEditRoleRequest } from "@/lib/access-control";
 import { formatPortalDateTime } from "@/lib/portal-time";
+import { ROLE_COUNTRY_CODES, ROLE_COUNTRY_PROFILES } from "@/lib/role-countries";
 
 const statusFilters = [
   "All",
@@ -73,6 +74,7 @@ export default function RolesList({
   const [error, setError] = useState("");
   const [statusFilter, setStatusFilter] =
     useState<(typeof statusFilters)[number]>("All");
+  const [countryFilter, setCountryFilter] = useState("");
   const [department, setDepartment] = useState("");
   const [requester, setRequester] = useState("");
   const [search, setSearch] = useState("");
@@ -94,6 +96,7 @@ export default function RolesList({
       const apiSort = sort === "target-latest" ? "target" : sort;
       const params = new URLSearchParams({ page: String(page), pageSize: "25", sort: apiSort });
       if (statusFilter !== "All") params.set("status", statusFilter);
+      if (countryFilter) params.set("country", countryFilter);
       if (department.trim()) params.set("department", department.trim());
       if (requester.trim()) params.set("requester", requester.trim());
       if (search.trim()) params.set("search", search.trim());
@@ -148,7 +151,7 @@ export default function RolesList({
     } finally {
       setLoading(false);
     }
-  }, [department, page, requester, search, sort, statusFilter]);
+  }, [countryFilter, department, page, requester, search, sort, statusFilter]);
 
   useEffect(() => {
     void loadRoles();
@@ -167,6 +170,7 @@ export default function RolesList({
 
   const filtersActive =
     statusFilter !== "All" ||
+    countryFilter !== "" ||
     department.trim() !== "" ||
     requester.trim() !== "" ||
     search.trim() !== "" ||
@@ -174,6 +178,7 @@ export default function RolesList({
 
   function clearFilters() {
     setStatusFilter("All");
+    setCountryFilter("");
     setDepartment("");
     setRequester("");
     setSearch("");
@@ -338,6 +343,26 @@ export default function RolesList({
               {statusFilters.map((status) => (
                 <option key={status} value={status}>
                   {status}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="roles-filter-field">
+            <label htmlFor="country-filter">Country</label>
+            <select
+              id="country-filter"
+              aria-label="Filter by country"
+              value={countryFilter}
+              onChange={(event) => {
+                setCountryFilter(event.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="">All Countries</option>
+              {ROLE_COUNTRY_CODES.map((code) => (
+                <option key={code} value={code}>
+                  {ROLE_COUNTRY_PROFILES[code].name}
                 </option>
               ))}
             </select>

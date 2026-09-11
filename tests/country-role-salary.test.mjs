@@ -57,6 +57,7 @@ test("applicant country filtering and server-side salary derivation are wired", 
   const publicRoute = read("src/app/api/public/applications/route.ts");
   const manualRoute = read("src/app/api/applicants/route.ts");
   const rolesRoute = read("src/app/api/public/roles/route.ts");
+  const roleRequestsRoute = read("src/app/api/roles/route.ts");
   assert.match(list, /Filter by country/);
   assert.match(list, /countryFilter/);
   assert.match(list, /applicant\.applicantCountry === countryFilter/);
@@ -67,6 +68,10 @@ test("applicant country filtering and server-side salary derivation are wired", 
   assert.match(manualRoute, /Choose a role available in the selected applicant country/);
   assert.match(manualRoute, /salaryCurrency: country\.currencyCode/);
   assert.match(rolesRoute, /roleCountry/);
+  assert.match(roleRequestsRoute, /query\.get\("country"\)/);
+  assert.match(list, /countryFilter/);
+  assert.match(list, /Filter by country/);
+  assert.match(list, /All Countries/);
   assert.match(applicantData, /phoneDigits = contactNumber\.replace/);
   assert.match(applicantData, /PH: "PHP", SG: "SGD", MY: "MYR"/);
 });
