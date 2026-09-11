@@ -103,6 +103,8 @@ test("role request uses department choices and keeps required markers on fields"
   assert.match(formSource, /DEPARTMENT_OPTIONS/);
   assert.match(formSource, /Select a department/);
   assert.match(departmentSource, /"Other"/);
+  assert.match(formSource, /id="customDepartment"/);
+  assert.match(formSource, /departmentForSubmission/);
   assert.doesNotMatch(formSource, /Required fields\./);
 });
 

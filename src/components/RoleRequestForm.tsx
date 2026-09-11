@@ -34,6 +34,7 @@ type FormState = {
   requestType: string;
   roleCountry: string;
   department: string;
+  customDepartment: string;
   jobTitle: string;
   employmentType: string;
   numberOfVacancies: number;
@@ -57,6 +58,7 @@ const initial: FormState = {
   requestType: "Staff Addition",
   roleCountry: "PH",
   department: "",
+  customDepartment: "",
   jobTitle: "",
   employmentType: "Full-Time",
   numberOfVacancies: 1,
@@ -104,14 +106,24 @@ const fieldLabels: Record<string, string> = {
   customScreeningQuestion2: "Custom Screening Question 2",
 };
 
+function departmentForSubmission(state: Pick<FormState, "department" | "customDepartment">) {
+  return (state.department === "Other" ? state.customDepartment : state.department).trim();
+}
+
 export default function RoleRequestForm({ user, roleId, status = "", initialValues }: RoleRequestFormProps) {
   const router = useRouter();
-  const initialForm = useMemo<FormState>(() => ({
-    ...initial,
-    ...initialValues,
-    targetHiringDate: toDateInputValue(initialValues?.targetHiringDate),
-    hodEmail: HR_INTERVIEW_EMAIL,
-  }), [initialValues]);
+  const initialForm = useMemo<FormState>(() => {
+    const savedDepartment = String(initialValues?.department || "").trim();
+    const isSavedCustomDepartment = Boolean(savedDepartment) && !isKnownDepartment(savedDepartment);
+    return {
+      ...initial,
+      ...initialValues,
+      department: isSavedCustomDepartment ? "Other" : savedDepartment,
+      customDepartment: isSavedCustomDepartment ? savedDepartment : "",
+      targetHiringDate: toDateInputValue(initialValues?.targetHiringDate),
+      hodEmail: HR_INTERVIEW_EMAIL,
+    };
+  }, [initialValues]);
   const [form, setForm] = useState<FormState>(() => initialForm);
   const effectiveRoleId = roleId || "";
   const isEditing = Boolean(effectiveRoleId);
@@ -188,6 +200,7 @@ export default function RoleRequestForm({ user, roleId, status = "", initialValu
         : "/api/roles";
       const body = JSON.stringify({
         ...current.form,
+        department: departmentForSubmission(current.form),
         ...availabilityPayload(),
         requesterName: current.requesterName,
         requesterEmail: current.requesterEmail,
@@ -233,7 +246,7 @@ export default function RoleRequestForm({ user, roleId, status = "", initialValu
       else {
         body.append("jobDescriptionText", form.jobDescription.trim());
         body.append("jobTitle", form.jobTitle.trim());
-        body.append("department", form.department.trim());
+        body.append("department", departmentForSubmission(form));
       }
       const response = await fetch("/api/roles/parse-description", {
         method: "POST",
@@ -306,6 +319,7 @@ export default function RoleRequestForm({ user, roleId, status = "", initialValu
     const availability = availabilityPayload();
     const parsed = roleRequestSchema.safeParse({
       ...form,
+      department: departmentForSubmission(form),
       ...availability,
       requesterName: user.name,
       requesterEmail: user.email,
@@ -354,6 +368,7 @@ export default function RoleRequestForm({ user, roleId, status = "", initialValu
           credentials: "same-origin",
           body: JSON.stringify({
             ...form,
+            department: departmentForSubmission(form),
             ...availabilityPayload(),
             requesterName: user.name,
             requesterEmail: user.email,
@@ -376,6 +391,7 @@ export default function RoleRequestForm({ user, roleId, status = "", initialValu
           credentials: "same-origin",
           body: JSON.stringify({
             ...form,
+            department: departmentForSubmission(form),
             ...availabilityPayload(),
             ...(!isEditing ? { submissionId: creationSubmissionId.current } : {}),
             requesterName: user.name,
@@ -483,12 +499,18 @@ export default function RoleRequestForm({ user, roleId, status = "", initialValu
 
             <div className="field">
               <label htmlFor="department">Department <strong className="required-mark">*</strong></label>
-              <select id="department" {...fieldErrorProps("department")} required value={form.department} onChange={(event) => update("department", event.target.value)}>
-                {form.department && !isKnownDepartment(form.department) && <option value={form.department}>{form.department} (existing)</option>}
+              <select id="department" {...fieldErrorProps("department")} required value={!form.department ? "" : isKnownDepartment(form.department) ? form.department : "Other"} onChange={(event) => update("department", event.target.value)}>
                 <option value="">Select a department</option>
                 {DEPARTMENT_OPTIONS.map((department) => <option key={department} value={department}>{department}</option>)}
               </select>
             </div>
+
+            {form.department === "Other" && (
+              <div className="field">
+                <label htmlFor="customDepartment">New department <strong className="required-mark">*</strong></label>
+                <input id="customDepartment" {...fieldErrorProps("department")} required value={form.customDepartment} onChange={(event) => { update("customDepartment", event.target.value); setFieldErrors((current) => ({ ...current, department: "" })); }} placeholder="Enter the department name" />
+              </div>
+            )}
 
             <div className="field">
               <label htmlFor="employmentType">Employment Type <strong className="required-mark">*</strong></label>
