@@ -205,7 +205,8 @@ test("candidate intake forms and decisions expose the required fields", () => {
   assert.match(decisionPanel, /useRouter/);
   assert.match(decisionPanel, /router\.refresh\(\)/);
   assert.doesNotMatch(decisionPanel, /window\.location\.reload\(\)/);
-  assert.match(decisionPanel, /Request Manual Review/);
+  assert.doesNotMatch(decisionPanel, /manualReview|returnForReview|requestManualReview/);
+  assert.match(decisionPanel, /sendBookingLink/);
   assert.match(decisionPanel, /Comments \*/);
   assert.match(decisionPanel, /disabled=\{busy \|\|/);
   assert.doesNotMatch(route, /findDuplicateCandidateApplication|DUPLICATE_APPLICATION/);
@@ -223,7 +224,10 @@ test("candidate intake forms and decisions expose the required fields", () => {
   assert.match(route, /jobTitle: role\.jobTitle/);
   assert.match(publicRoute, /jobTitle: role\.jobTitle/);
   assert.match(workflow, /applicationSource/);
-  assert.match(decisionRoute, /Manual Review/);
+  assert.match(decisionRoute, /z\.enum\(\["Approve", "Reject"\]\)/);
+  const bookingLinkRoute = read("src/app/api/applicants/[applicationId]/voice-booking-link/route.ts");
+  assert.match(bookingLinkRoute, /requestVoiceBookingLink/);
+  assert.match(bookingLinkRoute, /Only HR can send voice booking links/);
   assert.match(decisionRoute, /comments/);
   assert.match(decisionRoute, /revalidatePath\(`\/applicants\/\$\{encodeURIComponent\(applicationId\)\}`\)/);
   assert.match(decisionRoute, /revalidatePath\("\/applicants"\)/);

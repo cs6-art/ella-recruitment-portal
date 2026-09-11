@@ -139,7 +139,7 @@ notice period, application source.
 
 ### Steps 6–7: AI screening and HR assessment
 AI screens only against the selected approved role. AI recommendation is
-sent to HR. HR can: approve for interview, reject, request manual review,
+sent to HR. HR can: approve for interview or reject,
 add comments. Rejection email is sent only after HR confirms the
 decision.
 

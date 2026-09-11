@@ -130,9 +130,9 @@ export function canDeleteApplicant(user: Pick<SessionUser, "canReviewRole">): bo
   return canEditApplicant(user);
 }
 
-// Approving, rejecting, or returning an applicant at any pipeline stage
-// (resume, voice, final) is a decision, available to both the operational
-// HR tier and the decision-making Management tier.
+// Approving or rejecting an applicant at any pipeline stage (resume, voice,
+// final) is a decision, available to both the operational HR tier and the
+// decision-making Management tier.
 export function canDecideApplicant(user: Pick<SessionUser, "canReviewRole" | "canApproveRole">): boolean {
   return user.canReviewRole === true || user.canApproveRole === true;
 }

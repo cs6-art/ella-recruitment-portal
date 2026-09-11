@@ -17,7 +17,7 @@ import { hasValidFutureTime, isBeforeTargetHiringDate, isCurrentCalendarMonth, i
 
 export type BookingKind = "voice" | "final";
 export type ApplicantDecisionStage = "resume" | "voice" | "final";
-export type ApplicantDecision = "Approve" | "Reject" | "Manual Review" | "No Show";
+export type ApplicantDecision = "Approve" | "Reject" | "No Show";
 export type ApplicantHistoryAction = ApplicantDecision | "Completed";
 export type CandidateApplicationSource =
   | "Direct Application"
@@ -783,6 +783,74 @@ export async function updateApplicantProfile(applicationId: string, input: Appli
   }) || [];
   if (queueUpdates.length > 0) await updateCells(queueUpdates);
   return { applicationId, candidateName: input.candidateName.trim(), email: input.email.trim().toLowerCase(), preferredMobile };
+}
+
+/**
+ * Re-open the voice-booking step for a fresh interview attempt. The scheduled
+ * n8n invitation workflows own token generation and email delivery, so the
+ * portal clears the old token and raises the same pending work signal used by
+ * the original resume approval flow.
+ */
+export async function requestVoiceBookingLink(applicationId: string) {
+  const [applicantData, slotsData, queueData] = await Promise.all([
+    readSheet("High_Match_Profile", "CZ"),
+    readSheet("Interview_Slots", "X"),
+    readOptionalSheet("Voice_Call_Queue", "X"),
+  ]);
+  const found = findApplicant(applicantData, applicationId);
+  if (!found) throw new Error("Applicant not found.");
+  const email = field(found.row, "Email").trim();
+  if (!email || !/^\S+@\S+\.\S+$/.test(email)) throw new Error("This applicant does not have a valid email address.");
+
+  const normalizedApplicationId = applicationId.trim().toLowerCase();
+  const activeSlot = slotsData.rows.find((row) =>
+    field(row, "Application_ID", "Application ID").trim().toLowerCase() === normalizedApplicationId
+      && field(row, "Interview_Type", "Interview Type").toLowerCase().includes("voice")
+      && field(row, "Status").toLowerCase() === "booked",
+  );
+  if (activeSlot) throw new Error("This applicant already has a scheduled voice interview.");
+
+  const activeCall = queueData?.rows.find((row) =>
+    field(row, "Application_ID", "Application ID").trim().toLowerCase() === normalizedApplicationId
+      && ["calling", "initiated", "in progress"].includes(field(row, "Voice_Call_Status", "Status").toLowerCase()),
+  );
+  if (activeCall) throw new Error("This applicant's voice interview is currently in progress.");
+
+  if (field(found.row, "Resume_HR_Decision").toLowerCase() !== "approve") {
+    throw new Error("Approve the applicant's CV review before sending a voice booking link.");
+  }
+
+  const now = new Date().toISOString();
+  const set = (header: string, value: string): CellUpdate => ({ tab: "High_Match_Profile", row: found.rowNumber, header, value });
+  await updateCells([
+    set("Booking_Token", ""),
+    set("Booking_Token_Hash", ""),
+    set("Booking_Token_Status", "Processing"),
+    set("Booking_Token_Created_At", ""),
+    set("Booking_Token_Expires_At", ""),
+    set("Voice_Interview_Booking_Status", "Awaiting Booking System"),
+    set("Voice_Interview_Booking_Link", ""),
+    set("Voice_Interview_Invitation_Sent", "Pending"),
+    set("Voice_Interview_Invitation_Sent_Date", ""),
+    set("Booking_Invitation_Error", ""),
+    set("Booking_Error", ""),
+    set("Status 2 (Voice Interview)", "Awaiting Schedule"),
+    set("Final_Status", "Approved for AI Voice Interview"),
+    set("Voice_HR_Decision", ""),
+    set("Voice_HR_Comments", ""),
+    set("Voice_Interview_Scheduled_Date", ""),
+    set("Voice_Interview_Scheduled_Time", ""),
+    set("Voice_Interview_Timezone", ""),
+    set("Booking_Completed_At", ""),
+    set("Voice_Approval_Processed", ""),
+    set("Last_Updated", now),
+  ]);
+  return {
+    applicationId,
+    candidateName: field(found.row, "Candidate_Name", "Candidate Name"),
+    email,
+    status: "Booking link queued for automatic email delivery.",
+  };
 }
 
 async function readOptionalSheet(tab: string, endColumn: string): Promise<SheetData | null> {
@@ -1915,50 +1983,35 @@ export async function recordApplicantDecision(applicationId: string, stage: Appl
   const updates: CellUpdate[] = [set("Last_Updated", now)];
   let newFinalStatus = previousFinalStatus;
   if (stage === "resume") {
-    if (decision === "Manual Review") {
-      newFinalStatus = "Pending Manual Review";
-      updates.push(set("Resume_HR_Decision", decision), set("Resume_HR_Decision_Date", now), set("Resume_HR_Reviewer", reviewer.name), set("Resume_HR_Comments", comments), set("Final_Status", newFinalStatus));
-    } else {
-      newFinalStatus = decision === "Approve" ? "Approved for AI Voice Interview" : "Resume Rejected";
-      updates.push(set("Resume_HR_Decision", decision), set("Resume_HR_Decision_Date", now), set("Resume_HR_Reviewer", reviewer.name), set("Resume_HR_Comments", comments), set("Final_Status", newFinalStatus));
-    }
+    newFinalStatus = decision === "Approve" ? "Approved for AI Voice Interview" : "Resume Rejected";
+    updates.push(set("Resume_HR_Decision", decision), set("Resume_HR_Decision_Date", now), set("Resume_HR_Reviewer", reviewer.name), set("Resume_HR_Comments", comments), set("Final_Status", newFinalStatus));
   } else if (stage === "voice") {
-    if (decision === "Manual Review") {
-      newFinalStatus = "Pending Manual Review";
-      updates.push(set("Voice_HR_Decision", decision), set("Voice_HR_Comments", comments), set("Final_Status", newFinalStatus));
-    } else {
-      newFinalStatus = decision === "Approve" ? "Approved for Final Interview" : "Voice Interview Rejected";
-      updates.push(set("Voice_HR_Decision", decision), set("Voice_HR_Comments", comments), set("Final_Status", newFinalStatus));
-      if (decision === "Approve" && publicAppBaseUrl) {
-        // A prior failed poll can leave this claim flag at Processing. Reset
-        // it when HR approves so n8n retries the final-invitation email using
-        // the portal-generated link instead of waiting forever.
-        updates.push(set("Voice_Approval_Processed", ""));
-        const invitation = finalBookingInvitation(found.row, publicAppBaseUrl);
-        updates.push(
-          set("Final_Interview_Booking_Token", invitation.token),
-          set("Final_Interview_Booking_Token_Hash", invitation.tokenHash),
-          set("Final_Interview_Booking_Token_Expires_At", invitation.expiresAt),
-          set("Final_Interview_Booking_Token_Status", "Pending"),
-          set("Final_Interview_Booking_Link", invitation.link),
-        );
-      }
+    newFinalStatus = decision === "Approve" ? "Approved for Final Interview" : "Voice Interview Rejected";
+    updates.push(set("Voice_HR_Decision", decision), set("Voice_HR_Comments", comments), set("Final_Status", newFinalStatus));
+    if (decision === "Approve" && publicAppBaseUrl) {
+      // A prior failed poll can leave this claim flag at Processing. Reset
+      // it when HR approves so n8n retries the final-invitation email using
+      // the portal-generated link instead of waiting forever.
+      updates.push(set("Voice_Approval_Processed", ""));
+      const invitation = finalBookingInvitation(found.row, publicAppBaseUrl);
+      updates.push(
+        set("Final_Interview_Booking_Token", invitation.token),
+        set("Final_Interview_Booking_Token_Hash", invitation.tokenHash),
+        set("Final_Interview_Booking_Token_Expires_At", invitation.expiresAt),
+        set("Final_Interview_Booking_Token_Status", "Pending"),
+        set("Final_Interview_Booking_Link", invitation.link),
+      );
     }
   } else {
-    if (decision === "Manual Review") {
-      newFinalStatus = "Pending Manual Review";
-      updates.push(set("Final_Status", newFinalStatus), set("Final_Interview_Comments", comments));
-    } else {
-      newFinalStatus = decision === "Approve" ? "Final Interview Passed" : "Final Interview Rejected";
-      updates.push(
-        set("Status 3 (Final Interview)", "Interview Completed"),
-        set("Final_Status", newFinalStatus),
-        set("Final_Interview_Comments", comments),
-        set("Final_Interview_Reviewer", reviewer.name),
-        set("Final_Interview_Decision_Date", now),
-      );
-      await upsertFinalTracking(found.row, applicationId, decision, reviewer, comments, now);
-    }
+    newFinalStatus = decision === "Approve" ? "Final Interview Passed" : "Final Interview Rejected";
+    updates.push(
+      set("Status 3 (Final Interview)", "Interview Completed"),
+      set("Final_Status", newFinalStatus),
+      set("Final_Interview_Comments", comments),
+      set("Final_Interview_Reviewer", reviewer.name),
+      set("Final_Interview_Decision_Date", now),
+    );
+    await upsertFinalTracking(found.row, applicationId, decision, reviewer, comments, now);
   }
   await updateCells(updates);
   const historyEntry = buildCandidateStatusHistoryEntry({
