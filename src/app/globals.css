@@ -5315,7 +5315,7 @@ textarea:focus-visible {
   }
 }
 
-@container applicants-page (max-width: 760px) {
+@container applicants-page (max-width: 720px) {
   .applicants-page .applicant-stat-grid {
     grid-template-columns: 1fr;
   }
@@ -5447,9 +5447,9 @@ textarea:focus-visible {
 
 /* Browser zoom reduces the content column before it reaches the handset
    breakpoint above. At that point a wide table makes the action column
-   disappear off-screen, so use the same card treatment for the full usable
-   applicant area. The toolbar keeps its compact two-row layout until 760px. */
-@container applicants-page (min-width: 761px) and (max-width: 1100px) {
+   disappear off-screen, so use a compact two-column card treatment for the
+   full usable applicant area. */
+@container applicants-page (min-width: 721px) and (max-width: 1100px) {
   .applicants-page .table-wrap {
     overflow: visible;
     border: 0;
@@ -5496,9 +5496,10 @@ textarea:focus-visible {
     overflow-wrap: anywhere;
   }
 
-  .applicants-page .applicants-table td:not(.selection-column) {
-    grid-column: 1 / -1;
-  }
+  .applicants-page .applicants-table td:not(.selection-column) { grid-column: auto; }
+
+  .applicants-page .applicants-table td[data-label="Candidate"],
+  .applicants-page .applicants-table td[data-label="Action"] { grid-column: 1 / -1; }
 
   .applicants-page .applicants-table td:not(.selection-column)::before {
     color: var(--muted);
