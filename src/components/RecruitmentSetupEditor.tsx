@@ -285,7 +285,7 @@ function Field({
 }) {
   return (
     <label className={`field${multiline ? " field-wide" : ""}`} htmlFor={id}>
-      <span>{label}{required ? " *" : ""}</span>
+      <span>{label}{required && <strong className="required-mark" aria-hidden="true">*</strong>}</span>
       {multiline ? (
         <textarea id={id} value={value ?? ""} disabled={disabled} required={required} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} />
       ) : (
@@ -525,7 +525,7 @@ export default function RecruitmentSetupEditor({ roleId, status, setup, editable
           <Field id="vapi-keywords" label="Keywords to look for" value={values.keywordsToLookFor} onChange={(value) => update("keywordsToLookFor", value)} disabled={!editable || saving} placeholder="Separate keywords with commas" />
            <Field id="vapi-transferable-skills" label="Transferable skills accepted" value={values.transferableSkillsAccepted} onChange={(value) => update("transferableSkillsAccepted", value)} disabled={!editable || saving} multiline placeholder="Describe adjacent experience that may be accepted." />
            <Field id="vapi-experience" label="Minimum relevant experience" value={values.minimumYearsOfExperience} onChange={(value) => update("minimumYearsOfExperience", value)} disabled={!editable || saving} placeholder="Example: None, 3 years, or 5+ years" hint="Use None when no experience threshold applies." />
-           <Field id="vapi-salary" label="Approved salary or budget range *" value={values.salaryOrBudgetRange} onChange={(value) => update("salaryOrBudgetRange", value)} disabled={!editable || saving} required placeholder="Example: PHP 45,000 to PHP 60,000 per month" hint="Required before this role can be marked Ready for Publishing or published. Use the approved currency and pay period." />
+           <Field id="vapi-salary" label="Approved salary or budget range" value={values.salaryOrBudgetRange} onChange={(value) => update("salaryOrBudgetRange", value)} disabled={!editable || saving} required placeholder="Example: PHP 45,000 to PHP 60,000 per month" hint="Required before this role can be marked Ready for Publishing or published. Use the approved currency and pay period." />
            <Field id="vapi-availability" label="Earliest availability instructions" value={values.earliestAvailabilityRule} onChange={(value) => update("earliestAvailabilityRule", value)} disabled={!editable || saving} placeholder="Example: Ask whether the candidate can start within 30 days." />
         </div>
       </div>
