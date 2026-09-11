@@ -3,6 +3,7 @@
 // allowed to call the public, unauthenticated endpoints it depends on.
 function allowedOrigins() {
   return [
+    "https://ellai.mclinkgroup.com",
     process.env.RESUME_SCREENING_INVITE_BASE_URL,
     process.env.N8N_BULK_RESUME_PORTAL_BASE_URL,
     process.env.NEXT_PUBLIC_APP_URL,

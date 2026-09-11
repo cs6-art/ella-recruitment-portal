@@ -271,6 +271,7 @@ test("invite links can use a separate candidate page origin without breaking por
   const proxy = read("proxy.ts");
   assert.match(inviteRoute, /RESUME_SCREENING_INVITE_BASE_URL/);
   assert.match(inviteRoute, /N8N_BULK_RESUME_PORTAL_BASE_URL/);
+  assert.match(publicCors, /https:\/\/ellai\.mclinkgroup\.com/);
   assert.match(publicCors, /RESUME_SCREENING_INVITE_BASE_URL/);
   assert.match(envExample, /RESUME_SCREENING_INVITE_BASE_URL=https:\/\/your-portal-domain\/index\.html/);
   assert.match(inviteStore, /applicationInviteLink/);
