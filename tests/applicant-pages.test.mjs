@@ -166,6 +166,7 @@ test("candidate intake forms and decisions expose the required fields", () => {
   const publicRoute = read("src/app/api/public/applications/route.ts");
   const workflow = read("src/lib/applicant-workflow.ts");
   const decisionRoute = read("src/app/api/applicants/[applicationId]/decision/route.ts");
+  const styles = read("src/app/globals.css");
   const uploadRoute = read("src/app/api/uploads/resumes/route.ts");
   const downloadRoute = read("src/app/api/uploads/resumes/[fileId]/route.ts");
   const scoreFormat = read("src/lib/score-format.ts");
@@ -235,6 +236,8 @@ test("candidate intake forms and decisions expose the required fields", () => {
   assert.match(form, /type="file"/);
   assert.match(form, /\.pdf/);
   assert.match(form, /\.docx/);
+  assert.match(styles, /td\[data-label="Candidate"\][\s\S]*width: 220px/);
+  assert.match(styles, /applicant-name-link span\s*\{[\s\S]*white-space: normal/);
   assert.match(uploadRoute, /storeResumeFile/);
   assert.match(downloadRoute, /canReviewRole/);
 });

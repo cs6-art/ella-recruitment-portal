@@ -5549,6 +5549,43 @@ textarea:focus-visible {
   }
 }
 
+/* Keep the candidate identity readable on wide tables too. The old fixed row
+   height and ellipsis rule hid long names and email addresses even when there
+   was enough horizontal space to show them. */
+@container applicants-page (min-width: 1101px) {
+  .applicants-page .applicants-table td[data-label="Candidate"] {
+    width: 220px;
+    min-width: 220px;
+  }
+
+  .applicants-page .applicant-name-link {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .applicants-page .applicant-name-link strong,
+  .applicants-page .applicant-name-link span {
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+
+  .applicants-page .applicant-name-link span {
+    overflow: visible;
+    text-overflow: clip;
+  }
+
+  .applicants-page .applicants-table tbody tr {
+    height: auto;
+    min-height: 76px;
+  }
+
+  .applicants-page .applicants-table tbody td {
+    height: auto;
+    min-height: 76px;
+    overflow: visible;
+  }
+}
+
 /* --- Notifications ------------------------------------------------------- */
 .notif-bell-wrap { position: relative; display: inline-flex; }
 .notif-bell {
