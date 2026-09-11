@@ -73,3 +73,25 @@ test("salary survives the webhook/sheet mapping and is visible in the applicant 
   assert.match(detail, /label="Approved Salary \/ Budget Range"/);
   assert.match(read("src/app/globals.css"), /\.applicant-compensation-card \{ margin-bottom: 24px; \}/);
 });
+
+test("salary match falls back to the role budget when workflow fields are blank", async () => {
+  const { evaluateSalaryMatch } = await import("../src/lib/salary-match.ts");
+  assert.deepEqual(evaluateSalaryMatch({
+    salaryExpectation: "35000",
+    salaryCurrency: "SGD",
+    approvedSalaryOrBudgetRange: "SGD 3,500 to SGD 5,000 per month",
+  }), {
+    status: "Above range",
+    notes: "The expected salary is above the approved range.",
+  });
+  assert.equal(evaluateSalaryMatch({
+    salaryExpectation: "4,000",
+    salaryCurrency: "SGD",
+    approvedSalaryOrBudgetRange: "SGD 3,500 to SGD 5,000 per month",
+  }).status, "Matched");
+  assert.equal(evaluateSalaryMatch({
+    salaryExpectation: "4000",
+    salaryCurrency: "PHP",
+    approvedSalaryOrBudgetRange: "SGD 3,500 to SGD 5,000 per month",
+  }).status, "Not comparable");
+});

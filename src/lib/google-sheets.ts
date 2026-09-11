@@ -81,6 +81,7 @@ export type RoleRequestSummary = {
   postedAt?: string;
   jobDescription?: string;
   postingChannels?: string;
+  salaryOrBudgetRange?: string;
   hodEmail: string;
   hodAvailabilitySlots: string;
   interviewAvailabilityRules?: string;
@@ -998,6 +999,7 @@ export async function getRoleRequests(options: { liveOnly?: boolean; fresh?: boo
         postedAt: role.postedAt,
         jobDescription: role.jobDescription,
         postingChannels: role.postingChannels,
+        salaryOrBudgetRange: role.salaryOrBudgetRange,
         hodEmail: role.hodEmail,
         hodAvailabilitySlots: role.hodAvailabilitySlots,
         interviewAvailabilityRules: role.interviewAvailabilityRules,

@@ -5,8 +5,10 @@ import { cachedSheetsRead, freshSheetsRead, withSheetsBackoff } from "@/lib/shee
 import { demoActiveBookingLinkRoleIds, demoApplicantRows, demoInterviewBookings } from "@/lib/demo-data";
 import { isDemoMode, isDemoWindowRecord } from "@/lib/demo-mode";
 import { getRoleRequestById, type RoleRequestDetails } from "@/lib/google-sheets";
+import { getRoleRequests, type RoleRequestSummary } from "@/lib/google-sheets";
 import { evaluationFieldsForSetup, type EvaluationField } from "@/lib/recruitment-setup-schema";
 import { normalizeInterviewQuestionCount } from "@/lib/interview-question-count";
+import { evaluateSalaryMatch } from "@/lib/salary-match";
 import type { NotificationSourceRow } from "@/lib/notifications";
 
 export {
@@ -452,7 +454,9 @@ function applyFinalBookingState(summary: ApplicantSummary, record: SheetRow, fin
   };
 }
 
-function mapApplicant(record: SheetRow, isHistoricalDemo = false): ApplicantSummary {
+type ApplicantRoleContext = Pick<RoleRequestSummary, "roleCountry" | "salaryOrBudgetRange"> | Pick<RoleRequestDetails, "roleCountry" | "salaryOrBudgetRange">;
+
+function mapApplicant(record: SheetRow, isHistoricalDemo = false, role?: ApplicantRoleContext): ApplicantSummary {
   const finalStatus = field(record, "Final_Status");
   const voiceStatus = field(record, "Status 2 (Voice Interview)");
   const finalInterviewStatus = field(record, "Status 3 (Final Interview)");
@@ -475,11 +479,17 @@ function mapApplicant(record: SheetRow, isHistoricalDemo = false): ApplicantSumm
   const storedSalaryCurrency = field(record, "Salary_Currency", "Salary Currency", "Currency");
   const contactNumber = field(record, "Contact_Number", "Contact Number", "Phone");
   const phoneDigits = contactNumber.replace(/\D/g, "");
-  const applicantCountry = field(record, "Applicant_Country", "Applicant Country").toUpperCase() || (phoneDigits.startsWith("63") ? "PH" : phoneDigits.startsWith("65") ? "SG" : phoneDigits.startsWith("60") ? "MY" : "");
-  const salaryCurrency = storedSalaryCurrency || salaryExpectation.match(/^(SGD|PHP|MYR|MY|RUPEE|RUPIAH)\b/i)?.[1] || ({ PH: "PHP", SG: "SGD", MY: "MYR" }[applicantCountry] || "");
-  const approvedSalaryOrBudgetRange = field(record, "Approved_Salary_or_Budget_Range", "Approved Salary or Budget Range");
-  const salaryMatchStatus = field(record, "Salary_Match_Status", "Salary Match Status");
-  const salaryMatchNotes = field(record, "Salary_Match_Notes", "Salary Match Notes");
+  const roleCountry = role?.roleCountry?.trim().toUpperCase() || "";
+  const applicantCountry = field(record, "Applicant_Country", "Applicant Country").toUpperCase() || (phoneDigits.startsWith("63") ? "PH" : phoneDigits.startsWith("65") ? "SG" : phoneDigits.startsWith("60") ? "MY" : roleCountry);
+  const salaryCurrency = storedSalaryCurrency || salaryExpectation.match(/^(SGD|PHP|MYR|MY|RUPEE|RUPIAH)\b/i)?.[1] || ({ PH: "PHP", SG: "SGD", MY: "MYR" }[applicantCountry] || ({ PH: "PHP", SG: "SGD", MY: "MYR" }[roleCountry] || ""));
+  const storedApprovedSalaryOrBudgetRange = field(record, "Approved_Salary_or_Budget_Range", "Approved Salary or Budget Range");
+  const approvedSalaryOrBudgetRange = storedApprovedSalaryOrBudgetRange || role?.salaryOrBudgetRange || "";
+  const storedSalaryMatchStatus = field(record, "Salary_Match_Status", "Salary Match Status");
+  const storedSalaryMatchNotes = field(record, "Salary_Match_Notes", "Salary Match Notes");
+  const computedSalaryMatch = evaluateSalaryMatch({ salaryExpectation, salaryCurrency, approvedSalaryOrBudgetRange });
+  const hasWorkflowEvaluation = storedSalaryMatchStatus.trim() && !["not evaluated", "not provided"].includes(storedSalaryMatchStatus.trim().toLowerCase());
+  const salaryMatchStatus = hasWorkflowEvaluation ? storedSalaryMatchStatus : computedSalaryMatch.status;
+  const salaryMatchNotes = hasWorkflowEvaluation ? storedSalaryMatchNotes : computedSalaryMatch.notes;
   return {
     applicationId: applicationId(record),
     candidateName: field(record, "Candidate_Name", "Candidate Name", "Name"),
@@ -654,8 +664,12 @@ export async function getApplicants(): Promise<ApplicantSummary[]> {
   // serving a pre-mutation snapshot. This is the primary applicant list, so
   // bypass the cache rather than risk showing a just-deleted or just-edited
   // record as unchanged.
-  const live = (await readTab("High_Match_Profile", "CZ", { fresh: true })).rows;
-  const operational = withDemoApplicantList(live).map((record) => mapApplicant(record));
+  const [{ rows: live }, roles] = await Promise.all([
+    readTab("High_Match_Profile", "CZ", { fresh: true }),
+    getRoleRequests({ liveOnly: true }),
+  ]);
+  const rolesById = new Map(roles.map((role) => [role.roleId.trim().toLowerCase(), role]));
+  const operational = withDemoApplicantList(live).map((record) => mapApplicant(record, false, rolesById.get(field(record, "Role_ID", "Role ID").trim().toLowerCase())));
   // Keep generated history out of the default table, but provide it to the
   // client so an explicit dashboard-stage filter can show read-only examples.
   const historical = isDemoMode() ? demoApplicantRows().map((record) => mapApplicant(record, true)) : [];
@@ -1038,7 +1052,8 @@ export async function getApplicantById(id: string): Promise<ApplicantDetails | n
   if (!record) return null;
   const isGeneratedDemoRecord = !liveRecord && Boolean(demoRecord);
 
-  const summary = mapApplicant(record);
+  const roleDetails = !isGeneratedDemoRecord ? await getRoleRequestById(field(record, "Role_ID", "Role ID")) : null;
+  const summary = mapApplicant(record, false, roleDetails || undefined);
   // A retry creates a new result/log row for the same applicant. Always use
   // the most recent event; selecting the first row can surface an older
   // no-answer result instead of the completed retry with its transcript.
@@ -1086,7 +1101,7 @@ export async function getApplicantById(id: string): Promise<ApplicantDetails | n
   const interviewSlot = voiceInterviewSlot || applicantSlots[0];
   const displaySummary = applyFinalBookingState(summary, record, finalInterviewSlot);
   const role = !isGeneratedDemoRecord && (field(record, "Voice_HR_Decision").toLowerCase() === "approve" || voiceResult || callLog)
-    ? await getRoleRequestById(summary.roleId)
+    ? roleDetails
     : null;
   const configuredEvaluationFields = evaluationFieldsForSetup(role?.evaluationFieldToggles, role?.customEvaluationFields);
   const rawVoiceSummary = field(voiceResult ?? {}, "AI_Voice_Summary", "AI Voice Summary")
