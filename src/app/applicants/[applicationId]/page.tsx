@@ -17,7 +17,7 @@ import {
 } from "@/lib/candidate-applications";
 import type { RoleRequestDetails } from "@/lib/google-sheets";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
-import { formatMatchScore } from "@/lib/score-format";
+import { formatMatchScore, formatOverallScore } from "@/lib/score-format";
 import { formatPortalDateTime } from "@/lib/portal-time";
 import { formatSalaryExpectation, salaryCurrencyLabel } from "@/lib/salary-format";
 
@@ -120,6 +120,7 @@ function CombinedScreeningEvidence({ applicant }: { applicant: ApplicantDetails 
       <div className="applicant-evidence-subsection">
         <div className="applicant-evidence-subsection-heading"><UiIcon name="document" size={16} /><h3>AI CV Analysis</h3></div>
         <div className="applicant-detail-inline-fields">
+          <DetailField label="CV Match Score" value={applicant.matchScore ? formatMatchScore(applicant.matchScore) : "Awaiting AI evaluation"} />
           <DetailField label="CV Analysis Status" value={applicant.resumeStatus} />
           <DetailField label="CV Recommendation" value={applicant.cvRecommendation || "Not Provided"} />
           <DetailField label="HR Decision" value={applicant.resumeDecision} />
@@ -207,7 +208,7 @@ export default async function ApplicantDetailsPage({ params }: { params: Promise
   return <AppShell user={user}><main className="container page applicant-details-page">
     <MarkApplicantViewed applicationId={applicant.applicationId} />
     <header className="applicant-detail-header"><Link href="/applicants" className="portal-back-link applicant-back-link"><UiIcon name="arrow-left" size={15} />Back to Applicants</Link><div className="applicant-detail-title-row"><div><span className="eyebrow-dark">APPLICANT PROFILE</span><h1>{applicant.candidateName || "Unnamed Candidate"}</h1><p>{applicant.applicationId} · {applicant.email || "No Email Provided"}</p></div><span className={applicantStageClass(applicant.currentStage)}>{applicant.currentStage}</span></div><div className="applicant-detail-actions"><Link className="btn btn-secondary" href={`/roles/${encodeURIComponent(applicant.roleId)}`}><UiIcon name="briefcase" size={15} />View Role</Link><Link className="btn btn-secondary" href={`/roles/${encodeURIComponent(applicant.roleId)}/applicants`}><UiIcon name="applicants" size={15} />Role Applicants</Link><ApplicantDetailActions applicationId={applicant.applicationId} candidateName={applicant.candidateName} canManage={canEditApplicant(user)} /></div></header>
-    <div className="applicant-detail-summary"><DetailField label="Selected Role" value={applicant.selectedRole} /><DetailField label="Department" value={applicant.department} /><DetailField label="Applied" value={dateValue(applicant.appliedAt)} /><DetailField label="Match Score" value={formatMatchScore(applicant.matchScore)} /><DetailField label="Recommendation" value={applicant.recommendation} /><DetailField label="Next Action" value={applicant.nextAction} /></div>
+    <div className="applicant-detail-summary"><DetailField label="Selected Role" value={applicant.selectedRole} /><DetailField label="Department" value={applicant.department} /><DetailField label="Applied" value={dateValue(applicant.appliedAt)} /><DetailField label="Overall Score" value={formatOverallScore(applicant.matchScore, applicant.voiceScore)} /><DetailField label="Recommendation" value={applicant.recommendation} /><DetailField label="Next Action" value={applicant.nextAction} /></div>
     <CompensationCard applicant={applicant} />
     <div className="applicant-detail-grid"><div className="applicant-detail-main">
       <CombinedScreeningEvidence applicant={applicant} />

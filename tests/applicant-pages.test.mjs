@@ -170,6 +170,7 @@ test("candidate intake forms and decisions expose the required fields", () => {
   const uploadRoute = read("src/app/api/uploads/resumes/route.ts");
   const downloadRoute = read("src/app/api/uploads/resumes/[fileId]/route.ts");
   const scoreFormat = read("src/lib/score-format.ts");
+  const applicantDetails = read("src/app/applicants/[applicationId]/page.tsx");
 
   assert.match(screening, /title="CV Analysis"/);
   assert.match(form, /roleCountryProfile/);
@@ -188,6 +189,10 @@ test("candidate intake forms and decisions expose the required fields", () => {
   assert.doesNotMatch(form, /Skills assessment/);
   assert.doesNotMatch(form, /Role expectations/);
   assert.match(scoreFormat, /percentage > 100/);
+  assert.match(scoreFormat, /formatOverallScore/);
+  assert.match(applicantDetails, /label="Overall Score"/);
+  assert.match(applicantDetails, /label="CV Match Score"/);
+  assert.match(applicantDetails, /label="Voice AI Score"/);
   assert.doesNotMatch(editor, /CALL SCRIPT TEMPLATES/);
   assert.doesNotMatch(editor, /SAVED TEMPLATES/);
   assert.match(editor, /Reset changes/);
