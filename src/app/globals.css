@@ -5265,13 +5265,11 @@ textarea:focus-visible {
   }
 }
 
-/* Applicants are laid out against the space left by the navigation rail. A
-   browser zoom changes that space without necessarily crossing the viewport
-   breakpoints above, so use the page's own inline size for the dense pipeline
-   controls and table. */
+/* Applicant layout follows the physical browser viewport. The navigation rail
+   can make the content container narrow on a desktop PC, but that should not
+   make a desktop screen switch into the phone/tablet card layout. */
 .applicants-page {
   min-width: 0;
-  container: applicants-page / inline-size;
 }
 
 .applicants-page .applicants-card,
@@ -5286,7 +5284,7 @@ textarea:focus-visible {
   min-width: 0;
 }
 
-@container applicants-page (max-width: 1100px) {
+@media (max-width: 1100px) {
   .applicants-page .applicant-stat-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -5315,7 +5313,7 @@ textarea:focus-visible {
   }
 }
 
-@container applicants-page (max-width: 720px) {
+@media (max-width: 720px) {
   .applicants-page .applicant-stat-grid {
     grid-template-columns: 1fr;
   }
@@ -5445,11 +5443,9 @@ textarea:focus-visible {
   }
 }
 
-/* Browser zoom reduces the content column before it reaches the handset
-   breakpoint above. At that point a wide table makes the action column
-   disappear off-screen, so use a compact two-column card treatment for the
-   full usable applicant area. */
-@container applicants-page (min-width: 721px) and (max-width: 1100px) {
+/* Tablet-sized viewports use a compact two-column card treatment so the wide
+   pipeline table does not force horizontal scrolling. */
+@media (min-width: 721px) and (max-width: 1100px) {
   .applicants-page .table-wrap {
     overflow: visible;
     border: 0;
@@ -5553,7 +5549,7 @@ textarea:focus-visible {
 /* Keep the candidate identity readable on wide tables too. The old fixed row
    height and ellipsis rule hid long names and email addresses even when there
    was enough horizontal space to show them. */
-@container applicants-page (min-width: 1101px) {
+@media (min-width: 1101px) {
   .applicants-page .applicants-table td[data-label="Candidate"] {
     width: 220px;
     min-width: 220px;
