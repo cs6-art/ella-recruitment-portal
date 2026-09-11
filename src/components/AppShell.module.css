@@ -80,6 +80,18 @@
   max-width: var(--portal-content-max-width, 1680px);
   padding-inline: 0;
 }
+
+/* Browser zoom-out increases the CSS viewport. Once it becomes substantially
+   wider than a normal desktop, keeping every page at the same centered max
+   width leaves an artificial gap between the fixed rail and the page. Let the
+   authenticated content use the available main-area width at that point. */
+@media (min-width: 2000px) {
+  .pageToolbar,
+  .content > :global(.container) {
+    max-width: none;
+    margin-inline: 0;
+  }
+}
 .backdrop { display: none; }
 
 .sidebarCollapsed { width: 76px; padding: 14px 8px 12px; }
