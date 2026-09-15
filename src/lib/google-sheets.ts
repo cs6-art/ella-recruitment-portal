@@ -80,6 +80,13 @@ export type RoleRequestSummary = {
   postingConfirmed?: string;
   postedAt?: string;
   jobDescription?: string;
+  screeningCriteria?: string;
+  requiredSkills?: string;
+  experienceRequired?: string;
+  educationRequirements?: string;
+  licenseOrCertificateRequired?: string;
+  keywordsToLookFor?: string;
+  minimumYearsOfExperience?: string;
   postingChannels?: string;
   salaryOrBudgetRange?: string;
   hodEmail: string;
@@ -998,6 +1005,13 @@ export async function getRoleRequests(options: { liveOnly?: boolean; fresh?: boo
         postingConfirmed: role.postingConfirmed,
         postedAt: role.postedAt,
         jobDescription: role.jobDescription,
+        screeningCriteria: role.screeningCriteria,
+        requiredSkills: role.requiredSkills,
+        experienceRequired: role.experienceRequired,
+        educationRequirements: role.educationRequirements,
+        licenseOrCertificateRequired: role.licenseOrCertificateRequired,
+        keywordsToLookFor: role.keywordsToLookFor,
+        minimumYearsOfExperience: role.minimumYearsOfExperience,
         postingChannels: role.postingChannels,
         salaryOrBudgetRange: role.salaryOrBudgetRange,
         hodEmail: role.hodEmail,

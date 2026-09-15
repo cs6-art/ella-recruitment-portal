@@ -9,6 +9,7 @@ import { getRoleRequests, type RoleRequestSummary } from "@/lib/google-sheets";
 import { evaluationFieldsForSetup, type EvaluationField } from "@/lib/recruitment-setup-schema";
 import { normalizeInterviewQuestionCount } from "@/lib/interview-question-count";
 import { evaluateSalaryMatch } from "@/lib/salary-match";
+import { calculateResumeMatchScore } from "@/lib/resume-match-score";
 import type { NotificationSourceRow } from "@/lib/notifications";
 
 export {
@@ -50,6 +51,9 @@ export type ApplicantSummary = {
   salaryMatchNotes: string;
   appliedAt: string;
   matchScore: string;
+  /** Original percentage returned by n8n, retained for audit/debugging. */
+  aiMatchScore: string;
+  matchScoreMethod: string;
   recommendation: string;
   cvRecommendation: string;
   resumeStatus: string;
@@ -454,7 +458,7 @@ function applyFinalBookingState(summary: ApplicantSummary, record: SheetRow, fin
   };
 }
 
-type ApplicantRoleContext = Pick<RoleRequestSummary, "roleCountry" | "salaryOrBudgetRange"> | Pick<RoleRequestDetails, "roleCountry" | "salaryOrBudgetRange">;
+type ApplicantRoleContext = Pick<RoleRequestSummary, "roleCountry" | "salaryOrBudgetRange" | "jobDescription" | "screeningCriteria" | "requiredSkills" | "experienceRequired" | "educationRequirements" | "licenseOrCertificateRequired" | "keywordsToLookFor" | "minimumYearsOfExperience"> | Pick<RoleRequestDetails, "roleCountry" | "salaryOrBudgetRange" | "jobDescription" | "screeningCriteria" | "requiredSkills" | "experienceRequired" | "educationRequirements" | "licenseOrCertificateRequired" | "keywordsToLookFor" | "minimumYearsOfExperience">;
 
 function mapApplicant(record: SheetRow, isHistoricalDemo = false, role?: ApplicantRoleContext): ApplicantSummary {
   const finalStatus = field(record, "Final_Status");
@@ -490,6 +494,10 @@ function mapApplicant(record: SheetRow, isHistoricalDemo = false, role?: Applica
   const hasWorkflowEvaluation = storedSalaryMatchStatus.trim() && !["not evaluated", "not provided"].includes(storedSalaryMatchStatus.trim().toLowerCase());
   const salaryMatchStatus = hasWorkflowEvaluation ? storedSalaryMatchStatus : computedSalaryMatch.status;
   const salaryMatchNotes = hasWorkflowEvaluation ? storedSalaryMatchNotes : computedSalaryMatch.notes;
+  const aiMatchScore = field(record, "Match_Score", "Match Score");
+  const deterministicScore = role
+    ? calculateResumeMatchScore(field(record, "Resume_Text", "Resume_CV", "Resume/CV", "Resume Text"), role)
+    : null;
   return {
     applicationId: applicationId(record),
     candidateName: field(record, "Candidate_Name", "Candidate Name", "Name"),
@@ -505,7 +513,9 @@ function mapApplicant(record: SheetRow, isHistoricalDemo = false, role?: Applica
     salaryMatchStatus,
     salaryMatchNotes,
     appliedAt,
-    matchScore: field(record, "Match_Score", "Match Score"),
+    matchScore: deterministicScore ? String(deterministicScore.score) : aiMatchScore,
+    aiMatchScore,
+    matchScoreMethod: deterministicScore ? "Deterministic role rubric" : "AI workflow result",
     recommendation: displayFaceToFaceInterviewText(displayInterviewStageText(workflowRecommendationFor(record))),
     cvRecommendation: field(record, "Recommendation"),
     resumeStatus: field(record, "Status (Resume Processing)"),

@@ -121,6 +121,7 @@ function CombinedScreeningEvidence({ applicant }: { applicant: ApplicantDetails 
         <div className="applicant-evidence-subsection-heading"><UiIcon name="document" size={16} /><h3>AI CV Analysis</h3></div>
         <div className="applicant-detail-inline-fields">
           <DetailField label="CV Match Score" value={applicant.matchScore ? formatMatchScore(applicant.matchScore) : "Awaiting AI evaluation"} />
+          <DetailField label="Score Method" value={applicant.matchScoreMethod} />
           <DetailField label="CV Analysis Status" value={applicant.resumeStatus} />
           <DetailField label="CV Recommendation" value={applicant.cvRecommendation || "Not Provided"} />
           <DetailField label="HR Decision" value={applicant.resumeDecision} />
