@@ -403,6 +403,15 @@ test("active replacement voice links ignore historical completed slots", () => {
   assert.match(workflow, /currentSlotCandidates\.find\(\(\{ slot \}\) => \(slot\.status \|\| ""\)\.toLowerCase\(\) === "booked"\)/);
 });
 
+test("stale voice booking submissions cannot cancel an active appointment", () => {
+  const workflow = read("src/lib/applicant-workflow.ts");
+  assert.match(workflow, /A used voice token with a live booked appointment is already fulfilled/);
+  assert.match(workflow, /\["booked", "completed"\]\.includes\(context\.currentSlot\?\.status\?\.toLowerCase\(\) \|\| ""\)/);
+  assert.match(workflow, /already scheduled\. Use the latest booking link/);
+  assert.match(workflow, /Voice attempts are never rescheduled by cancelling an existing queue/);
+  assert.doesNotMatch(workflow, /const oldQueueUpdates = queueData\.rows/);
+});
+
 test("applicant profiles show voice attempt history and keep the current booking link visible", () => {
   const data = read("src/lib/candidate-applications.ts");
   const page = read("src/app/applicants/[applicationId]/page.tsx");

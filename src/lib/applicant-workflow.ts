@@ -1101,6 +1101,15 @@ async function reserveBookingInternal(kind: BookingKind, token: string, slotId: 
   if (!isDemoSideEffectAllowed(context.appliedAt)) {
     throw new Error("This demo booking link is protected because it belongs to historical data.");
   }
+  // A used voice token with a live booked appointment is already fulfilled.
+  // Do not let a stale tab, duplicate POST, or an old invitation reschedule it:
+  // the old queue row would otherwise be cancelled before the replacement row
+  // is appended, leaving the appointment with zero provider call attempts.
+  // Only a No Show (or an HR-issued replacement token) may open another voice
+  // booking path.
+  if (kind === "voice" && ["booked", "completed"].includes(context.currentSlot?.status?.toLowerCase() || "")) {
+    throw new Error("This voice interview is already scheduled. Use the latest booking link for a replacement attempt.");
+  }
   const role = await getRoleRequestById(context.roleId);
   const finalCalendarEmail = kind === "final" ? (await getFinalInterviewCalendarConfig()).email : "";
   let matchingSlotIndex = slotsData.rows.findIndex((row) => field(row, "Slot_ID", "Slot ID") === cleanSlotId);
@@ -1285,17 +1294,11 @@ async function reserveBookingInternal(kind: BookingKind, token: string, slotId: 
       if (key === normalize("Last_Updated")) return now;
       return "";
     });
-    if (oldSlotIndex >= 0) {
-      const oldQueueUpdates = queueData.rows
-        .map((queueRow, index) => ({ queueRow, rowNumber: queueData.rowNumbers[index] }))
-        .filter(({ queueRow }) => field(queueRow, "Application_ID", "Application ID") === context.applicationId
-          && ["scheduled", "queued"].includes(field(queueRow, "Voice_Call_Status").toLowerCase()))
-        .flatMap(({ rowNumber }) => [
-          { tab: "Voice_Call_Queue", row: rowNumber, header: "Voice_Call_Status", value: "Cancelled" },
-          { tab: "Voice_Call_Queue", row: rowNumber, header: "Last_Updated", value: now },
-        ]);
-      updates.push(...oldQueueUpdates);
-    }
+    // Voice attempts are never rescheduled by cancelling an existing queue
+    // row. Active appointments are rejected above; ended attempts have
+    // already been reconciled to Completed/No Show. Leaving the historical
+    // queue row untouched prevents a partial replacement write from turning a
+    // valid appointment into Cancelled before its new queue row exists.
     queueValues = newQueueValues;
   } else {
     updates.push(
