@@ -356,6 +356,22 @@ test("past booked interviews reconcile to No Show without overwriting completed 
   assert.doesNotMatch(bookings, /Candidate slots/);
 });
 
+test("voice booking-link action allows retries for ended incomplete attempts", () => {
+  const panel = read("src/components/ApplicantDecisionPanel.tsx");
+  assert.match(panel, /bookingStatus\?: string/);
+  assert.match(panel, /retryStatus\?: string/);
+  assert.match(panel, /retryableVoiceAttempt = stage === "voice"/);
+  assert.match(panel, /hasActiveVoiceBooking = stage === "voice"/);
+  assert.match(panel, /bookingStatus=\{props\.voiceBookingStatus\}/);
+  assert.match(panel, /!hasActiveVoiceBooking/);
+  const workflow = read("src/lib/applicant-workflow.ts");
+  assert.match(workflow, /voiceSlotHasEnded/);
+  assert.match(workflow, /previousOutcome === "completed"/);
+  assert.match(workflow, /retryableOutcome/);
+  assert.match(workflow, /Status\", value: retryableOutcome \? "Completed" : "No Show"/);
+});
+
+
 test("high-cost and state-changing APIs apply request throttling", () => {
   const routes = [
     "src/app/api/auth/google/route.ts",

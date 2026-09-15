@@ -311,6 +311,42 @@ function findApplicant(data: SheetData, applicationId: string) {
 
 function bookingKindValue(kind: BookingKind) { return kind === "voice" ? "AI Voice Interview" : "Final Interview"; }
 
+function latestVoiceInterviewOutcome(rows: Row[], applicationId: string): "completed" | "incomplete" | "unreachable" | "" {
+  const matching = rows
+    .filter((row) => field(row, "Application_ID", "Application ID").trim().toLowerCase() === applicationId.trim().toLowerCase())
+    .sort((left, right) => {
+      const timestamp = (row: Row) => ["Result_Received_At", "Call_Completed_At", "Last_Updated", "Created_At", "Date"]
+        .map((name) => Date.parse(field(row, name)))
+        .find((value) => !Number.isNaN(value)) ?? Number.NEGATIVE_INFINITY;
+      return timestamp(right) - timestamp(left);
+    });
+  const latest = matching[0];
+  if (!latest) return "";
+  const outcome = [
+    field(latest, "Call_Final_Status", "Call Final Status"),
+    field(latest, "Call_Status", "Call Status"),
+    field(latest, "Interview_Status", "Interview Status"),
+    field(latest, "Status"),
+    field(latest, "Outcome"),
+    field(latest, "Ended_Reason", "Ended Reason"),
+  ].join(" ").toLowerCase();
+  if (/no answer|busy|wrong person|call back|unable to reach|unreachable/.test(outcome)) return "unreachable";
+  if (/incomplete|partial|abandoned|connection|disconnected/.test(outcome)) return "incomplete";
+  if (/completed|interviewed|passed|rejected|hired/.test(outcome)) return "completed";
+  return field(latest, "Transcript", "Voice Transcript", "Call Transcript") ? "incomplete" : "";
+}
+
+function voiceSlotHasEnded(slot: Row) {
+  const date = calendarDateKey(field(slot, "Date"), field(slot, "Timezone", "Time Zone") || "Asia/Singapore");
+  const time = field(slot, "End_Time", "End Time") || field(slot, "Start_Time", "Start Time");
+  if (!date || !time) return false;
+  try {
+    return scheduledInstant(date, time, field(slot, "Timezone", "Time Zone") || "Asia/Singapore").getTime() <= Date.now();
+  } catch {
+    return false;
+  }
+}
+
 function slotFrom(row: Row): BookingSlot {
   return {
     slotId: field(row, "Slot_ID", "Slot ID"),
@@ -796,6 +832,8 @@ export async function requestVoiceBookingLink(applicationId: string) {
     readSheet("High_Match_Profile", "CZ"),
     readSheet("Interview_Slots", "X"),
     readOptionalSheet("Voice_Call_Queue", "X"),
+    readOptionalSheet("Voice_Interview_Results", "AF", { fresh: true }),
+    readOptionalSheet("Voice_Call_Logs", "AD", { fresh: true }),
   ]);
   const found = findApplicant(applicantData, applicationId);
   if (!found) throw new Error("Applicant not found.");
@@ -803,18 +841,36 @@ export async function requestVoiceBookingLink(applicationId: string) {
   if (!email || !/^\S+@\S+\.\S+$/.test(email)) throw new Error("This applicant does not have a valid email address.");
 
   const normalizedApplicationId = applicationId.trim().toLowerCase();
-  const activeSlot = slotsData.rows.find((row) =>
-    field(row, "Application_ID", "Application ID").trim().toLowerCase() === normalizedApplicationId
-      && field(row, "Interview_Type", "Interview Type").toLowerCase().includes("voice")
-      && field(row, "Status").toLowerCase() === "booked",
-  );
-  if (activeSlot) throw new Error("This applicant already has a scheduled voice interview.");
-
   const activeCall = queueData?.rows.find((row) =>
     field(row, "Application_ID", "Application ID").trim().toLowerCase() === normalizedApplicationId
       && ["calling", "initiated", "in progress"].includes(field(row, "Voice_Call_Status", "Status").toLowerCase()),
   );
   if (activeCall) throw new Error("This applicant's voice interview is currently in progress.");
+
+  const activeSlot = slotsData.rows
+    .map((row, index) => ({ row, rowNumber: slotsData.rowNumbers[index] }))
+    .find(({ row }) =>
+      field(row, "Application_ID", "Application ID").trim().toLowerCase() === normalizedApplicationId
+        && field(row, "Interview_Type", "Interview Type").toLowerCase().includes("voice")
+        && field(row, "Status").toLowerCase() === "booked",
+    );
+  const previousOutcome = latestVoiceInterviewOutcome(
+    [...(voiceResultsData?.rows || []), ...(callLogsData?.rows || [])],
+    normalizedApplicationId,
+  );
+  const applicantOutcome = [
+    field(found.row, "Status 2 (Voice Interview)"),
+    field(found.row, "Final_Status"),
+  ].join(" ").toLowerCase();
+  const retryableOutcome = previousOutcome === "incomplete"
+    || previousOutcome === "unreachable"
+    || /incomplete|partial|abandoned|connection|disconnected|no answer|busy|wrong person|call back|unreachable|no show/.test(applicantOutcome);
+  if (activeSlot && !voiceSlotHasEnded(activeSlot.row)) {
+    throw new Error("This applicant already has a scheduled voice interview.");
+  }
+  if (activeSlot && previousOutcome === "completed" && !retryableOutcome) {
+    throw new Error("This applicant already has a completed voice interview.");
+  }
 
   if (field(found.row, "Resume_HR_Decision").toLowerCase() !== "approve") {
     throw new Error("Approve the applicant's CV review before sending a voice booking link.");
@@ -823,6 +879,10 @@ export async function requestVoiceBookingLink(applicationId: string) {
   const now = new Date().toISOString();
   const set = (header: string, value: string): CellUpdate => ({ tab: "High_Match_Profile", row: found.rowNumber, header, value });
   await updateCells([
+    ...(activeSlot ? [
+      { tab: "Interview_Slots", row: activeSlot.rowNumber, header: "Status", value: retryableOutcome ? "Completed" : "No Show" },
+      { tab: "Interview_Slots", row: activeSlot.rowNumber, header: "Last_Updated", value: now },
+    ] : []),
     set("Booking_Token", ""),
     set("Booking_Token_Hash", ""),
     set("Booking_Token_Status", "Processing"),
@@ -853,9 +913,9 @@ export async function requestVoiceBookingLink(applicationId: string) {
   };
 }
 
-async function readOptionalSheet(tab: string, endColumn: string): Promise<SheetData | null> {
+async function readOptionalSheet(tab: string, endColumn: string, options: { fresh?: boolean } = {}): Promise<SheetData | null> {
   try {
-    return await readSheet(tab, endColumn);
+    return await readSheet(tab, endColumn, options);
   } catch (error) {
     console.warn(`[Applicant Delete] Optional sheet ${tab} could not be read:`, error);
     return null;
