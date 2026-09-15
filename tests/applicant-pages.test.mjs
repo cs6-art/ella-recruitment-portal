@@ -382,6 +382,8 @@ test("active replacement voice links ignore historical completed slots", () => {
   assert.match(panel, /const canIssueVoiceBookingLink = stage === "voice"[\s\S]*&& !link/);
   assert.match(booking, /const activeReplacementToken = context\.kind === "voice"/);
   assert.match(booking, /const completed = !activeReplacementToken/);
+  assert.match(workflow, /const currentSlotCandidates =/);
+  assert.match(workflow, /currentSlotCandidates\.find\(\(\{ slot \}\) => \(slot\.status \|\| ""\)\.toLowerCase\(\) === "booked"\)/);
 });
 
 test("applicant profiles show voice attempt history and keep the current booking link visible", () => {

@@ -579,9 +579,9 @@ export async function getBookingContext(kind: BookingKind, token: string): Promi
   const roleId = field(row, "Role_ID", "Role ID");
   const role = await getRoleRequestById(roleId);
   const tokenStatus = kind === "voice" ? field(row, "Booking_Token_Status") : field(row, "Final_Interview_Booking_Token_Status");
-  const currentSlot = slotsData.rows
+  const currentSlotCandidates = slotsData.rows
     .map((slot, index) => ({ slot: slotFrom(slot), index }))
-    .find(({ slot }) => {
+    .filter(({ slot }) => {
       const slotStatus = (slot.status || "").toLowerCase();
       const isCurrentOrReschedulable = ["booked", "no show"].includes(slotStatus)
         // A used token may still render the confirmation for its completed
@@ -592,6 +592,12 @@ export async function getBookingContext(kind: BookingKind, token: string): Promi
         && slot.interviewType === bookingKindValue(kind)
         && isCurrentOrReschedulable;
     });
+  // A replacement booking leaves the historical completed slot in the sheet.
+  // Prefer the newly booked slot so the replacement token confirms the latest
+  // appointment instead of rendering the first attempt as completed.
+  const currentSlot = currentSlotCandidates.find(({ slot }) => (slot.status || "").toLowerCase() === "booked")
+    || currentSlotCandidates.find(({ slot }) => (slot.status || "").toLowerCase() === "no show")
+    || currentSlotCandidates.find(({ slot }) => (slot.status || "").toLowerCase() === "completed");
   // A completed booking token is normally single-use. A No Show is the one
   // exception: the candidate may use the original link to choose a
   // replacement slot, after which the token becomes used again.
