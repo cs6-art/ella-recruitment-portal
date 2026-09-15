@@ -828,7 +828,7 @@ export async function updateApplicantProfile(applicationId: string, input: Appli
  * the original resume approval flow.
  */
 export async function requestVoiceBookingLink(applicationId: string) {
-  const [applicantData, slotsData, queueData] = await Promise.all([
+  const [applicantData, slotsData, queueData, voiceResultsData, callLogsData] = await Promise.all([
     readSheet("High_Match_Profile", "CZ"),
     readSheet("Interview_Slots", "X"),
     readOptionalSheet("Voice_Call_Queue", "X"),
