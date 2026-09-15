@@ -429,7 +429,8 @@ test("applicant profiles show voice attempt history and keep the current booking
   assert.match(data, /No call result was recorded/);
   assert.match(page, /Booking Link \(Revoked\)/);
   assert.match(page, /label="Booking Link Status"/);
-  assert.match(page, /label="Invitation Status"/);
+  assert.match(page, /label="Invitation Email"/);
+  assert.match(page, /invitationEmailStatus/);
   assert.match(page, /voiceInvitationStatus=\{applicant\.voiceInvitationStatus\}/);
   assert.match(data, /voiceInvitationStatus: field\(record, "Voice_Interview_Invitation_Sent"/);
 });

@@ -45,6 +45,15 @@ function externalUrl(value: string) {
   }
 }
 
+function invitationEmailStatus(value: string) {
+  const normalized = value.trim().toLowerCase();
+  if (["yes", "sent", "delivered"].includes(normalized)) return "Sent";
+  if (["pending", "processing", "sending"].includes(normalized)) return "Sending";
+  if (["no", "not sent", "not_sent", "not requested", "not_requested"].includes(normalized)) return "Not sent";
+  if (["error", "failed", "failure"].includes(normalized)) return "Failed";
+  return value.trim() || "Not sent";
+}
+
 function latestDecisionComment(history: CandidateStatusHistoryEntry[], stage: CandidateStatusHistoryEntry["stage"]) {
   return history.find((entry) => entry.stage === stage && entry.comments.trim())?.comments || "";
 }
@@ -139,7 +148,7 @@ function CombinedScreeningEvidence({ applicant }: { applicant: ApplicantDetails 
           <DetailField label="Status" value={applicant.voiceStatus || "Not Started"} />
           <DetailField label="Booking Status" value={applicant.voiceBookingStatus || "Not Booked"} />
           <DetailField label="Booking Link Status" value={applicant.bookingTokenStatus || "Not issued"} />
-          <DetailField label="Invitation Status" value={applicant.voiceInvitationStatus || "Not sent"} />
+          <DetailField label="Invitation Email" value={invitationEmailStatus(applicant.voiceInvitationStatus)} />
           <DetailField label="Scheduled" value={[applicant.voiceScheduledDate, applicant.voiceScheduledTime].filter(Boolean).join(" ") || "Not scheduled"} />
           <DetailField label="Timezone" value={recordValue(applicant.interviewSlot, "Timezone", "Time Zone") || "Not provided"} />
           <DetailField label="Voice AI Score" value={applicant.voiceScore ? formatMatchScore(applicant.voiceScore) : "Awaiting AI evaluation"} />
