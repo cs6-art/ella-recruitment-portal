@@ -578,12 +578,20 @@ export async function getBookingContext(kind: BookingKind, token: string): Promi
   if (expiry && Date.parse(expiry) < Date.now()) return null;
   const roleId = field(row, "Role_ID", "Role ID");
   const role = await getRoleRequestById(roleId);
+  const tokenStatus = kind === "voice" ? field(row, "Booking_Token_Status") : field(row, "Final_Interview_Booking_Token_Status");
   const currentSlot = slotsData.rows
     .map((slot, index) => ({ slot: slotFrom(slot), index }))
-    .find(({ slot }) => slot.applicationId === field(row, "Application ID", "Application_ID")
-      && slot.interviewType === bookingKindValue(kind)
-      && ["booked", "completed", "no show"].includes((slot.status || "").toLowerCase()));
-  const tokenStatus = kind === "voice" ? field(row, "Booking_Token_Status") : field(row, "Final_Interview_Booking_Token_Status");
+    .find(({ slot }) => {
+      const slotStatus = (slot.status || "").toLowerCase();
+      const isCurrentOrReschedulable = ["booked", "no show"].includes(slotStatus)
+        // A used token may still render the confirmation for its completed
+        // appointment. An active replacement token must ignore that same
+        // historical slot, otherwise the new link appears to be completed.
+        || (slotStatus === "completed" && tokenStatus.toLowerCase() === "used");
+      return slot.applicationId === field(row, "Application ID", "Application_ID")
+        && slot.interviewType === bookingKindValue(kind)
+        && isCurrentOrReschedulable;
+    });
   // A completed booking token is normally single-use. A No Show is the one
   // exception: the candidate may use the original link to choose a
   // replacement slot, after which the token becomes used again.

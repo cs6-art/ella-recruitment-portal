@@ -339,7 +339,8 @@ test("past booked interviews reconcile to No Show without overwriting completed 
   assert.match(workflow, /hasCompletedInterviewResult/);
   assert.match(workflow, /header: "Status", value: "Completed"/);
   assert.match(workflow, /Completed - Awaiting HR Review/);
-  assert.match(workflow, /\["booked", "completed", "no show"\]/);
+  assert.match(workflow, /const isCurrentOrReschedulable =/);
+  assert.match(workflow, /slotStatus === "completed" && tokenStatus\.toLowerCase\(\) === "used"/);
   assert.match(workflow, /Final_Interview_Tracking/);
   assert.match(workflow, /canRescheduleNoShow/);
   assert.match(bookings, /summary-no-show/);
@@ -369,6 +370,15 @@ test("voice booking-link action allows retries for ended incomplete attempts", (
   assert.match(workflow, /previousOutcome === "completed"/);
   assert.match(workflow, /retryableOutcome/);
   assert.match(workflow, /Status\", value: retryableOutcome \? "Completed" : "No Show"/);
+});
+
+test("active replacement voice links ignore historical completed slots", () => {
+  const workflow = read("src/lib/applicant-workflow.ts");
+  const panel = read("src/components/ApplicantDecisionPanel.tsx");
+  assert.match(workflow, /const isCurrentOrReschedulable =/);
+  assert.match(workflow, /slotStatus === "completed" && tokenStatus\.toLowerCase\(\) === "used"/);
+  assert.match(workflow, /active replacement token must ignore that same/);
+  assert.match(panel, /const canIssueVoiceBookingLink = stage === "voice"[\s\S]*&& !link/);
 });
 
 

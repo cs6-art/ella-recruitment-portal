@@ -126,6 +126,7 @@ function DecisionRow({ stage, title, description, current, link, bookingStatus, 
     && /scheduled|booked/i.test(`${current} ${bookingStatus || ""}`)
     && !retryableVoiceAttempt;
   const canIssueVoiceBookingLink = stage === "voice"
+    && !link
     && (retryableVoiceAttempt || !/completed|scheduled|booked/i.test(bookingStatus || ""));
 
   return <div className="applicant-decision-row">
