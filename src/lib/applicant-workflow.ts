@@ -861,9 +861,9 @@ export async function requestVoiceBookingLink(applicationId: string) {
   );
   if (activeCall) throw new Error("This applicant's voice interview is currently in progress.");
 
-  const activeSlot = slotsData.rows
+  const bookedVoiceSlots = slotsData.rows
     .map((row, index) => ({ row, rowNumber: slotsData.rowNumbers[index] }))
-    .find(({ row }) =>
+    .filter(({ row }) =>
       field(row, "Application_ID", "Application ID").trim().toLowerCase() === normalizedApplicationId
         && field(row, "Interview_Type", "Interview Type").toLowerCase().includes("voice")
         && field(row, "Status").toLowerCase() === "booked",
@@ -876,27 +876,56 @@ export async function requestVoiceBookingLink(applicationId: string) {
     field(found.row, "Status 2 (Voice Interview)"),
     field(found.row, "Final_Status"),
   ].join(" ").toLowerCase();
-  const retryableOutcome = previousOutcome === "incomplete"
-    || previousOutcome === "unreachable"
-    || /incomplete|partial|abandoned|connection|disconnected|no answer|busy|wrong person|call back|unreachable|no show/.test(applicantOutcome);
-  if (activeSlot && !voiceSlotHasEnded(activeSlot.row)) {
+  const tokenStatus = field(found.row, "Booking_Token_Status").toLowerCase();
+  const tokenExpiry = field(found.row, "Booking_Token_Expires_At");
+  const tokenExpiryTime = Date.parse(tokenExpiry);
+  const tokenIsCurrent = !tokenExpiry || Number.isNaN(tokenExpiryTime) || tokenExpiryTime > Date.now();
+  const activeBookingToken = tokenIsCurrent
+    && ["active", "pending", "processing", "sending"].includes(tokenStatus);
+  if (activeBookingToken) {
+    throw new Error("This applicant already has an active or pending voice booking link.");
+  }
+  // HR controls how many voice interview booking attempts an applicant gets.
+  // A booked slot is the only active appointment guard; once every booked
+  // slot has ended, a new click is an intentional request for another fresh
+  // token regardless of the previous outcome.
+  const activeSlot = bookedVoiceSlots.find(({ row }) => !voiceSlotHasEnded(row));
+  if (activeSlot) {
     throw new Error("This applicant already has a scheduled voice interview.");
   }
-  if (activeSlot && previousOutcome === "completed" && !retryableOutcome) {
-    throw new Error("This applicant already has a completed voice interview.");
-  }
+  const endedSlotStatus = previousOutcome || /interviewed|completed|incomplete|partial|abandoned|connection|disconnected|no answer|busy|wrong person|call back|unreachable/.test(applicantOutcome)
+    ? "Completed"
+    : "No Show";
+  const now = new Date().toISOString();
+  const bookedSlotKeys = new Set(bookedVoiceSlots.map(({ row }) => [
+    field(row, "Date"),
+    field(row, "Start_Time", "Start Time"),
+  ].join("|")));
+  const endedQueueUpdates = (queueData?.rows || [])
+    .map((row, index) => ({ row, rowNumber: queueData?.rowNumbers[index] }))
+    .filter(({ row, rowNumber }) => rowNumber
+      && field(row, "Application_ID", "Application ID").trim().toLowerCase() === normalizedApplicationId
+      && ["scheduled", "queued"].includes(field(row, "Voice_Call_Status", "Status").toLowerCase())
+      && bookedSlotKeys.has([
+        field(row, "Voice_Interview_Scheduled_Date", "Date"),
+        field(row, "Voice_Interview_Scheduled_Time", "Start_Time", "Start Time"),
+      ].join("|")))
+    .flatMap(({ rowNumber }) => [
+      { tab: "Voice_Call_Queue", row: rowNumber!, header: "Voice_Call_Status", value: endedSlotStatus },
+      { tab: "Voice_Call_Queue", row: rowNumber!, header: "Last_Updated", value: now },
+    ]);
 
   if (field(found.row, "Resume_HR_Decision").toLowerCase() !== "approve") {
     throw new Error("Approve the applicant's CV review before sending a voice booking link.");
   }
 
-  const now = new Date().toISOString();
   const set = (header: string, value: string): CellUpdate => ({ tab: "High_Match_Profile", row: found.rowNumber, header, value });
   await updateCells([
-    ...(activeSlot ? [
-      { tab: "Interview_Slots", row: activeSlot.rowNumber, header: "Status", value: retryableOutcome ? "Completed" : "No Show" },
-      { tab: "Interview_Slots", row: activeSlot.rowNumber, header: "Last_Updated", value: now },
-    ] : []),
+    ...bookedVoiceSlots.flatMap(({ rowNumber }) => [
+      { tab: "Interview_Slots", row: rowNumber, header: "Status", value: endedSlotStatus },
+      { tab: "Interview_Slots", row: rowNumber, header: "Last_Updated", value: now },
+    ]),
+    ...endedQueueUpdates,
     set("Booking_Token", ""),
     set("Booking_Token_Hash", ""),
     set("Booking_Token_Status", "Processing"),

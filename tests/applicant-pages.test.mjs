@@ -357,19 +357,26 @@ test("past booked interviews reconcile to No Show without overwriting completed 
   assert.doesNotMatch(bookings, /Candidate slots/);
 });
 
-test("voice booking-link action allows retries for ended incomplete attempts", () => {
+test("voice booking-link action lets HR issue unlimited fresh attempts after ended calls", () => {
   const panel = read("src/components/ApplicantDecisionPanel.tsx");
   assert.match(panel, /bookingStatus\?: string/);
+  assert.match(panel, /bookingTokenStatus\?: string/);
   assert.match(panel, /retryStatus\?: string/);
-  assert.match(panel, /retryableVoiceAttempt = stage === "voice"/);
+  assert.match(panel, /previousVoiceAttempt = stage === "voice"/);
+  assert.match(panel, /inactiveBookingLink/);
   assert.match(panel, /hasActiveVoiceBooking = stage === "voice"/);
   assert.match(panel, /bookingStatus=\{props\.voiceBookingStatus\}/);
-  assert.match(panel, /!hasActiveVoiceBooking/);
+  assert.match(panel, /bookingTokenStatus=\{props\.bookingTokenStatus\}/);
+  assert.match(panel, /Send another booking link/);
+  assert.match(panel, /disabled=\{bookingBusy \|\| busy \|\| !canIssueVoiceBookingLink\}/);
+  assert.doesNotMatch(panel, /retryableVoiceAttempt/);
   const workflow = read("src/lib/applicant-workflow.ts");
   assert.match(workflow, /voiceSlotHasEnded/);
-  assert.match(workflow, /previousOutcome === "completed"/);
-  assert.match(workflow, /retryableOutcome/);
-  assert.match(workflow, /Status\", value: retryableOutcome \? "Completed" : "No Show"/);
+  assert.match(workflow, /HR controls how many voice interview booking attempts an applicant gets/);
+  assert.match(workflow, /bookedVoiceSlots\.find/);
+  assert.match(workflow, /activeBookingToken/);
+  assert.match(workflow, /active or pending voice booking link/);
+  assert.doesNotMatch(workflow, /already has a completed voice interview/);
 });
 
 test("active replacement voice links ignore historical completed slots", () => {
@@ -379,7 +386,7 @@ test("active replacement voice links ignore historical completed slots", () => {
   assert.match(workflow, /const isCurrentOrReschedulable =/);
   assert.match(workflow, /slotStatus === "completed" && tokenStatus\.toLowerCase\(\) === "used"/);
   assert.match(workflow, /active replacement token must ignore that same/);
-  assert.match(panel, /const canIssueVoiceBookingLink = stage === "voice"[\s\S]*&& !link/);
+  assert.match(panel, /const canIssueVoiceBookingLink = stage === "voice"[\s\S]*inactiveBookingLink/);
   assert.match(booking, /const activeReplacementToken = context\.kind === "voice"/);
   assert.match(booking, /const completed = !activeReplacementToken/);
   assert.match(workflow, /const currentSlotCandidates =/);
