@@ -375,10 +375,13 @@ test("voice booking-link action allows retries for ended incomplete attempts", (
 test("active replacement voice links ignore historical completed slots", () => {
   const workflow = read("src/lib/applicant-workflow.ts");
   const panel = read("src/components/ApplicantDecisionPanel.tsx");
+  const booking = read("src/components/BookingSelector.tsx");
   assert.match(workflow, /const isCurrentOrReschedulable =/);
   assert.match(workflow, /slotStatus === "completed" && tokenStatus\.toLowerCase\(\) === "used"/);
   assert.match(workflow, /active replacement token must ignore that same/);
   assert.match(panel, /const canIssueVoiceBookingLink = stage === "voice"[\s\S]*&& !link/);
+  assert.match(booking, /const activeReplacementToken = context\.kind === "voice"/);
+  assert.match(booking, /const completed = !activeReplacementToken/);
 });
 
 

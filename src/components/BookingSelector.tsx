@@ -50,7 +50,13 @@ export default function BookingSelector({ token, initialContext }: { token: stri
   const noShow = context.currentSlot?.status?.toLowerCase() === "no show" || context.bookingStatus.toLowerCase() === "no show";
   // A completed appointment must remain read-only even if its original link
   // has not yet been marked used by the upstream calling workflow.
-  const completed = context.currentSlot?.status?.toLowerCase() === "completed" || context.bookingStatus.toLowerCase() === "completed";
+  // An active replacement token is the exception: it intentionally reuses an
+  // applicant's historical completed slot record while waiting for a new
+  // booking. Do not let that old slot make the replacement link read-only.
+  const activeReplacementToken = context.kind === "voice"
+    && /^(active|pending|processing|awaiting booking system|invitation sent)$/i.test(context.bookingStatus)
+    && context.currentSlot?.status?.toLowerCase() === "completed";
+  const completed = !activeReplacementToken && (context.currentSlot?.status?.toLowerCase() === "completed" || context.bookingStatus.toLowerCase() === "completed");
   const booked = completed || context.currentSlot?.status?.toLowerCase() === "booked" || (!context.currentSlot && (context.bookingStatus.toLowerCase() === "used" || context.bookingStatus.toLowerCase().includes("scheduled") || context.bookingStatus.toLowerCase() === "booked" || Boolean(context.scheduledDate)));
   const selecting = !booked || noShow;
   const noAvailability = selecting && context.slots.length === 0;
