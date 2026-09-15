@@ -127,6 +127,7 @@ export type ApplicantDetails = ApplicantSummary & {
   finalInterviewSlot?: Record<string, string>;
   interviewSlot?: Record<string, string>;
   voiceInterviewAttempts: VoiceInterviewAttempt[];
+  voiceInterviewPending: boolean;
 };
 
 export type ApplicantMetrics = {
@@ -330,6 +331,10 @@ function voiceAttemptHistory(applicationIdValue: string, slots: SheetRow[], queu
     "Booked_At", "Voice_Call_Scheduled_At", "Voice_Call_Initiated_At", "Call_Started_At",
     "Call_Completed_At", "Result_Received_At", "Last_Updated", "Created_At", "Date",
   ].map((key) => Date.parse(field(row, key))).find((value) => !Number.isNaN(value)) ?? Number.NEGATIVE_INFINITY;
+  const scheduledTimestamp = (date: string, time: string, fallback: number) => {
+    const parsed = Date.parse(`${date}T${time || "00:00"}:00`);
+    return Number.isNaN(parsed) ? fallback : parsed;
+  };
   const queueForSlot = (slot: SheetRow) => {
     const date = field(slot, "Date");
     const time = field(slot, "Start_Time", "Start Time");
@@ -372,7 +377,11 @@ function voiceAttemptHistory(applicationIdValue: string, slots: SheetRow[], queu
       duration: field(evidence || queueRow || {}, "Call_Duration", "Duration"),
       startedAt: field(evidence || queueRow || {}, "Call_Started_At", "Voice_Call_Initiated_At"),
       completedAt: field(evidence || queueRow || {}, "Call_Completed_At", "Result_Received_At"),
-      sortTime: Math.min(timestamp(slot), timestamp(queueRow || {}), timestamp(evidence || {})),
+      sortTime: scheduledTimestamp(
+        field(slot, "Date"),
+        field(slot, "Start_Time", "Start Time"),
+        Math.min(timestamp(slot), timestamp(queueRow || {}), timestamp(evidence || {})),
+      ),
     };
   });
   queue.filter((row) => !usedQueue.has(row)).forEach((row) => {
@@ -392,7 +401,11 @@ function voiceAttemptHistory(applicationIdValue: string, slots: SheetRow[], queu
       duration: field(evidence || row, "Call_Duration", "Duration"),
       startedAt: field(evidence || row, "Call_Started_At", "Voice_Call_Initiated_At"),
       completedAt: field(evidence || row, "Call_Completed_At", "Result_Received_At"),
-      sortTime: Math.min(timestamp(row), timestamp(evidence || {})),
+      sortTime: scheduledTimestamp(
+        field(row, "Voice_Interview_Scheduled_Date", "Date"),
+        field(row, "Voice_Interview_Scheduled_Time", "Start_Time", "Start Time"),
+        Math.min(timestamp(row), timestamp(evidence || {})),
+      ),
     });
   });
   [...results, ...logs].filter((row) => {
@@ -1208,8 +1221,8 @@ export async function getApplicantById(id: string): Promise<ApplicantDetails | n
       return timestamp(right.row) - timestamp(left.row) || right.index - left.index;
     })
     .at(0)?.row;
-  const voiceResult = latestRelated(voiceResults, ["Result_Received_At", "Call_Completed_At", "Last_Updated", "Created_At"]);
-  const callLog = latestRelated(callLogs, ["Result_Received_At", "Call_Completed_At", "Last_Updated", "Date"]);
+  const latestVoiceResult = latestRelated(voiceResults, ["Result_Received_At", "Call_Completed_At", "Last_Updated", "Created_At"]);
+  const latestCallLog = latestRelated(callLogs, ["Result_Received_At", "Call_Completed_At", "Last_Updated", "Date"]);
   const finalInterview = latestRelated(finalInterviews, ["Last_Updated", "Booked_At", "Created_At"]);
   const generatedDemoSlots: SheetRow[] = isGeneratedDemoRecord
     ? demoInterviewBookings()
@@ -1236,16 +1249,44 @@ export async function getApplicantById(id: string): Promise<ApplicantDetails | n
     : [];
   const applicantSlots = (isGeneratedDemoRecord ? generatedDemoSlots : slots)
     .filter((row) => applicationId(row).toLowerCase() === normalizedId);
-  const voiceInterviewSlot = applicantSlots.find((row) => field(row, "Interview_Type", "Interview Type").toLowerCase().includes("voice"));
+  const voiceSlots = applicantSlots.filter((row) => field(row, "Interview_Type", "Interview Type").toLowerCase().includes("voice"));
+  const voiceInterviewSlot = [...voiceSlots].sort((left, right) => {
+    const scheduleTime = (row: SheetRow) => Date.parse(`${field(row, "Date")}T${field(row, "Start_Time", "Start Time") || "00:00"}:00`);
+    return scheduleTime(right) - scheduleTime(left);
+  })[0];
   const finalInterviewSlot = applicantSlots.find((row) => field(row, "Interview_Type", "Interview Type").toLowerCase().includes("final"));
   const interviewSlot = voiceInterviewSlot || applicantSlots[0];
   const voiceInterviewAttempts = voiceAttemptHistory(normalizedId, applicantSlots, isGeneratedDemoRecord ? [] : callQueue, voiceResults, callLogs);
-  const displaySummary = applyFinalBookingState(summary, record, finalInterviewSlot);
-  const role = !isGeneratedDemoRecord && (field(record, "Voice_HR_Decision").toLowerCase() === "approve" || voiceResult || callLog)
+  const currentVoiceQueue = !isGeneratedDemoRecord && voiceInterviewSlot
+    ? callQueue.find((row) => applicationId(row).toLowerCase() === normalizedId
+      && field(row, "Voice_Interview_Scheduled_Date", "Date") === field(voiceInterviewSlot, "Date")
+      && field(row, "Voice_Interview_Scheduled_Time", "Start_Time", "Start Time") === field(voiceInterviewSlot, "Start_Time", "Start Time"))
+    : undefined;
+  const currentVoiceQueueStatus = field(currentVoiceQueue || {}, "Voice_Call_Status", "Status").toLowerCase();
+  const currentVoiceCallInProgress = ["calling", "initiated", "in progress"].includes(currentVoiceQueueStatus);
+  const voiceInterviewCancelled = field(voiceInterviewSlot || {}, "Status").toLowerCase() === "cancelled"
+    || currentVoiceQueueStatus === "cancelled"
+    || field(record, "Voice_Interview_Booking_Status").toLowerCase() === "cancelled";
+  const voiceInterviewPending = !voiceInterviewCancelled && field(voiceInterviewSlot || {}, "Status").toLowerCase() === "booked"
+    && (!currentVoiceQueue || ["scheduled", "queued", "calling", "initiated", "in progress"].includes(currentVoiceQueueStatus));
+  const voiceResult = voiceInterviewPending || voiceInterviewCancelled ? undefined : latestVoiceResult;
+  const callLog = voiceInterviewPending || voiceInterviewCancelled ? undefined : latestCallLog;
+  let displaySummary = applyFinalBookingState(summary, record, finalInterviewSlot);
+  if (voiceInterviewPending || voiceInterviewCancelled) {
+    const currentStatus = voiceInterviewCancelled ? "Cancelled" : currentVoiceCallInProgress ? "In Progress" : "Scheduled";
+    displaySummary = {
+      ...displaySummary,
+      voiceStatus: currentStatus,
+      recommendation: voiceInterviewCancelled ? "AI Voice Interview Cancelled" : currentVoiceCallInProgress ? "AI Voice Interview In Progress" : "AI Voice Interview Scheduled",
+      currentStage: voiceInterviewCancelled ? "AI Voice Interview Cancelled" : currentVoiceCallInProgress ? "AI Voice Interview In Progress" : "AI Voice Interview Scheduled",
+      nextAction: voiceInterviewCancelled ? "No further voice interview action" : currentVoiceCallInProgress ? "Voice Interview In Progress" : "Complete Voice Interview",
+    };
+  }
+  const role = !isGeneratedDemoRecord && (field(record, "Voice_HR_Decision").toLowerCase() === "approve" || latestVoiceResult || latestCallLog || voiceInterviewPending)
     ? roleDetails
     : null;
   const configuredEvaluationFields = evaluationFieldsForSetup(role?.evaluationFieldToggles, role?.customEvaluationFields);
-  const rawVoiceSummary = field(voiceResult ?? {}, "AI_Voice_Summary", "AI Voice Summary")
+  const rawVoiceSummary = voiceInterviewPending || voiceInterviewCancelled ? "" : field(voiceResult ?? {}, "AI_Voice_Summary", "AI Voice Summary")
     || field(callLog ?? {}, "AI_Voice_Summary", "AI Voice Summary")
     || (isGeneratedDemoRecord && summary.voiceStatus ? "Historical voice interview activity is represented by the status and outcome recorded for this demonstration applicant." : "");
   const voiceAnswerCompleteness = normalizeInterviewQuestionCount(
@@ -1260,7 +1301,11 @@ export async function getApplicantById(id: string): Promise<ApplicantDetails | n
     result: voiceResult,
     callLog,
   });
-  const voiceSummary = normalizeInterviewQuestionCount(normalizeVoiceSummaryForEvidence(rawVoiceSummary, noVoiceAnswerEvidence));
+  const voiceSummary = voiceInterviewCancelled
+    ? "This second voice interview was cancelled before the call started. No call result was recorded."
+    : voiceInterviewPending
+      ? "This voice interview is scheduled, but the call has not started and no result is available yet."
+      : normalizeInterviewQuestionCount(normalizeVoiceSummaryForEvidence(rawVoiceSummary, noVoiceAnswerEvidence));
   const rawVoiceScore = field(voiceResult ?? {}, "Voice_Score", "Voice Score")
     || field(callLog ?? {}, "Voice_Score", "Voice Score");
   // The n8n evaluator ("Prepare Final Result") deliberately leaves the score
@@ -1306,24 +1351,26 @@ export async function getApplicantById(id: string): Promise<ApplicantDetails | n
     voiceScore: rawVoiceScore
       || (isGeneratedDemoRecord && summary.voiceStatus ? summary.matchScore : "")
       || (voiceInterviewEndedUngraded ? "0" : ""),
-    voiceRecommendation: field(voiceResult ?? {}, "Voice_Recommendation", "Voice Recommendation") || field(callLog ?? {}, "Voice_Recommendation", "Voice Recommendation")
+    voiceRecommendation: voiceInterviewCancelled ? "No call made — cancelled by HR" : voiceInterviewPending ? "Awaiting interview completion" : field(voiceResult ?? {}, "Voice_Recommendation", "Voice Recommendation") || field(callLog ?? {}, "Voice_Recommendation", "Voice Recommendation")
       || (isGeneratedDemoRecord && summary.voiceStatus ? summary.recommendation : ""),
     voiceSummary,
-    voiceStrengths: field(voiceResult ?? {}, "Voice_Strengths", "Voice Strengths") || field(callLog ?? {}, "Voice_Strengths", "Voice Strengths")
+    voiceStrengths: voiceInterviewPending || voiceInterviewCancelled ? "" : field(voiceResult ?? {}, "Voice_Strengths", "Voice Strengths") || field(callLog ?? {}, "Voice_Strengths", "Voice Strengths")
       || (isGeneratedDemoRecord && summary.voiceStatus ? "Clear responses and relevant examples." : ""),
-    voiceConcerns: field(voiceResult ?? {}, "Voice_Concerns", "Voice Concerns") || field(callLog ?? {}, "Voice_Concerns", "Voice Concerns")
+    voiceConcerns: voiceInterviewPending || voiceInterviewCancelled ? "" : field(voiceResult ?? {}, "Voice_Concerns", "Voice Concerns") || field(callLog ?? {}, "Voice_Concerns", "Voice Concerns")
       || (isGeneratedDemoRecord && summary.voiceStatus ? "Role-specific details should be validated by HR." : ""),
-    voiceCommunicationQuality: noVoiceAnswerEvidence
+    voiceCommunicationQuality: voiceInterviewPending || voiceInterviewCancelled
+      ? "Not available because no current call result was recorded."
+      : noVoiceAnswerEvidence
       ? "Cannot be assessed because no candidate answer was captured."
       : rawVoiceCommunicationQuality,
-    voiceAnswerCompleteness,
-    voiceFollowUpQuestions: field(voiceResult ?? {}, "Recommended_Follow_Up_Questions", "Recommended Follow Up Questions") || field(callLog ?? {}, "Recommended_Follow_Up_Questions", "Recommended Follow Up Questions"),
+    voiceAnswerCompleteness: voiceInterviewPending || voiceInterviewCancelled ? "" : voiceAnswerCompleteness,
+    voiceFollowUpQuestions: voiceInterviewPending || voiceInterviewCancelled ? "" : field(voiceResult ?? {}, "Recommended_Follow_Up_Questions", "Recommended Follow Up Questions") || field(callLog ?? {}, "Recommended_Follow_Up_Questions", "Recommended Follow Up Questions"),
     // Communication Quality and Answer Completeness have dedicated voice
     // evidence rows above; do not render those same keys a second time from
     // the role's optional evaluation-field configuration.
-    voiceEvaluationFields: configuredEvaluationValues(configuredEvaluationFields, voiceResult, callLog)
+    voiceEvaluationFields: voiceInterviewPending || voiceInterviewCancelled ? [] : configuredEvaluationValues(configuredEvaluationFields, voiceResult, callLog)
       .filter((evaluation) => !["communication_quality", "answer_completeness"].includes(evaluation.key)),
-    voiceTranscript,
+    voiceTranscript: voiceInterviewPending || voiceInterviewCancelled ? "" : voiceTranscript,
     voiceScheduledDate: field(record, "Voice_Interview_Scheduled_Date"),
     voiceScheduledTime: field(record, "Voice_Interview_Scheduled_Time"),
     voiceBookingStatus: field(record, "Voice_Interview_Booking_Status"),
@@ -1345,6 +1392,7 @@ export async function getApplicantById(id: string): Promise<ApplicantDetails | n
     finalInterviewSlot,
     interviewSlot,
     voiceInterviewAttempts,
+    voiceInterviewPending,
   };
 }
 

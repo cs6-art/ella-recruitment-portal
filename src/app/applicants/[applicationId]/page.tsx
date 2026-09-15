@@ -115,6 +115,7 @@ function FinalInterviewCard({ applicant, role }: { applicant: ApplicantDetails; 
 
 function CombinedScreeningEvidence({ applicant }: { applicant: ApplicantDetails }) {
   const currentBookingLink = externalUrl(applicant.voiceBookingLink);
+  const bookingLinkRevoked = applicant.bookingTokenStatus.toLowerCase() === "revoked";
   return <section className="card applicant-detail-card applicant-screening-evidence-card">
     <DetailCardHeader icon="document" title="AI Screening Evidence" description="CV analysis and voice interview evidence for one complete HR review." />
     <div className="applicant-detail-content">
@@ -156,10 +157,10 @@ function CombinedScreeningEvidence({ applicant }: { applicant: ApplicantDetails 
             </div> : <p className="applicant-voice-attempt-empty">No voice interview attempts are recorded.</p>}
           </div>
           {currentBookingLink && <div className="applicant-copy-block applicant-current-booking-link">
-            <span>Current Booking Link</span>
-            <a href={currentBookingLink} target="_blank" rel="noreferrer">Open current AI Voice Interview booking link</a>
+            <span>{bookingLinkRevoked ? "Booking Link (Revoked)" : "Current Booking Link"}</span>
+            {bookingLinkRevoked ? <p>This link was revoked because the replacement call was cancelled before it started.</p> : <a href={currentBookingLink} target="_blank" rel="noreferrer">Open current AI Voice Interview booking link</a>}
           </div>}
-          <div className="applicant-copy-block"><span>AI Summary</span><p>{applicant.voiceSummary || "No AI summary is available."}</p></div>
+          <div className="applicant-copy-block"><span>{applicant.voiceInterviewPending ? "Current Interview Status" : "AI Summary"}</span><p>{applicant.voiceSummary || "No AI summary is available."}</p></div>
         {applicant.voiceEvaluationFields.length > 0 && <div className="applicant-copy-columns">{applicant.voiceEvaluationFields.map((evaluation) => <div key={evaluation.key}><span>{evaluation.label}</span><p>{evaluation.value}</p></div>)}</div>}
         <div className="applicant-copy-block"><span>Recommended Follow-up Questions</span><p>{applicant.voiceFollowUpQuestions || "No follow-up questions were recommended."}</p></div>
         {applicant.voiceTranscript ? <details className="applicant-transcript"><summary>View full transcript</summary><pre>{applicant.voiceTranscript}</pre></details> : <div className="applicant-copy-block"><span>Transcript</span><p>No transcript is available.</p></div>}

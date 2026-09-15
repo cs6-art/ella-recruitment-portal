@@ -395,6 +395,9 @@ test("applicant profiles show voice attempt history and keep the current booking
   assert.match(page, /Voice Interview Attempt History/);
   assert.match(page, /Attempt \{attempt\.attemptNumber\}/);
   assert.match(page, /Open current AI Voice Interview booking link/);
+  assert.match(data, /const voiceInterviewCancelled =/);
+  assert.match(data, /No call result was recorded/);
+  assert.match(page, /Booking Link \(Revoked\)/);
 });
 
 
