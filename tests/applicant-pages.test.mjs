@@ -389,12 +389,16 @@ test("active replacement voice links ignore historical completed slots", () => {
 test("applicant profiles show voice attempt history and keep the current booking link visible", () => {
   const data = read("src/lib/candidate-applications.ts");
   const page = read("src/app/applicants/[applicationId]/page.tsx");
+  const panel = read("src/components/ApplicantDecisionPanel.tsx");
   assert.match(data, /readTab\("Voice_Call_Queue", "X", \{ fresh: true \}\)/);
   assert.match(data, /function voiceAttemptHistory\(/);
   assert.match(data, /voiceInterviewAttempts/);
   assert.match(page, /Voice Interview Attempt History/);
   assert.match(page, /Attempt \{attempt\.attemptNumber\}/);
-  assert.match(page, /Open current AI Voice Interview booking link/);
+  assert.match(page, /Open AI Voice Interview Booking Link/);
+  assert.match(page, /Voice Interview Booking Link/);
+  assert.match(page, /applicant-voice-attempt-history[\s\S]*applicant-current-booking-link/);
+  assert.doesNotMatch(panel, /DecisionRow stage="voice"[\s\S]*link=\{props\.voiceBookingLink\}/);
   assert.match(data, /const voiceInterviewCancelled =/);
   assert.match(data, /No call result was recorded/);
   assert.match(page, /Booking Link \(Revoked\)/);

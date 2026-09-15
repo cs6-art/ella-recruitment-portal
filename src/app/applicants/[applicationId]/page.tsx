@@ -157,8 +157,8 @@ function CombinedScreeningEvidence({ applicant }: { applicant: ApplicantDetails 
             </div> : <p className="applicant-voice-attempt-empty">No voice interview attempts are recorded.</p>}
           </div>
           {currentBookingLink && <div className="applicant-copy-block applicant-current-booking-link">
-            <span>{bookingLinkRevoked ? "Booking Link (Revoked)" : "Current Booking Link"}</span>
-            {bookingLinkRevoked ? <p>This link was revoked because the replacement call was cancelled before it started.</p> : <a href={currentBookingLink} target="_blank" rel="noreferrer">Open current AI Voice Interview booking link</a>}
+            <span>{bookingLinkRevoked ? "Voice Interview Booking Link (Revoked)" : "Voice Interview Booking Link"}</span>
+            {bookingLinkRevoked ? <p>This link was revoked because the replacement call was cancelled before it started.</p> : <a className="applicant-booking-link" href={currentBookingLink} target="_blank" rel="noreferrer">Open AI Voice Interview Booking Link</a>}
           </div>}
           <div className="applicant-copy-block"><span>{applicant.voiceInterviewPending ? "Current Interview Status" : "AI Summary"}</span><p>{applicant.voiceSummary || "No AI summary is available."}</p></div>
         {applicant.voiceEvaluationFields.length > 0 && <div className="applicant-copy-columns">{applicant.voiceEvaluationFields.map((evaluation) => <div key={evaluation.key}><span>{evaluation.label}</span><p>{evaluation.value}</p></div>)}</div>}
