@@ -114,6 +114,7 @@ function FinalInterviewCard({ applicant, role }: { applicant: ApplicantDetails; 
 }
 
 function CombinedScreeningEvidence({ applicant }: { applicant: ApplicantDetails }) {
+  const currentBookingLink = externalUrl(applicant.voiceBookingLink);
   return <section className="card applicant-detail-card applicant-screening-evidence-card">
     <DetailCardHeader icon="document" title="AI Screening Evidence" description="CV analysis and voice interview evidence for one complete HR review." />
     <div className="applicant-detail-content">
@@ -139,9 +140,26 @@ function CombinedScreeningEvidence({ applicant }: { applicant: ApplicantDetails 
           <DetailField label="Scheduled" value={[applicant.voiceScheduledDate, applicant.voiceScheduledTime].filter(Boolean).join(" ") || "Not scheduled"} />
           <DetailField label="Timezone" value={recordValue(applicant.interviewSlot, "Timezone", "Time Zone") || "Not provided"} />
           <DetailField label="Voice AI Score" value={applicant.voiceScore ? formatMatchScore(applicant.voiceScore) : "Awaiting AI evaluation"} />
-          <DetailField label="AI Recommendation" value={applicant.voiceRecommendation || "Awaiting AI evaluation"} />
-        </div>
-        <div className="applicant-copy-block"><span>AI Summary</span><p>{applicant.voiceSummary || "No AI summary is available."}</p></div>
+            <DetailField label="AI Recommendation" value={applicant.voiceRecommendation || "Awaiting AI evaluation"} />
+          </div>
+          <div className="applicant-voice-attempt-history">
+            <div className="applicant-voice-attempt-heading">
+              <span>Voice Interview Attempt History</span>
+              <strong>{applicant.voiceInterviewAttempts.length} attempt{applicant.voiceInterviewAttempts.length === 1 ? "" : "s"}</strong>
+            </div>
+            {applicant.voiceInterviewAttempts.length > 0 ? <div className="applicant-voice-attempt-list">
+              {applicant.voiceInterviewAttempts.map((attempt) => <article className="applicant-voice-attempt" key={`${attempt.attemptNumber}-${attempt.callId || attempt.scheduledDate}-${attempt.scheduledTime}`}>
+                <div className="applicant-voice-attempt-top"><strong>Attempt {attempt.attemptNumber}</strong><span>{attempt.status}</span></div>
+                <p>{[attempt.scheduledDate, attempt.scheduledTime, attempt.timezone].filter(Boolean).join(" · ") || "Schedule not recorded"}</p>
+                {attempt.callId && <small>Call ID: {attempt.callId}</small>}
+              </article>)}
+            </div> : <p className="applicant-voice-attempt-empty">No voice interview attempts are recorded.</p>}
+          </div>
+          {currentBookingLink && <div className="applicant-copy-block applicant-current-booking-link">
+            <span>Current Booking Link</span>
+            <a href={currentBookingLink} target="_blank" rel="noreferrer">Open current AI Voice Interview booking link</a>
+          </div>}
+          <div className="applicant-copy-block"><span>AI Summary</span><p>{applicant.voiceSummary || "No AI summary is available."}</p></div>
         {applicant.voiceEvaluationFields.length > 0 && <div className="applicant-copy-columns">{applicant.voiceEvaluationFields.map((evaluation) => <div key={evaluation.key}><span>{evaluation.label}</span><p>{evaluation.value}</p></div>)}</div>}
         <div className="applicant-copy-block"><span>Recommended Follow-up Questions</span><p>{applicant.voiceFollowUpQuestions || "No follow-up questions were recommended."}</p></div>
         {applicant.voiceTranscript ? <details className="applicant-transcript"><summary>View full transcript</summary><pre>{applicant.voiceTranscript}</pre></details> : <div className="applicant-copy-block"><span>Transcript</span><p>No transcript is available.</p></div>}

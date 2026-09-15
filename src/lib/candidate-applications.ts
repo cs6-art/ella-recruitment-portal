@@ -66,6 +66,18 @@ export type ApplicantSummary = {
   isHistoricalDemo?: boolean;
 };
 
+export type VoiceInterviewAttempt = {
+  attemptNumber: number;
+  status: string;
+  scheduledDate: string;
+  scheduledTime: string;
+  timezone: string;
+  callId: string;
+  duration: string;
+  startedAt: string;
+  completedAt: string;
+};
+
 export type ApplicantDetails = ApplicantSummary & {
   roleDetails?: RoleRequestDetails;
   aiAnalysisSummary: string;
@@ -114,6 +126,7 @@ export type ApplicantDetails = ApplicantSummary & {
   voiceInterviewSlot?: Record<string, string>;
   finalInterviewSlot?: Record<string, string>;
   interviewSlot?: Record<string, string>;
+  voiceInterviewAttempts: VoiceInterviewAttempt[];
 };
 
 export type ApplicantMetrics = {
@@ -294,6 +307,122 @@ async function readTab(tabName: string, endColumn: string, options: { fresh?: bo
 
 function applicationId(record: SheetRow) {
   return field(record, "Application_ID", "Application ID");
+}
+
+function classifyVoiceOutcome(value: string) {
+  const normalized = value.toLowerCase();
+  if (/no answer|busy|wrong person|call back|unable to reach|unreachable/.test(normalized)) return "unreachable";
+  if (/incomplete|partial|abandoned|connection|disconnected/.test(normalized)) return "incomplete";
+  return "";
+}
+
+function voiceAttemptHistory(applicationIdValue: string, slots: SheetRow[], queueRows: SheetRow[], resultRows: SheetRow[], logRows: SheetRow[]) {
+  const wanted = applicationIdValue.toLowerCase();
+  const matchesApplication = (row: SheetRow) => applicationId(row).toLowerCase() === wanted;
+  const voiceSlots = slots.filter((row) => matchesApplication(row) && field(row, "Interview_Type", "Interview Type").toLowerCase().includes("voice"));
+  const queue = queueRows.filter(matchesApplication);
+  const results = resultRows.filter(matchesApplication);
+  const logs = logRows.filter(matchesApplication);
+  const usedQueue = new Set<SheetRow>();
+  const usedEvidence = new Set<SheetRow>();
+  const usedEvidenceCallIds = new Set<string>();
+  const timestamp = (row: SheetRow) => [
+    "Booked_At", "Voice_Call_Scheduled_At", "Voice_Call_Initiated_At", "Call_Started_At",
+    "Call_Completed_At", "Result_Received_At", "Last_Updated", "Created_At", "Date",
+  ].map((key) => Date.parse(field(row, key))).find((value) => !Number.isNaN(value)) ?? Number.NEGATIVE_INFINITY;
+  const queueForSlot = (slot: SheetRow) => {
+    const date = field(slot, "Date");
+    const time = field(slot, "Start_Time", "Start Time");
+    return queue.find((row) => !usedQueue.has(row)
+      && field(row, "Voice_Interview_Scheduled_Date", "Date") === date
+      && field(row, "Voice_Interview_Scheduled_Time", "Start_Time", "Start Time") === time);
+  };
+  const evidenceForQueue = (queueRow: SheetRow | undefined) => {
+    const callId = field(queueRow || {}, "Voice_Call_ID", "Call_ID", "Provider_Call_ID");
+    return [...results, ...logs].find((row) => !usedEvidence.has(row)
+      && callId
+      && field(row, "Voice_Call_ID", "Call_ID", "Provider_Call_ID", "Raw_Result_Reference") === callId);
+  };
+  const statusFor = (slot: SheetRow, queueRow: SheetRow | undefined, evidence: SheetRow | undefined) => {
+    const evidenceText = [evidence, queueRow].filter(Boolean).map((row) => [
+      field(row!, "Call_Final_Status", "Call Status", "Voice_Call_Status", "Interview_Status", "Status", "Outcome", "Ended_Reason"),
+      field(row!, "Result_Error", "Voice_Call_Error"),
+    ].join(" ")).join(" ").toLowerCase();
+    if (classifyVoiceOutcome(evidenceText) === "unreachable") return "Unreachable";
+    if (classifyVoiceOutcome(evidenceText) === "incomplete") return "Incomplete";
+    if (/completed|interviewed|passed|rejected/.test(evidenceText)) return "Completed";
+    return field(queueRow || {}, "Voice_Call_Status", "Status") || field(slot, "Status") || "Booked";
+  };
+  const attempts: Array<VoiceInterviewAttempt & { sortTime: number }> = voiceSlots.map((slot) => {
+    const queueRow = queueForSlot(slot);
+    if (queueRow) usedQueue.add(queueRow);
+    const evidence = evidenceForQueue(queueRow);
+    if (evidence) {
+      usedEvidence.add(evidence);
+      const callId = field(evidence, "Voice_Call_ID", "Call_ID", "Provider_Call_ID", "Raw_Result_Reference");
+      if (callId) usedEvidenceCallIds.add(callId.toLowerCase());
+    }
+    return {
+      attemptNumber: 0,
+      status: statusFor(slot, queueRow, evidence),
+      scheduledDate: field(slot, "Date"),
+      scheduledTime: field(slot, "Start_Time", "Start Time"),
+      timezone: field(slot, "Timezone", "Time Zone"),
+      callId: field(evidence || queueRow || {}, "Voice_Call_ID", "Call_ID", "Provider_Call_ID"),
+      duration: field(evidence || queueRow || {}, "Call_Duration", "Duration"),
+      startedAt: field(evidence || queueRow || {}, "Call_Started_At", "Voice_Call_Initiated_At"),
+      completedAt: field(evidence || queueRow || {}, "Call_Completed_At", "Result_Received_At"),
+      sortTime: Math.min(timestamp(slot), timestamp(queueRow || {}), timestamp(evidence || {})),
+    };
+  });
+  queue.filter((row) => !usedQueue.has(row)).forEach((row) => {
+    const evidence = evidenceForQueue(row);
+    if (evidence) {
+      usedEvidence.add(evidence);
+      const callId = field(evidence, "Voice_Call_ID", "Call_ID", "Provider_Call_ID", "Raw_Result_Reference");
+      if (callId) usedEvidenceCallIds.add(callId.toLowerCase());
+    }
+    attempts.push({
+      attemptNumber: 0,
+      status: statusFor(row, row, evidence),
+      scheduledDate: field(row, "Voice_Interview_Scheduled_Date", "Date"),
+      scheduledTime: field(row, "Voice_Interview_Scheduled_Time", "Start_Time", "Start Time"),
+      timezone: field(row, "Voice_Interview_Timezone", "Timezone", "Time Zone"),
+      callId: field(evidence || row, "Voice_Call_ID", "Call_ID", "Provider_Call_ID"),
+      duration: field(evidence || row, "Call_Duration", "Duration"),
+      startedAt: field(evidence || row, "Call_Started_At", "Voice_Call_Initiated_At"),
+      completedAt: field(evidence || row, "Call_Completed_At", "Result_Received_At"),
+      sortTime: Math.min(timestamp(row), timestamp(evidence || {})),
+    });
+  });
+  [...results, ...logs].filter((row) => {
+    const callId = field(row, "Voice_Call_ID", "Call_ID", "Provider_Call_ID", "Raw_Result_Reference").toLowerCase();
+    return !usedEvidence.has(row) && (!callId || !usedEvidenceCallIds.has(callId));
+  }).forEach((row) => attempts.push({
+    attemptNumber: 0,
+    status: statusFor(row, undefined, row),
+    scheduledDate: field(row, "Voice_Interview_Scheduled_Date", "Date"),
+    scheduledTime: field(row, "Voice_Interview_Scheduled_Time", "Start_Time", "Start Time"),
+    timezone: field(row, "Voice_Interview_Timezone", "Timezone", "Time Zone"),
+    callId: field(row, "Voice_Call_ID", "Call_ID", "Provider_Call_ID", "Raw_Result_Reference"),
+    duration: field(row, "Call_Duration", "Duration"),
+    startedAt: field(row, "Call_Started_At", "Voice_Call_Initiated_At"),
+    completedAt: field(row, "Call_Completed_At", "Result_Received_At"),
+    sortTime: timestamp(row),
+  }));
+  return attempts
+    .sort((left, right) => left.sortTime - right.sortTime)
+    .map((attempt, index) => ({
+      attemptNumber: index + 1,
+      status: attempt.status,
+      scheduledDate: attempt.scheduledDate,
+      scheduledTime: attempt.scheduledTime,
+      timezone: attempt.timezone,
+      callId: attempt.callId,
+      duration: attempt.duration,
+      startedAt: attempt.startedAt,
+      completedAt: attempt.completedAt,
+    }));
 }
 
 /** Keep legacy sheet/status keys intact while presenting the candidate-friendly label. */
@@ -1042,12 +1171,13 @@ export async function getBulkResumeScreeningEvidence(queueItems: BulkResumeQueue
 }
 
 export async function getApplicantById(id: string): Promise<ApplicantDetails | null> {
-  const [{ rows: applicantRows }, { rows: voiceResults }, { rows: callLogs }, { rows: finalInterviews }, { rows: slots }] = await Promise.all([
+  const [{ rows: applicantRows }, { rows: voiceResults }, { rows: callLogs }, { rows: finalInterviews }, { rows: slots }, { rows: callQueue }] = await Promise.all([
     readTab("High_Match_Profile", "CZ", { fresh: true }),
     readTab("Voice_Interview_Results", "AF"),
     readTab("Voice_Call_Logs", "AD"),
     readTab("Final_Interview_Tracking", "AE"),
     readTab("Interview_Slots", "X"),
+    readTab("Voice_Call_Queue", "X", { fresh: true }).catch(() => ({ headers: [], rows: [] })),
   ]);
   const normalizedId = text(id).toLowerCase();
   const liveRecord = applicantRows.find((row) => applicationId(row).toLowerCase() === normalizedId);
@@ -1109,6 +1239,7 @@ export async function getApplicantById(id: string): Promise<ApplicantDetails | n
   const voiceInterviewSlot = applicantSlots.find((row) => field(row, "Interview_Type", "Interview Type").toLowerCase().includes("voice"));
   const finalInterviewSlot = applicantSlots.find((row) => field(row, "Interview_Type", "Interview Type").toLowerCase().includes("final"));
   const interviewSlot = voiceInterviewSlot || applicantSlots[0];
+  const voiceInterviewAttempts = voiceAttemptHistory(normalizedId, applicantSlots, isGeneratedDemoRecord ? [] : callQueue, voiceResults, callLogs);
   const displaySummary = applyFinalBookingState(summary, record, finalInterviewSlot);
   const role = !isGeneratedDemoRecord && (field(record, "Voice_HR_Decision").toLowerCase() === "approve" || voiceResult || callLog)
     ? roleDetails
@@ -1213,6 +1344,7 @@ export async function getApplicantById(id: string): Promise<ApplicantDetails | n
     voiceInterviewSlot,
     finalInterviewSlot,
     interviewSlot,
+    voiceInterviewAttempts,
   };
 }
 

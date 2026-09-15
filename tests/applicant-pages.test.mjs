@@ -384,6 +384,17 @@ test("active replacement voice links ignore historical completed slots", () => {
   assert.match(booking, /const completed = !activeReplacementToken/);
 });
 
+test("applicant profiles show voice attempt history and keep the current booking link visible", () => {
+  const data = read("src/lib/candidate-applications.ts");
+  const page = read("src/app/applicants/[applicationId]/page.tsx");
+  assert.match(data, /readTab\("Voice_Call_Queue", "X", \{ fresh: true \}\)/);
+  assert.match(data, /function voiceAttemptHistory\(/);
+  assert.match(data, /voiceInterviewAttempts/);
+  assert.match(page, /Voice Interview Attempt History/);
+  assert.match(page, /Attempt \{attempt\.attemptNumber\}/);
+  assert.match(page, /Open current AI Voice Interview booking link/);
+});
+
 
 test("high-cost and state-changing APIs apply request throttling", () => {
   const routes = [
