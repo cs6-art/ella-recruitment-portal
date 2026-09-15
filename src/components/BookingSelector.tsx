@@ -13,6 +13,7 @@ type Context = {
   candidateName: string;
   selectedRole: string;
   bookingStatus: string;
+  interviewOutcome?: "completed" | "incomplete" | "unreachable" | "";
   scheduledDate: string;
   scheduledTime: string;
   timezone: string;
@@ -56,8 +57,10 @@ export default function BookingSelector({ token, initialContext }: { token: stri
   const activeReplacementToken = context.kind === "voice"
     && /^(active|pending|processing|awaiting booking system|invitation sent)$/i.test(context.bookingStatus)
     && context.currentSlot?.status?.toLowerCase() === "completed";
-  const completed = !activeReplacementToken && (context.currentSlot?.status?.toLowerCase() === "completed" || context.bookingStatus.toLowerCase() === "completed");
-  const booked = completed || context.currentSlot?.status?.toLowerCase() === "booked" || (!context.currentSlot && (context.bookingStatus.toLowerCase() === "used" || context.bookingStatus.toLowerCase().includes("scheduled") || context.bookingStatus.toLowerCase() === "booked" || Boolean(context.scheduledDate)));
+  const incomplete = context.kind === "voice" && context.interviewOutcome === "incomplete";
+  const unreachable = context.kind === "voice" && context.interviewOutcome === "unreachable";
+  const completed = !activeReplacementToken && !incomplete && !unreachable && (context.interviewOutcome === "completed" || context.currentSlot?.status?.toLowerCase() === "completed" || context.bookingStatus.toLowerCase() === "completed");
+  const booked = completed || incomplete || unreachable || context.currentSlot?.status?.toLowerCase() === "booked" || (!context.currentSlot && (context.bookingStatus.toLowerCase() === "used" || context.bookingStatus.toLowerCase().includes("scheduled") || context.bookingStatus.toLowerCase() === "booked" || Boolean(context.scheduledDate)));
   const selecting = !booked || noShow;
   const noAvailability = selecting && context.slots.length === 0;
 
@@ -102,15 +105,15 @@ export default function BookingSelector({ token, initialContext }: { token: stri
   return <main className="booking-page"><section className="booking-card">
     <div className="booking-brand"><span className="booking-brand-mark">M</span><span><strong>McLink</strong><small>Recruitment Portal</small></span></div>
     <div className="booking-eyebrow">{title}</div>
-    <h1>{noAvailability ? (noShow ? "No replacement times available" : "No interview times available") : noShow ? "Choose a new interview time" : completed ? "Your interview is complete" : booked ? "Your interview is scheduled" : "Choose a time that works for you"}</h1>
+    <h1>{noAvailability ? (noShow ? "No replacement times available" : "No interview times available") : noShow ? "Choose a new interview time" : incomplete ? "Your interview attempt was incomplete" : unreachable ? "Your interview link has been used" : completed ? "Your interview is complete" : booked ? "Your interview is scheduled" : "Choose a time that works for you"}</h1>
     <p className="booking-intro">Hi {context.candidateName || "there"}. {noAvailability ? <>There are currently no available times for {roleName ? <><strong>{roleName}</strong> role</> : "this role"}.</> : selecting ? <>Select an available slot for {roleName ? <><strong>{roleName}</strong> role</> : "this role"}.</> : <>{roleName ? <>Your <strong>{roleName}</strong> interview is confirmed.</> : "Your interview is confirmed."}</>}</p>
     {context.kind === "voice" && <p className="booking-ai-disclosure">This interview will be conducted by Ella, McLink Group's AI interview assistant. Your responses will be reviewed by our recruitment team.</p>}
     {booked && !noShow ? <div className="booking-confirmed">
       {confirmationMessage && <ActionFeedback kind="success" className="booking-confirmed-feedback">{confirmationMessage}</ActionFeedback>}
       <div className="booking-confirmed-icon">✓</div>
-      <h2>{completed ? "Interview completed" : "Your interview is scheduled"}</h2>
+      <h2>{incomplete ? "Interview attempt incomplete" : unreachable ? "Interview link already used" : completed ? "Interview completed" : "Your interview is scheduled"}</h2>
       <p>{context.scheduledDate ? displayDate(context.scheduledDate) : "Your selected date"} · {context.scheduledTime || "Time confirmed"} {context.timezone || ""}</p>
-      <small>{completed ? "The recruitment team has received the interview result." : "You may close this page. The recruitment team has received your booking."}</small>
+      <small>{incomplete ? "The attempt ended before a complete interview was recorded. Please contact the recruitment team if you need another link." : unreachable ? "This link has already been used. Please contact the recruitment team if you need another link." : completed ? "The recruitment team has received the interview result." : "You may close this page. The recruitment team has received your booking."}</small>
     </div> : noAvailability ? <div className="booking-empty booking-no-availability" role="status"><strong>No times are currently available</strong><p>Please reply to your interview invitation email so the recruitment team can send you a new booking link.</p></div> : <>
       {noShow && <div className="booking-notice">This interview was marked <strong>No Show</strong>. You may choose a replacement time below.</div>}
       {context.kind === "voice" && <div className="field booking-mobile-field"><span>Preferred mobile number *</span><div className="contact-number-controls"><label><CountrySelect ariaLabel="Country code" value={countryCode} disabled={saving} onChange={setCountryCode} /></label><label><span className="sr-only">Local mobile number</span><input required aria-label="Local mobile number" inputMode="numeric" value={localMobile} disabled={saving} placeholder={(countryOptions.find((country) => country.code === countryCode) || countryOptions[0]).placeholder} onChange={(event) => setLocalMobile(cleanDigits(event.target.value))} /></label></div><small>Enter the local number only, without the country code.</small></div>}

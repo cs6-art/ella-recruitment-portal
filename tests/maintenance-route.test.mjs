@@ -50,7 +50,8 @@ test("no-show sync indexes side sheets by application id instead of rescanning",
   assert.match(source, /applicantIndexById/);
   assert.match(source, /queueByApplication/);
   assert.match(source, /trackingByApplication/);
-  assert.match(source, /const todayFor =/);
+  assert.match(source, /scheduledEndAt/);
+  assert.match(source, /End_Time/);
   // The per-slot O(n^2) findIndex inside syncPastBookedInterviewsNoShow is gone.
   const syncBody = source.slice(source.indexOf("export async function syncPastBookedInterviewsNoShow"));
   assert.doesNotMatch(syncBody, /applicantsData\.rows\.findIndex/);

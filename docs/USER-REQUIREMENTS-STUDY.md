@@ -247,14 +247,13 @@ is stable.
 | 26 Aug | Add F2F interview venue/address | Julio | Interview email includes physical address, room, and arrival details |
 | 26–27 Aug | Fix Ella interview summary misattribution | Julio | Candidate answers map to the proper interview question |
 | 26–27 Aug | Remove Management approval | Julio | Simplified workflow without a Management approval dependency |
-| 27–28 Aug | Implement credit-based pricing | Julio | Credit wallet, deductions, balance checking, and discount logic |
 | 27–28 Aug | Implement candidate no-show lifecycle | Julio | Attempt 1–3 retry flow and final handling |
 | 28 Aug | Quick regression test | Julio + QA | Core features retested after changes |
 
 **Phase exit criteria:** Post-screening alerts work; F2F invitations contain
 complete venue information; Ella summary mapping is resolved; Management
-approval is removed without breaking the workflow; the credit-system MVP and
-no-show/three-attempt lifecycle are functional; and no new P0 regression issues
+approval is removed without breaking the workflow; the no-show/three-attempt
+lifecycle is functional; and no new P0 regression issues
 exist. The first four items directly address the functional and AI workflow
 blockers identified by QC.
 
@@ -378,8 +377,8 @@ report.
 The complete system shall be tested across login/SSO, RBAC, job and role
 creation, the simplified approval flow, resume upload, Google Drive and
 OneDrive import, single and bulk screening, post-screening notifications,
-credit deductions and insufficient-credit handling, interview booking, F2F
-invitation, AI phone interview, missed-call handling, the three-attempt
+interview booking, F2F invitation, AI phone interview, missed-call handling,
+the three-attempt
 lifecycle, transcript generation, Ella summary, AI scoring, database
 operations, n8n performance, form persistence, and error handling.
 
@@ -441,15 +440,15 @@ UAT shall cover the following user and system scenarios:
 
 Before production deployment, the team shall confirm that UAT issues are
 closed; production configuration, database, and n8n workflows are verified;
-credit rules and notification credentials are verified; Drive and OneDrive
-integration is verified; backup and rollback procedures are confirmed; and
+notification credentials are verified; Drive and OneDrive integration is
+verified; backup and rollback procedures are confirmed; and
 documentation is finalized.
 
 ### Final milestone summary
 
 | Milestone | Target |
 | --- | --- |
-| Core QC, workflow, and credits complete | 28 Aug 2026 |
+| Core QC and workflow complete | 28 Aug 2026 |
 | Backend/performance improvement complete | 31 Aug 2026 |
 | Cloud upload, documentation, and support bot complete | 2 Sep 2026 |
 | AI validation and full regression | 3 Sep 2026 |

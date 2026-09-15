@@ -167,6 +167,7 @@ export type BookingContext = {
   selectedRole: string;
   roleId: string;
   bookingStatus: string;
+  interviewOutcome?: "completed" | "incomplete" | "unreachable" | "";
   scheduledDate: string;
   scheduledTime: string;
   timezone: string;
@@ -565,7 +566,12 @@ export async function getCandidateStatusHistory(applicationId: string): Promise<
 export async function getBookingContext(kind: BookingKind, token: string): Promise<BookingContext | null> {
   await syncPastBookedInterviewsNoShow();
   await syncPastAvailableInterviewSlots();
-  const [applicantData, slotsData] = await Promise.all([readSheet("High_Match_Profile", "CZ"), readSheet("Interview_Slots", "X")]);
+  const [applicantData, slotsData, voiceResultsData, callLogsData] = await Promise.all([
+    readSheet("High_Match_Profile", "CZ"),
+    readSheet("Interview_Slots", "X"),
+    kind === "voice" ? readOptionalSheet("Voice_Interview_Results", "AF", { fresh: true }) : Promise.resolve(null),
+    kind === "voice" ? readOptionalSheet("Voice_Call_Logs", "AD", { fresh: true }) : Promise.resolve(null),
+  ]);
   const cleanToken = text(token);
   const tokenHash = hashToken(cleanToken);
   const applicantIndex = applicantData.rows.findIndex((row) => kind === "voice"
@@ -706,6 +712,9 @@ export async function getBookingContext(kind: BookingKind, token: string): Promi
   const timezone = currentSlot?.slot.timezone || (kind === "voice"
     ? field(row, "Voice_Interview_Timezone")
     : field(row, "Final_Interview_Timezone"));
+  const interviewOutcome = kind === "voice"
+    ? latestVoiceInterviewOutcome([...(voiceResultsData?.rows || []), ...(callLogsData?.rows || [])], field(row, "Application ID", "Application_ID"))
+    : "";
 
   return {
     kind,
@@ -715,6 +724,7 @@ export async function getBookingContext(kind: BookingKind, token: string): Promi
     selectedRole: field(row, "Selected Role", "Selected_Role"),
     roleId,
     bookingStatus: status,
+    interviewOutcome,
     preferredMobile: field(row, "Preferred_Mobile", "Preferred Mobile", "Contact_Number", "Contact Number", "Phone"),
     applicantCountry: field(row, "Applicant_Country", "Applicant Country"),
     scheduledDate,
@@ -842,9 +852,10 @@ export async function updateApplicantProfile(applicationId: string, input: Appli
  * the original resume approval flow.
  */
 export async function requestVoiceBookingLink(applicationId: string) {
+  await syncPastBookedInterviewsNoShow();
   const [applicantData, slotsData, queueData, voiceResultsData, callLogsData] = await Promise.all([
-    readSheet("High_Match_Profile", "CZ"),
-    readSheet("Interview_Slots", "X"),
+    readSheet("High_Match_Profile", "CZ", { fresh: true }),
+    readSheet("Interview_Slots", "X", { fresh: true }),
     readOptionalSheet("Voice_Call_Queue", "X"),
     readOptionalSheet("Voice_Interview_Results", "AF", { fresh: true }),
     readOptionalSheet("Voice_Call_Logs", "AD", { fresh: true }),
@@ -1530,10 +1541,6 @@ function calendarDateKey(value: string, timezone: string) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: timezone || "Asia/Singapore", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(parsed));
 }
 
-function todayInTimezone(timezone: string) {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: timezone || "Asia/Singapore", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
-}
-
 let pastBookedNoShowSync: Promise<number> | null = null;
 let pastAvailableSlotSync: Promise<number> | null = null;
 
@@ -1621,15 +1628,6 @@ export async function syncPastBookedInterviewsNoShow() {
     const voiceResultRows = [...(voiceResultsData?.rows ?? []), ...(callLogsData?.rows ?? [])];
     const voiceResultsByApplication = groupByApplication(voiceResultRows);
     const finalResultsByApplication = groupByApplication(finalTrackingData?.rows ?? []);
-    const todayByTimezone = new Map<string, string>();
-    const todayFor = (timezone: string) => {
-      const cached = todayByTimezone.get(timezone);
-      if (cached) return cached;
-      const value = todayInTimezone(timezone);
-      todayByTimezone.set(timezone, value);
-      return value;
-    };
-
     const updates: CellUpdate[] = [];
     const historyRows: string[][] = [];
     let changed = 0;
@@ -1637,7 +1635,6 @@ export async function syncPastBookedInterviewsNoShow() {
       if (field(slot, "Status").toLowerCase() !== "booked") return;
       const timezone = field(slot, "Timezone", "Time Zone") || "Asia/Singapore";
       const date = calendarDateKey(field(slot, "Date"), timezone);
-      if (!date || date >= todayFor(timezone)) return;
 
       const applicationId = field(slot, "Application_ID", "Application ID");
       const applicationIdKey = idKey(applicationId);
@@ -1724,9 +1721,20 @@ export async function syncPastBookedInterviewsNoShow() {
         return;
       }
 
-      // Only an appointment with no attendance/result after its day has
-      // passed is a No Show. Future bookings stay Scheduled/Booked.
-      if (!date || date >= todayFor(timezone)) return;
+      // Only an appointment with no attendance/result after its scheduled end
+      // is a No Show. This handles same-day appointments in real time while
+      // keeping future bookings Scheduled/Booked.
+      let scheduledEndAt: Date;
+      try {
+        scheduledEndAt = scheduledInstant(
+          date,
+          field(slot, "End_Time", "End Time") || field(slot, "Start_Time", "Start Time"),
+          timezone,
+        );
+      } catch {
+        return;
+      }
+      if (scheduledEndAt.getTime() > Date.now()) return;
 
       const now = new Date().toISOString();
       updates.push(

@@ -111,6 +111,7 @@ export type ApplicantDetails = ApplicantSummary & {
   voiceBookingStatus: string;
   voiceBookingLink: string;
   bookingTokenStatus: string;
+  voiceInvitationStatus: string;
   bookingTokenExpiresAt: string;
   finalBookingStatus: string;
   finalScheduledDate: string;
@@ -1282,6 +1283,22 @@ export async function getApplicantById(id: string): Promise<ApplicantDetails | n
       nextAction: voiceInterviewCancelled ? "No further voice interview action" : currentVoiceCallInProgress ? "Voice Interview In Progress" : "Complete Voice Interview",
     };
   }
+  const recordedVoiceOutcome = classifyVoiceOutcome([
+    field(record, "Status 2 (Voice Interview)"),
+    field(record, "Final_Status"),
+    field(voiceResult ?? {}, "Call_Final_Status", "Call Status", "Interview_Status", "Status", "Outcome", "Ended_Reason"),
+    field(callLog ?? {}, "Call_Final_Status", "Call Status", "Interview_Status", "Status", "Outcome", "Ended_Reason"),
+  ].join(" "));
+  if (!voiceInterviewPending && !voiceInterviewCancelled && (recordedVoiceOutcome === "incomplete" || recordedVoiceOutcome === "unreachable")) {
+    const isUnreachable = recordedVoiceOutcome === "unreachable";
+    displaySummary = {
+      ...displaySummary,
+      voiceStatus: isUnreachable ? "Unreachable" : "Incomplete",
+      recommendation: isUnreachable ? "Voice Interview Unreachable - For HR Review" : "Voice Interview Incomplete - For HR Review",
+      currentStage: isUnreachable ? "Voice Interview Unreachable - For HR Review" : "Voice Interview Incomplete - For HR Review",
+      nextAction: isUnreachable ? "Retry Voice Interview / Review Call" : "Review Incomplete Voice Interview",
+    };
+  }
   const role = !isGeneratedDemoRecord && (field(record, "Voice_HR_Decision").toLowerCase() === "approve" || latestVoiceResult || latestCallLog || voiceInterviewPending)
     ? roleDetails
     : null;
@@ -1376,6 +1393,7 @@ export async function getApplicantById(id: string): Promise<ApplicantDetails | n
     voiceBookingStatus: field(record, "Voice_Interview_Booking_Status"),
     voiceBookingLink: field(record, "Voice_Interview_Booking_Link"),
     bookingTokenStatus: field(record, "Booking_Token_Status"),
+    voiceInvitationStatus: field(record, "Voice_Interview_Invitation_Sent", "voice_interview_email_sent"),
     bookingTokenExpiresAt: field(record, "Booking_Token_Expires_At"),
     finalBookingStatus: field(record, "Final_Interview_Booking_Token_Status"),
     finalScheduledDate: field(record, "Final_Interview_Scheduled_Date"),

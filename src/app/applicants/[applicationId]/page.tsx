@@ -138,6 +138,8 @@ function CombinedScreeningEvidence({ applicant }: { applicant: ApplicantDetails 
         <div className="applicant-detail-inline-fields">
           <DetailField label="Status" value={applicant.voiceStatus || "Not Started"} />
           <DetailField label="Booking Status" value={applicant.voiceBookingStatus || "Not Booked"} />
+          <DetailField label="Booking Link Status" value={applicant.bookingTokenStatus || "Not issued"} />
+          <DetailField label="Invitation Status" value={applicant.voiceInvitationStatus || "Not sent"} />
           <DetailField label="Scheduled" value={[applicant.voiceScheduledDate, applicant.voiceScheduledTime].filter(Boolean).join(" ") || "Not scheduled"} />
           <DetailField label="Timezone" value={recordValue(applicant.interviewSlot, "Timezone", "Time Zone") || "Not provided"} />
           <DetailField label="Voice AI Score" value={applicant.voiceScore ? formatMatchScore(applicant.voiceScore) : "Awaiting AI evaluation"} />
@@ -232,12 +234,12 @@ export default async function ApplicantDetailsPage({ params }: { params: Promise
     <CompensationCard applicant={applicant} />
     <div className="applicant-detail-grid"><div className="applicant-detail-main">
       <CombinedScreeningEvidence applicant={applicant} />
-      <ApplicantDecisionPanel applicationId={applicant.applicationId} resumeDecision={applicant.resumeDecision} resumeComments={resumeComments} voiceDecision={applicant.voiceDecision} voiceComments={voiceComments} voiceStatus={applicant.voiceStatus} voiceBookingStatus={applicant.voiceBookingStatus} bookingTokenStatus={applicant.bookingTokenStatus} voiceBookingLink={applicant.voiceBookingLink} finalInterviewStatus={applicant.finalInterviewStatus} finalStatus={applicant.finalStatus} finalComments={finalComments} finalBookingLink={applicant.finalBookingLink} canReview={canDecideApplicant(user)} canManage={canEditApplicant(user)} />
+      <ApplicantDecisionPanel applicationId={applicant.applicationId} resumeDecision={applicant.resumeDecision} resumeComments={resumeComments} voiceDecision={applicant.voiceDecision} voiceComments={voiceComments} voiceStatus={applicant.voiceStatus} voiceBookingStatus={applicant.voiceBookingStatus} bookingTokenStatus={applicant.bookingTokenStatus} voiceInvitationStatus={applicant.voiceInvitationStatus} voiceBookingLink={applicant.voiceBookingLink} finalInterviewStatus={applicant.finalInterviewStatus} finalStatus={applicant.finalStatus} finalComments={finalComments} finalBookingLink={applicant.finalBookingLink} canReview={canDecideApplicant(user)} canManage={canEditApplicant(user)} />
       <section className="card applicant-detail-card"><DetailCardHeader icon="document" title="Resume / CV" description="The candidate's submitted resume document." /><ResumeResource value={applicant.resumeText} fileId={applicant.resumeFileId} fileName={applicant.resumeFileName} expiresAt={applicant.resumeFileExpiresAt} /></section>
       <section className="card applicant-detail-card"><DetailCardHeader icon="microphone" title="Interview Questions" description="Questions prepared for the candidate's interview." /><InterviewQuestions value={applicant.interviewQuestions} /></section>
       <HistoryTimeline history={history} />
     </div><aside className="applicant-detail-side">
-      {applicant.voiceDecision.toLowerCase() === "approve" && <FinalInterviewCard applicant={applicant} role={role} />}
+      {applicant.voiceDecision.toLowerCase() === "approve" && !/incomplete|unreachable|no answer|busy|wrong person|call back|no show/i.test(`${applicant.voiceStatus} ${applicant.finalStatus}`) && <FinalInterviewCard applicant={applicant} role={role} />}
       <section className="card applicant-detail-card"><DetailCardHeader icon="clock" title="Status Tracking" description="Current progress through the candidate workflow." /><div className="applicant-timeline"><div><strong>1. AI CV Analysis</strong><span>{applicant.resumeStatus || "Not Started"}</span></div><div><strong>2. Voice Interview</strong><span>{applicant.voiceStatus || "Not Started"}</span></div><div><strong>3. Voice HR Review</strong><span>{applicant.voiceDecision || "Pending"}</span></div><div><strong>4. Face-to-Face Interview</strong><span>{applicant.finalInterviewStatus || "Not Started"}</span></div><div><strong>Last Updated</strong><span>{dateValue(applicant.lastUpdated)}</span></div></div></section>
     </aside></div>
   </main></AppShell>;

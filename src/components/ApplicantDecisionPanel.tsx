@@ -17,6 +17,7 @@ type Props = {
   voiceStatus: string;
   voiceBookingStatus: string;
   bookingTokenStatus: string;
+  voiceInvitationStatus: string;
   voiceBookingLink: string;
   finalInterviewStatus: string;
   finalStatus: string;
@@ -59,7 +60,7 @@ function CompletedDecision({ title, decision, comments, link }: { title: string;
   return <div className="applicant-completed-decision"><div className="applicant-decision-title"><strong>{title}</strong><span className={`applicant-decision-badge ${isRejectedDecision(decision) ? "is-rejected" : ""}`}>{decisionLabel(decision)}</span></div>{link && <a className="applicant-booking-link" href={link} target="_blank" rel="noreferrer">Open Face-to-Face Interview Booking Link</a>}{comments ? <div className="applicant-completed-comments"><span>Comments</span><p>{comments}</p></div> : <p className="applicant-completed-empty">No comments were recorded for this decision.</p>}</div>;
 }
 
-function DecisionRow({ stage, title, description, current, link, bookingStatus, bookingTokenStatus, retryStatus, enabled = true, applicationId, canReview, onSaved, canSendBookingLink = false }: {
+function DecisionRow({ stage, title, description, current, link, bookingStatus, bookingTokenStatus, invitationStatus, retryStatus, enabled = true, applicationId, canReview, onSaved, canSendBookingLink = false }: {
   stage: Stage;
   title: string;
   description: string;
@@ -67,6 +68,7 @@ function DecisionRow({ stage, title, description, current, link, bookingStatus, 
   link?: string;
   bookingStatus?: string;
   bookingTokenStatus?: string;
+  invitationStatus?: string;
   retryStatus?: string;
   enabled?: boolean;
   applicationId: string;
@@ -132,7 +134,7 @@ function DecisionRow({ stage, title, description, current, link, bookingStatus, 
   const bookingLinkPending = stage === "voice"
     && !link
     && (activeToken
-      || /pending|processing|sending/i.test(`${bookingStatus || ""} ${tokenState}`)
+      || /pending|processing|sending/i.test(`${bookingStatus || ""} ${invitationStatus || ""} ${tokenState}`)
       || (/awaiting booking system/i.test(bookingStatus || "") && !/error|failed/i.test(tokenState)));
   // A future scheduled appointment or a live call must finish before HR can
   // issue another link. "Booked" by itself is not enough to block retries:
@@ -194,7 +196,7 @@ export default function ApplicantDecisionPanel(props: Props) {
   const finalComments = savedDecisions.final?.comments || props.finalComments;
   return <section className="card applicant-decision-card"><div className="card-header"><div><h2>HR Decisions</h2><p>Review the applicant&apos;s current workflow stage. Comments are required for every decision.</p></div></div>{message && <ActionFeedback kind="success" className="applicant-decision-success">{message}</ActionFeedback>}<div className="applicant-decision-list">
     {stage === "resume" && (isDecided(resumeDecision) ? <CompletedDecision title="AI CV Analysis" decision={resumeDecision} comments={resumeComments} /> : <DecisionRow stage="resume" title="AI CV Analysis" description="Review Ella&apos;s CV analysis recommendation before moving the applicant to the voice interview." current={resumeDecision} applicationId={props.applicationId} canReview={props.canReview} onSaved={saveDecision} />)}
-    {stage === "voice" && <><CompletedDecision title="AI CV Analysis" decision={resumeDecision} comments={resumeComments} />{isDecided(voiceDecision) ? <CompletedDecision title="Voice Interview Review" decision={voiceDecision} comments={voiceComments} link={props.finalBookingLink} /> : <DecisionRow stage="voice" title="Voice Interview Review" description="Review the combined screening evidence below before approving the applicant for the next stage." current={voiceDecision} bookingStatus={props.voiceBookingStatus} bookingTokenStatus={props.bookingTokenStatus} retryStatus={`${props.voiceStatus} ${props.finalStatus}`} applicationId={props.applicationId} canReview={props.canReview} canSendBookingLink={props.canManage} onSaved={saveDecision} />}</>}
+    {stage === "voice" && <><CompletedDecision title="AI CV Analysis" decision={resumeDecision} comments={resumeComments} />{isDecided(voiceDecision) ? <CompletedDecision title="Voice Interview Review" decision={voiceDecision} comments={voiceComments} link={props.finalBookingLink} /> : <DecisionRow stage="voice" title="Voice Interview Review" description="Review the combined screening evidence below before approving the applicant for the next stage." current={voiceDecision} bookingStatus={props.voiceBookingStatus} bookingTokenStatus={props.bookingTokenStatus} invitationStatus={props.voiceInvitationStatus} retryStatus={`${props.voiceStatus} ${props.finalStatus}`} applicationId={props.applicationId} canReview={props.canReview} canSendBookingLink={props.canManage} onSaved={saveDecision} />}</>}
     {stage === "final" && <><CompletedDecision title="Voice Interview Review" decision={voiceDecision} comments={voiceComments} />{isDecided(props.finalStatus) || isDecided(finalDecision) ? <CompletedDecision title="Face-to-Face Interview Decision" decision={props.finalStatus || finalDecision} comments={finalComments} /> : <DecisionRow stage="final" title="Face-to-Face Interview Decision" description="Record the Face-to-Face interview outcome after the interviewer has completed the meeting." current={finalDecision === "Interview Completed" ? "" : finalDecision} enabled applicationId={props.applicationId} canReview={props.canReview} onSaved={saveDecision} />}</>}
   </div></section>;
 }

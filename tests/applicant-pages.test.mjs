@@ -367,6 +367,9 @@ test("voice booking-link action lets HR issue unlimited fresh attempts after end
   assert.match(panel, /hasActiveVoiceBooking = stage === "voice"/);
   assert.match(panel, /bookingStatus=\{props\.voiceBookingStatus\}/);
   assert.match(panel, /bookingTokenStatus=\{props\.bookingTokenStatus\}/);
+  assert.match(panel, /voiceInvitationStatus: string/);
+  assert.match(panel, /invitationStatus=\{props\.voiceInvitationStatus\}/);
+  assert.match(panel, /invitationStatus \|\| ""/);
   assert.match(panel, /Send another booking link/);
   assert.match(panel, /disabled=\{bookingBusy \|\| busy \|\| !canIssueVoiceBookingLink\}/);
   assert.doesNotMatch(panel, /retryableVoiceAttempt/);
@@ -377,6 +380,10 @@ test("voice booking-link action lets HR issue unlimited fresh attempts after end
   assert.match(workflow, /activeBookingToken/);
   assert.match(workflow, /active or pending voice booking link/);
   assert.doesNotMatch(workflow, /already has a completed voice interview/);
+  assert.match(workflow, /await syncPastBookedInterviewsNoShow\(\);/);
+  assert.match(workflow, /readSheet\("High_Match_Profile", "CZ", \{ fresh: true \}\)/);
+  assert.match(workflow, /scheduled end/);
+  assert.match(workflow, /End_Time/);
 });
 
 test("active replacement voice links ignore historical completed slots", () => {
@@ -389,6 +396,9 @@ test("active replacement voice links ignore historical completed slots", () => {
   assert.match(panel, /const canIssueVoiceBookingLink = stage === "voice"[\s\S]*inactiveBookingLink/);
   assert.match(booking, /const activeReplacementToken = context\.kind === "voice"/);
   assert.match(booking, /const completed = !activeReplacementToken/);
+  assert.match(booking, /interviewOutcome/);
+  assert.match(booking, /Interview attempt incomplete/);
+  assert.match(booking, /Interview link already used/);
   assert.match(workflow, /const currentSlotCandidates =/);
   assert.match(workflow, /currentSlotCandidates\.find\(\(\{ slot \}\) => \(slot\.status \|\| ""\)\.toLowerCase\(\) === "booked"\)/);
 });
@@ -409,6 +419,10 @@ test("applicant profiles show voice attempt history and keep the current booking
   assert.match(data, /const voiceInterviewCancelled =/);
   assert.match(data, /No call result was recorded/);
   assert.match(page, /Booking Link \(Revoked\)/);
+  assert.match(page, /label="Booking Link Status"/);
+  assert.match(page, /label="Invitation Status"/);
+  assert.match(page, /voiceInvitationStatus=\{applicant\.voiceInvitationStatus\}/);
+  assert.match(data, /voiceInvitationStatus: field\(record, "Voice_Interview_Invitation_Sent"/);
 });
 
 
