@@ -148,7 +148,7 @@ function CombinedScreeningEvidence({ applicant }: { applicant: ApplicantDetails 
           <DetailField label="Status" value={applicant.voiceStatus || "Not Started"} />
           <DetailField label="Booking Status" value={applicant.voiceBookingStatus || "Not Booked"} />
           <DetailField label="Booking Link Status" value={applicant.bookingTokenStatus || "Not issued"} />
-          <DetailField label="Invitation Email" value={invitationEmailStatus(applicant.voiceInvitationStatus)} />
+          <DetailField label="Invitation Email" value={`${invitationEmailStatus(applicant.voiceInvitationStatus)}${bookingLinkRevoked ? " (link revoked)" : ""}`} />
           <DetailField label="Scheduled" value={[applicant.voiceScheduledDate, applicant.voiceScheduledTime].filter(Boolean).join(" ") || "Not scheduled"} />
           <DetailField label="Timezone" value={recordValue(applicant.interviewSlot, "Timezone", "Time Zone") || "Not provided"} />
           <DetailField label="Voice AI Score" value={applicant.voiceScore ? formatMatchScore(applicant.voiceScore) : "Awaiting AI evaluation"} />
