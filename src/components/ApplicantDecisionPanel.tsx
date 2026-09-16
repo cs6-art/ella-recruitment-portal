@@ -46,6 +46,10 @@ function isRejectedDecision(value: string) {
   return normalized === "reject" || normalized === "rejected" || normalized.includes("rejected");
 }
 
+function isInvitationSent(value: string) {
+  return ["yes", "sent", "delivered"].includes(value.trim().toLowerCase());
+}
+
 function reviewStage(props: Props): Stage {
   if (/completed/i.test(props.finalInterviewStatus) || /(?:final|hr) interview (passed|rejected)/i.test(props.finalStatus)) return "final";
   // An incomplete voice interview still needs HR review. Treating it as an
@@ -127,15 +131,18 @@ function DecisionRow({ stage, title, description, current, link, bookingStatus, 
 
   const bookingState = `${current} ${bookingStatus || ""} ${retryStatus || ""}`;
   const tokenState = bookingTokenStatus || "";
+  const invitationSent = isInvitationSent(invitationStatus || "");
   const activeToken = /\b(active|pending|processing|sending)\b/i.test(tokenState)
     && !/error|failed|expired|revoked|cancelled/i.test(tokenState);
   const previousVoiceAttempt = stage === "voice"
     && /interviewed|completed|incomplete|unreachable|no answer|busy|wrong person|call back|no show|cancelled/i.test(bookingState);
   const bookingLinkPending = stage === "voice"
     && !link
+    && !invitationSent
     && (activeToken
       || /pending|processing|sending/i.test(`${bookingStatus || ""} ${invitationStatus || ""} ${tokenState}`)
       || (/awaiting booking system/i.test(bookingStatus || "") && !/error|failed/i.test(tokenState)));
+  const bookingLinkDelivered = stage === "voice" && !link && invitationSent;
   // A future scheduled appointment or a live call must finish before HR can
   // issue another link. "Booked" by itself is not enough to block retries:
   // completed attempts can retain that legacy profile value after the call.
@@ -147,7 +154,7 @@ function DecisionRow({ stage, title, description, current, link, bookingStatus, 
     && !bookingLinkPending
     && !hasActiveVoiceBooking
     && inactiveBookingLink;
-  const activeBookingLink = stage === "voice" && (activeToken || (Boolean(link) && !inactiveBookingLink));
+  const activeBookingLink = stage === "voice" && (bookingLinkDelivered || activeToken || (Boolean(link) && !inactiveBookingLink));
   const bookingButtonLabel = bookingBusy
     ? "Sending..."
     : bookingLinkPending
@@ -170,6 +177,7 @@ function DecisionRow({ stage, title, description, current, link, bookingStatus, 
       <p>{description}</p>
       {link && <a className="applicant-booking-link" href={link} target="_blank" rel="noreferrer">Open AI Voice Interview Booking Link</a>}
       {bookingLinkPending && !link && <p className="applicant-booking-pending" role="status">A new booking link is being generated. This page will refresh automatically when it is ready.</p>}
+      {bookingLinkDelivered && <p className="applicant-booking-pending" role="status">The booking link email was sent successfully. The applicant can use the link in that invitation email.</p>}
       {canSendBookingLink && !decided && stage === "voice" && <div className="applicant-booking-action"><button type="button" className="btn btn-secondary" disabled={bookingBusy || busy || !canIssueVoiceBookingLink} onClick={() => void sendBookingLink()}>{bookingButtonLabel}</button><span>Creates a fresh link and emails it to the applicant.</span></div>}
       {bookingMessage && <ActionFeedback kind="success" className="applicant-decision-success">{bookingMessage}</ActionFeedback>}
       {bookingError && <ValidationSummary error={bookingError} title="Booking link failed" />}

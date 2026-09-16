@@ -54,6 +54,12 @@ function invitationEmailStatus(value: string) {
   return value.trim() || "Not sent";
 }
 
+function displayVoiceAttemptReason(value: string) {
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "customer-ended-call") return "Interview ended before completion.";
+  return value;
+}
+
 function latestDecisionComment(history: CandidateStatusHistoryEntry[], stage: CandidateStatusHistoryEntry["stage"]) {
   return history.find((entry) => entry.stage === stage && entry.comments.trim())?.comments || "";
 }
@@ -163,8 +169,7 @@ function CombinedScreeningEvidence({ applicant }: { applicant: ApplicantDetails 
               {applicant.voiceInterviewAttempts.map((attempt) => <article className="applicant-voice-attempt" key={`${attempt.attemptNumber}-${attempt.callId || attempt.scheduledDate}-${attempt.scheduledTime}`}>
                 <div className="applicant-voice-attempt-top"><strong>Attempt {attempt.attemptNumber}</strong><span className={/error|failed/i.test(attempt.status) ? "is-error" : ""}>{attempt.status}</span></div>
                 <p>{[attempt.scheduledDate, attempt.scheduledTime, attempt.timezone].filter(Boolean).join(" · ") || "Schedule not recorded"}</p>
-                {attempt.error && <div className="applicant-voice-attempt-error"><strong>Why it failed</strong><span>{attempt.error}</span></div>}
-                {attempt.callId && <small>Call ID: {attempt.callId}</small>}
+                {attempt.error && <div className="applicant-voice-attempt-error"><strong>Interview note</strong><span>{displayVoiceAttemptReason(attempt.error)}</span></div>}
               </article>)}
             </div> : <p className="applicant-voice-attempt-empty">No voice interview attempts are recorded.</p>}
           </div>

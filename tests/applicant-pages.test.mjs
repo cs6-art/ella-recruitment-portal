@@ -370,6 +370,9 @@ test("voice booking-link action lets HR issue unlimited fresh attempts after end
   assert.match(panel, /voiceInvitationStatus: string/);
   assert.match(panel, /invitationStatus=\{props\.voiceInvitationStatus\}/);
   assert.match(panel, /invitationStatus \|\| ""/);
+  assert.match(panel, /function isInvitationSent/);
+  assert.match(panel, /bookingLinkDelivered/);
+  assert.match(panel, /booking link email was sent successfully/);
   assert.match(panel, /Send another booking link/);
   assert.match(panel, /disabled=\{bookingBusy \|\| busy \|\| !canIssueVoiceBookingLink\}/);
   assert.doesNotMatch(panel, /retryableVoiceAttempt/);
@@ -424,7 +427,10 @@ test("applicant profiles show voice attempt history and keep the current booking
   assert.match(data, /error: field\(evidence \|\| queueRow \|\| \{\}, "Voice_Call_Error"/);
   assert.match(page, /Voice Interview Attempt History/);
   assert.match(page, /Attempt \{attempt\.attemptNumber\}/);
-  assert.match(page, /Why it failed/);
+  assert.match(page, /Interview note/);
+  assert.match(page, /displayVoiceAttemptReason/);
+  assert.match(page, /Interview ended before completion/);
+  assert.doesNotMatch(page, /Call ID:/);
   assert.match(page, /is-error/);
   assert.match(page, /Open AI Voice Interview Booking Link/);
   assert.match(page, /Voice Interview Booking Link/);
