@@ -26,7 +26,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 - **Recruitment Setup UI simplified for HR.** The screen HR uses to
-  configure Ella's interview script now defaults to a plain-language,
+  configure Smile's interview script now defaults to a plain-language,
   field-based view — no `{{curly_brace}}` template syntax visible unless HR
   explicitly opens "Advanced: edit full script". Interview questions dropped
   their forced category labels ("Role experience", "Technical or quality

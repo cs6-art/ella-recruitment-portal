@@ -57,7 +57,7 @@ hand in the UI (they're all inactive, so low risk).
 ### recruitment-legacy → `HR / Legacy`
 
 Tagged ✓:
-- ELLA - Production Calling Workflow - Email Final Interview — `9qz5CFe5qLXMvO2x`
+- SMILE - Production Calling Workflow - Email Final Interview — `9qz5CFe5qLXMvO2x`
 - McLink - Bulk Resume Screening — `8iB5LY0FheMdrNEG`
 - Role Folder Bulk Resume Screening — `7vvfJS8DaDPVfD95`
 - McLink - Role Request Foundation — `kjtG2I2QgXVZPIAB`
@@ -85,7 +85,7 @@ Confirm nothing calls them, then move to `HR/Legacy` (or keep in prod if used).
   (overlaps McLink - Candidate Application Foundation)
 - Phase 1 - Applicant Screening (Portal Backed) — `cmOBqy5wrtCuF1U6`
   (same overlap, older)
-- Ella Application Status API — `LX8B1ZQBImmDjx9t` (unclear consumer)
+- Smile Application Status API — `LX8B1ZQBImmDjx9t` (unclear consumer)
 - AI Voice Interview HR Decision Monitor — `hlDvcnmr2JubxyUW`
   (email sending hardcoded off; likely superseded by HR Decision v2)
 

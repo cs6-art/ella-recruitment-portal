@@ -5,10 +5,10 @@ import { createLiveAvatarSession, isLiveAvatarConfigured } from "@/lib/live-avat
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Public, unauthenticated endpoint used by the "Meet Ella now" widget on the
+// Public, unauthenticated endpoint used by the "Meet Smile now" widget on the
 // candidate apply page. It never accepts a job description or role title
 // from the client — only a roleId — and re-loads that role from the
-// spreadsheet itself, so a candidate cannot use this route to make Ella
+// spreadsheet itself, so a candidate cannot use this route to make Smile
 // introduce a role that isn't actually published.
 export async function POST(request: NextRequest) {
   if (!isLiveAvatarConfigured()) {

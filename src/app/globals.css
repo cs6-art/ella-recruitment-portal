@@ -1833,26 +1833,26 @@ html { scroll-behavior: smooth; }
 .recruitment-editor .setup-footer-status small { color: var(--muted); font-size: 12px; }
 .recruitment-editor .setup-action-bar { align-items: center; justify-content: space-between; }
 
-/* Keep the standalone Ella editor aligned with the other setup sections. */
-.ella-setup-section .ella-setup-form {
+/* Keep the standalone Smile editor aligned with the other setup sections. */
+.smile-setup-section .smile-setup-form {
   gap: 18px 16px;
   padding: 22px 24px 24px;
 }
-.ella-setup-section > .error-box,
-.ella-setup-section > .success-box {
+.smile-setup-section > .error-box,
+.smile-setup-section > .success-box {
   margin: 16px 24px 0;
 }
-.ella-setup-section > .setup-action-bar {
+.smile-setup-section > .setup-action-bar {
   margin-top: 0;
 }
-.ella-advanced-settings,
+.smile-advanced-settings,
 .evaluation-settings { grid-column: 1 / -1; border: 1px solid #dce6f0; border-radius: 10px; background: #fbfdff; }
-.ella-advanced-settings summary,
+.smile-advanced-settings summary,
 .evaluation-settings > summary { padding: 13px 15px; color: var(--navy); cursor: pointer; font-size: 14px; font-weight: 800; }
-.ella-advanced-settings summary span,
+.smile-advanced-settings summary span,
 .evaluation-settings > summary span { margin-left: 7px; color: var(--muted); font-size: 12px; font-weight: 500; }
-.ella-advanced-fields { display: grid; grid-template-columns: minmax(180px, .7fr) minmax(0, 1.3fr); gap: 16px; padding: 0 15px 15px; }
-.ella-advanced-fields .field.full { grid-column: auto; }
+.smile-advanced-fields { display: grid; grid-template-columns: minmax(180px, .7fr) minmax(0, 1.3fr); gap: 16px; padding: 0 15px 15px; }
+.smile-advanced-fields .field.full { grid-column: auto; }
 .evaluation-simple-card { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 15px 16px; border: 1px solid #bce4d4; border-radius: 10px; color: #35516d; background: #f2faf6; }
 .evaluation-simple-card strong, .evaluation-simple-card span { display: block; }
 .evaluation-simple-card strong { color: #176746; font-size: 15px; }
@@ -1960,8 +1960,8 @@ html { scroll-behavior: smooth; }
   .evaluation-score-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 640px) {
-  .ella-advanced-fields { grid-template-columns: 1fr; }
-  .ella-advanced-fields .field.full { grid-column: 1; }
+  .smile-advanced-fields { grid-template-columns: 1fr; }
+  .smile-advanced-fields .field.full { grid-column: 1; }
   .evaluation-simple-card { align-items: flex-start; flex-direction: column; gap: 9px; }
   .evaluation-builder { padding: 14px; }
   .evaluation-builder-heading { flex-direction: column; }
@@ -1972,9 +1972,9 @@ html { scroll-behavior: smooth; }
 
 /* The setup page is a guided authoring surface; keep helper text readable at normal zoom. */
 .recruitment-editor .card-header h2,
-.ella-setup-section .card-header h2 { font-size: 22px; }
+.smile-setup-section .card-header h2 { font-size: 22px; }
 .recruitment-editor .section-subtitle,
-.ella-setup-section .section-subtitle { font-size: 14px; line-height: 1.5; }
+.smile-setup-section .section-subtitle { font-size: 14px; line-height: 1.5; }
 .recruitment-editor .setup-template label,
 .recruitment-editor .setup-policy-panel strong,
 .recruitment-editor .setup-policy-panel label { font-size: 14px; }
@@ -1986,28 +1986,28 @@ html { scroll-behavior: smooth; }
 .recruitment-editor .setup-group-toggle strong { font-size: 16px; }
 .recruitment-editor .setup-group-toggle small { font-size: 13px; line-height: 1.45; }
 .recruitment-editor .field label,
-.ella-setup-section .field > span { font-size: 14px; }
+.smile-setup-section .field > span { font-size: 14px; }
 .recruitment-editor .field input,
 .recruitment-editor .field textarea,
 .recruitment-editor .field select,
-.ella-setup-section .field input,
-.ella-setup-section .field textarea { font-size: 15px; line-height: 1.55; }
+.smile-setup-section .field input,
+.smile-setup-section .field textarea { font-size: 15px; line-height: 1.55; }
 .recruitment-editor .field small,
-.ella-setup-section .field small { font-size: 13px; line-height: 1.5; }
-.ella-setup-section input::placeholder,
-.ella-setup-section textarea::placeholder { color: #647991; opacity: 1; }
-.ella-setup-section textarea::placeholder { white-space: pre-line; }
+.smile-setup-section .field small { font-size: 13px; line-height: 1.5; }
+.smile-setup-section input::placeholder,
+.smile-setup-section textarea::placeholder { color: #647991; opacity: 1; }
+.smile-setup-section textarea::placeholder { white-space: pre-line; }
 .recruitment-editor .publish-flow-step strong { font-size: 14px; }
 .recruitment-editor .publish-flow-step small { font-size: 13px; line-height: 1.5; }
 .recruitment-editor .setup-prompt-guidance,
 .recruitment-editor .publish-stage-panel,
 .recruitment-editor .setup-interview-plan-summary,
-.ella-question-plan-note { font-size: 14px; line-height: 1.55; }
+.smile-question-plan-note { font-size: 14px; line-height: 1.55; }
 .recruitment-editor .ai-prompt-field textarea { min-height: 420px; }
 .template-preview-text { white-space: pre-wrap; line-height: 1.55; }
 .recruitment-editor .setup-prompt-guidance::after { content: "Recommended format: 1. System Prompt  2. Core Questions  3. Assess  4. Final AI Evaluation"; display: block; padding-top: 4px; color: var(--blue); font-weight: 800; }
 .recruitment-editor .setup-template-heading small::after { content: "Recommended: Proven Vapi Interview Structure"; display: block; padding-top: 3px; color: var(--blue); font-weight: 800; }
-.ella-question-plan-note::after { content: "After the phone interview, Ella sends the recommendation summary to HR. HR approval is required before the final-interview scheduling email is sent."; display: block; padding-top: 4px; color: var(--navy); font-weight: 700; }
+.smile-question-plan-note::after { content: "After the phone interview, Smile sends the recommendation summary to HR. HR approval is required before the final-interview scheduling email is sent."; display: block; padding-top: 4px; color: var(--navy); font-weight: 700; }
 
 @media (max-width: 640px) {
   .recruitment-editor .setup-template { grid-template-columns: 1fr; margin-inline: 16px; }
@@ -2019,9 +2019,9 @@ html { scroll-behavior: smooth; }
 }
 
 @media (max-width: 640px) {
-  .ella-setup-section .ella-setup-form { padding: 18px 16px 20px; }
-  .ella-setup-section > .error-box,
-  .ella-setup-section > .success-box { margin-inline: 16px; }
+  .smile-setup-section .smile-setup-form { padding: 18px 16px 20px; }
+  .smile-setup-section > .error-box,
+  .smile-setup-section > .success-box { margin-inline: 16px; }
   .publish-flow-guide { grid-template-columns: 1fr; margin-inline: 16px; }
   .publish-stage-panel { margin-inline: 0; }
 }

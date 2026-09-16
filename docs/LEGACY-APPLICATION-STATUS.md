@@ -8,7 +8,7 @@ This document preserves the previous status experience for a future release.
 
 `GET https://n8n.srv1457709.hstgr.cloud/webhook/ella-application-status?application_id=APP-...`
 
-The legacy n8n workflow is **Ella Application Status API**
+The legacy n8n workflow is **Smile Application Status API**
 (`LX8B1ZQBImmDjx9t`). It reads the applicant row from the candidate sheet and
 returns JSON shaped like:
 

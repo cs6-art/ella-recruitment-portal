@@ -245,13 +245,13 @@ is stable.
 | --- | --- | --- | --- |
 | 26 Aug | Fix post-screening notifications | Julio | HR and candidate notifications trigger automatically after screening |
 | 26 Aug | Add F2F interview venue/address | Julio | Interview email includes physical address, room, and arrival details |
-| 26–27 Aug | Fix Ella interview summary misattribution | Julio | Candidate answers map to the proper interview question |
+| 26–27 Aug | Fix Smile interview summary misattribution | Julio | Candidate answers map to the proper interview question |
 | 26–27 Aug | Remove Management approval | Julio | Simplified workflow without a Management approval dependency |
 | 27–28 Aug | Implement candidate no-show lifecycle | Julio | Attempt 1–3 retry flow and final handling |
 | 28 Aug | Quick regression test | Julio + QA | Core features retested after changes |
 
 **Phase exit criteria:** Post-screening alerts work; F2F invitations contain
-complete venue information; Ella summary mapping is resolved; Management
+complete venue information; Smile summary mapping is resolved; Management
 approval is removed without breaking the workflow; the no-show/three-attempt
 lifecycle is functional; and no new P0 regression issues
 exist. The first four items directly address the functional and AI workflow
@@ -282,14 +282,14 @@ performance and reliability failure.
 
 **Target:** 29 August–2 September 2026
 
-**Objective:** Allow large resume batches to enter Ella without relying only on
+**Objective:** Allow large resume batches to enter Smile without relying only on
 manual local uploads.
 
 **Google Drive — 29 August–1 September**
 
 - Configure Google Drive access and authentication.
 - Add file selection and multiple-resume selection.
-- Import selected files into Ella and push them into the existing screening queue.
+- Import selected files into Smile and push them into the existing screening queue.
 - Preserve filename and source metadata.
 - Add duplicate detection, batch progress, and failure handling.
 
@@ -349,21 +349,21 @@ tests, processing time, and the failure threshold. It shall compare direct
 uploads with Drive and OneDrive uploads and document the recommended maximum
 direct batch size.
 
-### Phase 6 — Ella AI-scoring validation
+### Phase 6 — Smile AI-scoring validation
 
 **Target:** 2–3 September 2026
 
 **Owner:** Julio + HR/QA
 
-**Objective:** Validate Ella’s AI evaluation against the actual HR scoring
+**Objective:** Validate Smile’s AI evaluation against the actual HR scoring
 standard.
 
 Representative candidate examples shall be manually scored by HR and run
-through Ella. The results shall be compared, material scoring differences
+through Smile. The results shall be compared, material scoring differences
 identified, scoring prompts or logic tuned where necessary, and the benchmark
 rerun and documented.
 
-**Phase exit criteria:** Ella scoring has been formally compared with HR’s
+**Phase exit criteria:** Smile scoring has been formally compared with HR’s
 rubric; material discrepancies are corrected or documented; and QA/HR accepts
 the results for UAT. This closes the scoring-benchmark item pending in the QC
 report.
@@ -379,7 +379,7 @@ creation, the simplified approval flow, resume upload, Google Drive and
 OneDrive import, single and bulk screening, post-screening notifications,
 interview booking, F2F invitation, AI phone interview, missed-call handling,
 the three-attempt
-lifecycle, transcript generation, Ella summary, AI scoring, database
+lifecycle, transcript generation, Smile summary, AI scoring, database
 operations, n8n performance, form persistence, and error handling.
 
 **Exit criterion:** No unresolved critical regression defects.
@@ -394,10 +394,10 @@ QC shall specifically retest the six original open items:
 
 - Post-screening notifications.
 - F2F interview address.
-- Ella summary misattribution.
+- Smile summary misattribution.
 - Applicant no-show handling.
 - n8n/system latency.
-- Ella scoring accuracy.
+- Smile scoring accuracy.
 
 The QC report currently blocks Code Freeze until remaining material issues are
 corrected and retested.
@@ -426,7 +426,7 @@ or workflow redesign; only critical defect fixes are permitted.
 UAT shall cover the following user and system scenarios:
 
 - **HOD:** Create a role/job, submit requirements, and follow the simplified workflow.
-- **HR:** Review roles and applications, perform screening, review Ella scoring, and arrange interviews.
+- **HR:** Review roles and applications, perform screening, review Smile scoring, and arrange interviews.
 - **Candidate:** Application, screening, notification, booking, AI interview, and missed-call/retry scenarios.
 - **System:** Credit usage, notifications, upload integrations, support bot, and database performance.
 

@@ -1,11 +1,11 @@
-# LiveAvatar ("Meet Ella now") integration
+# LiveAvatar ("Meet Smile now") integration
 
-The public apply page (`/apply/[roleId]`) can show an optional "Meet Ella
-now" card that starts a live, face-to-face video interview with Ella right
+The public apply page (`/apply/[roleId]`) can show an optional "Meet Smile
+now" card that starts a live, face-to-face video interview with Smile right
 in the browser, powered by [LiveAvatar](https://www.liveavatar.com) (HeyGen).
 It is additive: nothing about the existing scheduled phone-call interview
 (Vapi, triggered by n8n after resume screening) changes. A candidate can try
-Ella's live video interview, ignore it, or do both — none of it blocks
+Smile's live video interview, ignore it, or do both — none of it blocks
 submitting the application form below it.
 
 ## How it works
@@ -15,7 +15,7 @@ submitting the application form below it.
    renders `<LiveAvatarInterview roleId roleTitle />`
    (`src/components/LiveAvatarInterview.tsx`). Otherwise the card is simply
    not rendered — there is no broken state.
-2. When the candidate clicks **Start live interview with Ella**, the
+2. When the candidate clicks **Start live interview with Smile**, the
    browser calls `POST /api/live-avatar/session` with only `{ roleId }`
    (`src/app/api/live-avatar/session/route.ts`).
 3. That route re-loads the role from the spreadsheet itself (it never
@@ -27,11 +27,11 @@ submitting the application form below it.
    the client.
 4. The browser loads `@heygen/liveavatar-web-sdk` on demand (not in the main
    bundle) and starts a `LiveAvatarSession` with that token, rendering
-   Ella's video and streaming the candidate's microphone.
+   Smile's video and streaming the candidate's microphone.
 
 ## Customizing by Job Description and role
 
-This is the part that makes Ella's greeting and screening questions
+This is the part that makes Smile's greeting and screening questions
 specific to the role the candidate is looking at, instead of a generic
 script:
 
@@ -45,11 +45,11 @@ script:
   Opening Intro and Full Prompt use `${role_title}` and `${job_description}`
   placeholders. LiveAvatar substitutes the dynamic variables into those
   placeholders for every session.
-- To change *what Ella says or asks* — tone, flow, follow-up behavior — edit
+- To change *what Smile says or asks* — tone, flow, follow-up behavior — edit
   that Context's prompt in the LiveAvatar dashboard
   (app.liveavatar.com → Contexts → McLink AI Interviewer). Changes apply to
   new sessions immediately; nothing needs to be redeployed.
-- To change *how Ella looks or sounds*, update `LIVEAVATAR_AVATAR_ID` /
+- To change *how Smile looks or sounds*, update `LIVEAVATAR_AVATAR_ID` /
   the voice agent's voice in the dashboard.
 
 ## Required environment variables
@@ -58,10 +58,10 @@ See `.env.example` for the full list and comments:
 
 - `LIVEAVATAR_API_KEY` — secret, server-only. Create one at
   app.liveavatar.com → Developers → API Key. A key named
-  "Ella AI Website - Apply Page Interview" already exists for this feature —
+  "Smile AI Website - Apply Page Interview" already exists for this feature —
   reuse it, or revoke it and create a fresh one.
 - `LIVEAVATAR_AVATAR_ID` — defaults to `65f9e3c9-d48b-4118-b73a-4ae2e3cbb8f0`
-  ("June HR" preset avatar), the avatar already selected for Ella.
+  ("June HR" preset avatar), the avatar already selected for Smile.
 - `LIVEAVATAR_VOICE_AGENT_ID` — defaults to
   `c718a07d-f8eb-4682-8b70-1c1bf1f48291` ("McLink AI Interviewer").
 - `LIVEAVATAR_IS_SANDBOX` — set to `true` in non-production environments to

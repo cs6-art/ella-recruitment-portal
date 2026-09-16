@@ -189,7 +189,7 @@ This is the API the candidate `/book/voice/<token>` page calls.
 
 **Trigger**: schedule, every 1 minute. 37 nodes. Active.
 Self-description: "Polls booked voice interviews, resolves the role-specific
-Ella prompt and evaluation fields, starts Vapi calls, and syncs call status."
+Smile prompt and evaluation fields, starts Vapi calls, and syncs call status."
 
 **Flow**
 1. Read `Voice_Call_Queue` + `High_Match_Profile` → **Join Queue with Applicant
@@ -207,7 +207,7 @@ Ella prompt and evaluation fields, starts Vapi calls, and syncs call status."
    >30 min late or in the future. `lock_expired` rows always pass, tagged
    `expired_lock`.
 4. Read `Role_Requests` → **Merge Current Queue and Applicant**: for each due
-   row find the `Role_ID` row and resolve the **Ella system prompt**:
+   row find the `Role_ID` row and resolve the **Smile system prompt**:
    `ella_system_prompt` → `VAPI_Resolved_System_Prompt` → `AI_System_Prompt`
    → a built-in fallback prompt template. Placeholders (`{{candidate_name}}`,
    `{{role}}`, `{{job_description}}`, `{{screening_criteria}}`,

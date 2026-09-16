@@ -22,11 +22,11 @@ type LiveAvatarSessionInstance = {
 };
 
 /**
- * "Meet Ella now" — an opt-in, in-browser live video interview, powered by
+ * "Meet Smile now" — an opt-in, in-browser live video interview, powered by
  * LiveAvatar (HeyGen). This is additive to the existing phone-call (Vapi)
  * interview later in the pipeline; nothing here changes that flow.
  *
- * Ella's greeting and screening questions are generated for this specific
+ * Smile's greeting and screening questions are generated for this specific
  * role: the session-token request (src/app/api/live-avatar/session) sends
  * this role's published title and job description to LiveAvatar as
  * dynamic_variables, which the "McLink AI Interviewer" context substitutes
@@ -55,7 +55,7 @@ export default function LiveAvatarInterview({ roleId, roleTitle }: Props) {
       });
       const tokenBody = await tokenResponse.json().catch(() => ({}));
       if (!tokenResponse.ok || !tokenBody?.success) {
-        throw new Error(tokenBody?.error || "Ella isn't available right now.");
+        throw new Error(tokenBody?.error || "Smile isn't available right now.");
       }
 
       const { LiveAvatarSession, SessionEvent } = await import("@heygen/liveavatar-web-sdk");
@@ -78,7 +78,7 @@ export default function LiveAvatarInterview({ roleId, roleTitle }: Props) {
       await session.start();
     } catch (err) {
       console.error("[LiveAvatarInterview] Failed to start session:", err);
-      setError(err instanceof Error ? err.message : "Ella isn't available right now.");
+      setError(err instanceof Error ? err.message : "Smile isn't available right now.");
       setState("error");
       sessionRef.current = null;
     }
@@ -100,23 +100,23 @@ export default function LiveAvatarInterview({ roleId, roleTitle }: Props) {
   return (
     <section className="card live-avatar-card">
       <div className="card-header">
-        <h2>Meet Ella now</h2>
+        <h2>Meet Smile now</h2>
         {state === "live" && <span className="live-avatar-live-pill">Live</span>}
       </div>
       <div className="live-avatar-body">
         {state === "idle" && (
           <>
             <p>
-              Prefer talking instead of waiting for a call back? Ella, McLink&apos;s AI interview
+              Prefer talking instead of waiting for a call back? Smile, McLink&apos;s AI interview
               assistant, can meet you right now over live video for a quick, {roleTitle} focused
               chat — about ten to fifteen minutes.
             </p>
             <p className="live-avatar-disclosure">
-              Ella is an AI interviewer, not a person. This is optional and separate from the
+              Smile is an AI interviewer, not a person. This is optional and separate from the
               rest of your application.
             </p>
             <button type="button" className="btn btn-primary" onClick={startInterview}>
-              Start live interview with Ella
+              Start live interview with Smile
             </button>
           </>
         )}
@@ -130,10 +130,10 @@ export default function LiveAvatarInterview({ roleId, roleTitle }: Props) {
               className={`live-avatar-video ${state === "live" ? "is-ready" : ""}`}
             />
             {!isVideoVisible && (
-              <div className="live-avatar-stage-overlay">Connecting you with Ella…</div>
+              <div className="live-avatar-stage-overlay">Connecting you with Smile…</div>
             )}
             {state === "connecting" && (
-              <div className="live-avatar-stage-overlay">Waiting for Ella to join…</div>
+              <div className="live-avatar-stage-overlay">Waiting for Smile to join…</div>
             )}
           </div>
         )}
@@ -146,9 +146,9 @@ export default function LiveAvatarInterview({ roleId, roleTitle }: Props) {
 
         {state === "ended" && (
           <>
-            <p>Thanks for chatting with Ella. Your application below is unaffected — go ahead and submit it whenever you&apos;re ready.</p>
+            <p>Thanks for chatting with Smile. Your application below is unaffected — go ahead and submit it whenever you&apos;re ready.</p>
             <button type="button" className="btn btn-secondary" onClick={startInterview}>
-              Talk to Ella again
+              Talk to Smile again
             </button>
           </>
         )}

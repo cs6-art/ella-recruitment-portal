@@ -6,6 +6,7 @@ const readiness = fs.readFileSync("src/lib/recruitment-setup-readiness.ts", "utf
 const route = fs.readFileSync("src/app/api/roles/[roleId]/recruitment-setup/route.ts", "utf8");
 const editor = fs.readFileSync("src/components/RecruitmentSetupEditor.tsx", "utf8");
 const roleDetails = fs.readFileSync("src/components/RoleDetails.tsx", "utf8");
+const prompt = fs.readFileSync("src/lib/recruitment-prompt.ts", "utf8");
 
 test("draft readiness keeps the two minimum fields", () => {
   assert.match(readiness, /Job_Description/);
@@ -129,13 +130,20 @@ test("editor exposes separate stage actions and readiness", () => {
 
 test("recruitment setup uses one guided editor with simple HR-facing fields", () => {
   assert.match(editor, /Interview Setup/);
-  assert.match(editor, /What should Ella listen for\?/);
+  assert.match(editor, /What should Smile listen for\?/);
   assert.match(editor, /Advanced: edit full script/);
   assert.match(editor, /Publishing checklist/);
   // The raw {{curly_brace}} template stays hidden behind an explicit
   // "Advanced" action so HR lands on the simple field-based view by default.
   assert.match(editor, /useState\(false\)/);
-  assert.doesNotMatch(roleDetails, /EllaSetupFields/);
+  assert.doesNotMatch(roleDetails, /Ella/);
+});
+
+test("Smile is the assistant brand in prompts and legacy prompts are normalized", () => {
+  assert.match(prompt, /You are Smile,/);
+  assert.match(prompt, /normalizeAssistantBranding/);
+  assert.match(prompt, /prompt\.replace\(\/\\bElla\\b\/gi, CURRENT_AI_INTERVIEWER_NAME\)/);
+  assert.doesNotMatch(prompt, /You are Ella,/);
 });
 
 test("required publishing fields stay visible and checklist opens by default", () => {

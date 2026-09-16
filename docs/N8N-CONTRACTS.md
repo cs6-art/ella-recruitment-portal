@@ -86,7 +86,7 @@ merely because a prompt was saved.
 n8n must verify `X-Webhook-Secret`, verify the role is still in
 `expectedCurrentStatus`, persist the editable `AI_System_Prompt` template and
 the structured criteria values, and use `VAPI_Resolved_System_Prompt` (also
-provided as `ella_system_prompt`) when configuring Vapi. VAPI may keep this
+provided as the legacy `ella_system_prompt`) when configuring Vapi. VAPI may keep this
 literal system prompt in its dashboard:
 
 ```text
@@ -100,7 +100,7 @@ When starting a call, n8n must pass the rendered prompt through VAPI's
 {
   "assistantOverrides": {
     "variableValues": {
-      "ella_system_prompt": "<the rendered role and candidate prompt>"
+      "ella_system_prompt": "<the rendered Smile role and candidate prompt>"
     }
   }
 }

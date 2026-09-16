@@ -454,14 +454,14 @@ export default function RoleRequestForm({ user, roleId, status = "", initialValu
             <span className="section-number">1</span>
           <h2>{isEditing ? "Edit role request" : "Role request"}</h2>
           </div>
-          <p className="section-intro">Provide the information HR and Ella need to understand the vacancy.</p>
+          <p className="section-intro">Provide the information HR and Smile need to understand the vacancy.</p>
 
           <div className="grid-2">
             <div className="field full">
               <div className="ai-draft-panel">
                 <div>
                   <strong>Populate from a job description</strong>
-                  <small className="field-help">Upload a PDF, DOC, or DOCX, or use the job description below. Ella will prepare role details, screening criteria, and interview questions for HR to review.</small>
+                  <small className="field-help">Upload a PDF, DOC, or DOCX, or use the job description below. Smile will prepare role details, screening criteria, and interview questions for HR to review.</small>
                 </div>
                 <div className="ai-draft-controls">
                   {/* Keep the picker aligned with the server document extractor. */}
@@ -526,7 +526,7 @@ export default function RoleRequestForm({ user, roleId, status = "", initialValu
             <div className="field full">
               <label htmlFor="salaryOrBudgetRange">Approved salary or budget range <strong className="required-mark">*</strong></label>
               <input id="salaryOrBudgetRange" {...fieldErrorProps("salaryOrBudgetRange")} required value={form.recruitmentSetupDraft.salaryOrBudgetRange} onChange={(event) => updateRecruitmentSetup("salaryOrBudgetRange", event.target.value)} placeholder="e.g. PHP 45,000 to PHP 60,000 per month" />
-              <small className="field-help">Provide the approved currency and pay period. This is used by CV analysis and Ella when evaluating applicants.</small>
+              <small className="field-help">Provide the approved currency and pay period. This is used by CV analysis and Smile when evaluating applicants.</small>
             </div>
 
             <div className="field">
@@ -608,7 +608,7 @@ export default function RoleRequestForm({ user, roleId, status = "", initialValu
         <div className="sidebar-list">
           <div><strong>1. HR discussion</strong><br />HR reviews the submitted role request.</div>
           <div><strong>2. Management approval</strong><br />The request is approved, returned, or rejected.</div>
-          <div><strong>3. Recruitment setup</strong><br />HR confirms Ella's generated screening setup.</div>
+          <div><strong>3. Recruitment setup</strong><br />HR confirms Smile's generated screening setup.</div>
           <div><strong>4. Job posting</strong><br />Approved roles can be published to the selected channels.</div>
         </div>
       </aside>

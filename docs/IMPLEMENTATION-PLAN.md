@@ -14,7 +14,7 @@ phone interview → HR decisions → final HOD interview scheduling.
 Maintain the working Version 1 demo:
 - Candidate submits or uploads a resume
 - Candidate is linked to a selected role
-- AI Ella screens the resume
+- AI Smile screens the resume
 - AI generates: match score, candidate summary, strengths and gaps,
   recommendation, interview questions
 - Screening results are stored correctly
@@ -76,10 +76,10 @@ Deliver a stable government-demo version of the recruitment portal.
 
 ### Demo workflow
 Company user logs in → creates or selects a role → candidate applies or HR
-uploads a resume → candidate is linked to the correct role → AI Ella
+uploads a resume → candidate is linked to the correct role → AI Smile
 screens the resume → HR reviews the AI recommendation → HR approves or
 rejects → candidate selects an interview schedule → candidate confirms a
-mobile number → AI Ella conducts the interview → interview result is
+mobile number → AI Smile conducts the interview → interview result is
 returned to HR.
 
 ### Portal features for the demo

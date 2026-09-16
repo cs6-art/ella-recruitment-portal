@@ -186,7 +186,7 @@ export async function POST(request: Request, context: Context) {
       Required_Interview_Question_5: setup.requiredInterviewQuestion5,
       AI_System_Prompt: setup.aiSystemPrompt,
       VAPI_Resolved_System_Prompt: setup.resolvedAiSystemPrompt || "",
-      // n8n can pass this value to VAPI as the `ella_system_prompt` dynamic
+      // n8n can pass this value to VAPI as the legacy `ella_system_prompt` dynamic
       // variable while keeping VAPI's dashboard system prompt generic.
       ella_system_prompt: setup.resolvedAiSystemPrompt || "",
       Evaluation_Field_Toggles: setup.evaluationFieldToggles.join(","),

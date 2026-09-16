@@ -43,7 +43,7 @@ not logic:
 **Data cleanup still outstanding.** `WD01` retains the AI Engineer setup and is
 `Job Posted` with a live application link. It needs either a clear-back-to-blank
 or a genuine Web Developer setup. Its `AI_System_Prompt` also opens with "You are
-Julio…" instead of "You are Ella…" — someone edited the prompt after loading, and
+Julio…” instead of "You are Smile…" — someone edited the prompt after loading, and
 the interviewer would introduce herself as Julio on a real call.
 
 ## 2. Final-interview invitation is never sent unless Vapi said "Completed"
@@ -172,7 +172,7 @@ column at the far right of `Role_Requests` rather than as an error.
 - **Interview evidence mis-attributed after a repeat request.** See item 4.
 - **Recruitment Setup hidden once published.** The section returned `null` for
   any status other than `Approved`/`Recruitment Setup`, so HR could not see what
-  Ella was configured to ask on a live role. Published roles now render it
+  Smile was configured to ask on a live role. Published roles now render it
   read-only, matching the server, which refuses setup saves for them.
 - **Recommendation showed a final-interview stage too early.** `Status 3 (Final
   Interview)` defaults to `Pending`, which the summary read as "Awaiting Final
