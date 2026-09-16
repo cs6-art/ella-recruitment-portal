@@ -585,6 +585,12 @@ export async function getBookingContext(kind: BookingKind, token: string): Promi
   const roleId = field(row, "Role_ID", "Role ID");
   const role = await getRoleRequestById(roleId);
   const tokenStatus = kind === "voice" ? field(row, "Booking_Token_Status") : field(row, "Final_Interview_Booking_Token_Status");
+  // A newly issued voice token represents a fresh booking attempt. The
+  // applicant may still have an incomplete/unfinished result from an earlier
+  // token, but that historical outcome must not make the replacement link
+  // read-only. Once this token is used, the latest call outcome applies again.
+  const isFreshVoiceBookingToken = kind === "voice"
+    && ["active", "pending", "processing"].includes(tokenStatus.trim().toLowerCase());
   const currentSlotCandidates = slotsData.rows
     .map((slot, index) => ({ slot: slotFrom(slot), index }))
     .filter(({ slot }) => {
@@ -712,7 +718,7 @@ export async function getBookingContext(kind: BookingKind, token: string): Promi
   const timezone = currentSlot?.slot.timezone || (kind === "voice"
     ? field(row, "Voice_Interview_Timezone")
     : field(row, "Final_Interview_Timezone"));
-  const interviewOutcome = kind === "voice"
+  const interviewOutcome = kind === "voice" && !isFreshVoiceBookingToken
     ? latestVoiceInterviewOutcome([...(voiceResultsData?.rows || []), ...(callLogsData?.rows || [])], field(row, "Application ID", "Application_ID"))
     : "";
 

@@ -69,6 +69,7 @@ export type ApplicantSummary = {
 export type VoiceInterviewAttempt = {
   attemptNumber: number;
   status: string;
+  error: string;
   scheduledDate: string;
   scheduledTime: string;
   timezone: string;
@@ -371,6 +372,7 @@ function voiceAttemptHistory(applicationIdValue: string, slots: SheetRow[], queu
     return {
       attemptNumber: 0,
       status: statusFor(slot, queueRow, evidence),
+      error: field(evidence || queueRow || {}, "Voice_Call_Error", "Result_Error", "Error"),
       scheduledDate: field(slot, "Date"),
       scheduledTime: field(slot, "Start_Time", "Start Time"),
       timezone: field(slot, "Timezone", "Time Zone"),
@@ -395,6 +397,7 @@ function voiceAttemptHistory(applicationIdValue: string, slots: SheetRow[], queu
     attempts.push({
       attemptNumber: 0,
       status: statusFor(row, row, evidence),
+      error: field(evidence || row, "Voice_Call_Error", "Result_Error", "Error"),
       scheduledDate: field(row, "Voice_Interview_Scheduled_Date", "Date"),
       scheduledTime: field(row, "Voice_Interview_Scheduled_Time", "Start_Time", "Start Time"),
       timezone: field(row, "Voice_Interview_Timezone", "Timezone", "Time Zone"),
@@ -415,6 +418,7 @@ function voiceAttemptHistory(applicationIdValue: string, slots: SheetRow[], queu
   }).forEach((row) => attempts.push({
     attemptNumber: 0,
     status: statusFor(row, undefined, row),
+    error: field(row, "Voice_Call_Error", "Result_Error", "Error"),
     scheduledDate: field(row, "Voice_Interview_Scheduled_Date", "Date"),
     scheduledTime: field(row, "Voice_Interview_Scheduled_Time", "Start_Time", "Start Time"),
     timezone: field(row, "Voice_Interview_Timezone", "Timezone", "Time Zone"),
@@ -429,6 +433,7 @@ function voiceAttemptHistory(applicationIdValue: string, slots: SheetRow[], queu
     .map((attempt, index) => ({
       attemptNumber: index + 1,
       status: attempt.status,
+      error: attempt.error,
       scheduledDate: attempt.scheduledDate,
       scheduledTime: attempt.scheduledTime,
       timezone: attempt.timezone,

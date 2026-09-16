@@ -401,6 +401,8 @@ test("active replacement voice links ignore historical completed slots", () => {
   assert.match(booking, /Interview link already used/);
   assert.match(workflow, /const currentSlotCandidates =/);
   assert.match(workflow, /currentSlotCandidates\.find\(\(\{ slot \}\) => \(slot\.status \|\| ""\)\.toLowerCase\(\) === "booked"\)/);
+  assert.match(workflow, /const isFreshVoiceBookingToken = kind === "voice"/);
+  assert.match(workflow, /kind === "voice" && !isFreshVoiceBookingToken/);
 });
 
 test("stale voice booking submissions cannot cancel an active appointment", () => {
@@ -419,8 +421,11 @@ test("applicant profiles show voice attempt history and keep the current booking
   assert.match(data, /readTab\("Voice_Call_Queue", "X", \{ fresh: true \}\)/);
   assert.match(data, /function voiceAttemptHistory\(/);
   assert.match(data, /voiceInterviewAttempts/);
+  assert.match(data, /error: field\(evidence \|\| queueRow \|\| \{\}, "Voice_Call_Error"/);
   assert.match(page, /Voice Interview Attempt History/);
   assert.match(page, /Attempt \{attempt\.attemptNumber\}/);
+  assert.match(page, /Why it failed/);
+  assert.match(page, /is-error/);
   assert.match(page, /Open AI Voice Interview Booking Link/);
   assert.match(page, /Voice Interview Booking Link/);
   assert.match(page, /applicant-voice-attempt-history[\s\S]*applicant-current-booking-link/);

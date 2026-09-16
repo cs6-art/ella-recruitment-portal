@@ -161,8 +161,9 @@ function CombinedScreeningEvidence({ applicant }: { applicant: ApplicantDetails 
             </div>
             {applicant.voiceInterviewAttempts.length > 0 ? <div className="applicant-voice-attempt-list">
               {applicant.voiceInterviewAttempts.map((attempt) => <article className="applicant-voice-attempt" key={`${attempt.attemptNumber}-${attempt.callId || attempt.scheduledDate}-${attempt.scheduledTime}`}>
-                <div className="applicant-voice-attempt-top"><strong>Attempt {attempt.attemptNumber}</strong><span>{attempt.status}</span></div>
+                <div className="applicant-voice-attempt-top"><strong>Attempt {attempt.attemptNumber}</strong><span className={/error|failed/i.test(attempt.status) ? "is-error" : ""}>{attempt.status}</span></div>
                 <p>{[attempt.scheduledDate, attempt.scheduledTime, attempt.timezone].filter(Boolean).join(" · ") || "Schedule not recorded"}</p>
+                {attempt.error && <div className="applicant-voice-attempt-error"><strong>Why it failed</strong><span>{attempt.error}</span></div>}
                 {attempt.callId && <small>Call ID: {attempt.callId}</small>}
               </article>)}
             </div> : <p className="applicant-voice-attempt-empty">No voice interview attempts are recorded.</p>}
