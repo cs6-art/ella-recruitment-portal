@@ -4,8 +4,10 @@ import { useMemo, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 
 import ActionFeedback from "@/components/ActionFeedback";
+import LiveAvatarInterview from "@/components/LiveAvatarInterview";
 import ValidationSummary from "@/components/ValidationSummary";
 import { ROLE_COUNTRY_CODES, roleCountryProfile } from "@/lib/role-countries";
+import type { LiveAvatarPreparation } from "@/lib/live-avatar-screening";
 
 type RoleOption = {
   roleId: string;
@@ -24,6 +26,8 @@ type Props = {
   requireConsent?: boolean;
   showRoleSelect?: boolean;
   roleCountry?: string;
+  liveAvatarRoleTitle?: string;
+  enableLiveAvatar?: boolean;
   successRedirectTo?: string;
 };
 
@@ -114,6 +118,8 @@ export default function CandidateApplicationForm({
   requireConsent = true,
   showRoleSelect = false,
   roleCountry = "",
+  liveAvatarRoleTitle = "",
+  enableLiveAvatar = false,
   successRedirectTo,
 }: Props) {
   const router = useRouter();
@@ -131,6 +137,7 @@ export default function CandidateApplicationForm({
   const [saving, setSaving] = useState(false);
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [fileInputKey, setFileInputKey] = useState(0);
+  const [liveAvatarPreparation, setLiveAvatarPreparation] = useState<LiveAvatarPreparation | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const selectedRoleLabel = useMemo(
@@ -153,6 +160,7 @@ export default function CandidateApplicationForm({
 
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
+    if (key === "candidateName") setLiveAvatarPreparation(null);
     setError("");
     setMessage("");
     setFieldErrors((current) => ({ ...current, [key]: "" }));
@@ -188,6 +196,7 @@ export default function CandidateApplicationForm({
 
   function selectResumeFile(file: File | null) {
     setResumeFile(null);
+    setLiveAvatarPreparation(null);
     setFieldErrors((current) => ({ ...current, resumeFile: "" }));
     if (!file) return;
     const extension = file.name.toLowerCase().split(".").pop();
@@ -204,6 +213,30 @@ export default function CandidateApplicationForm({
     setResumeFile(file);
     setError("");
     setMessage("");
+  }
+
+  async function prepareElla() {
+    if (!form.candidateName.trim() || !resumeFile) {
+      setError("Enter your name and choose a resume before meeting Ella.");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    setMessage("");
+    try {
+      const body = new FormData();
+      body.append("roleId", form.resumeRoleId || roleId);
+      body.append("candidateName", form.candidateName.trim());
+      body.append("resumeFile", resumeFile, resumeFile.name);
+      const response = await fetch("/api/live-avatar/prepare", { method: "POST", body });
+      const result = await readJsonResponse(response);
+      if (!response.ok || result.success !== true || !result.preparation) throw new Error(typeof result.error === "string" ? result.error : "Ella could not prepare the resume yet.");
+      setLiveAvatarPreparation(result.preparation as LiveAvatarPreparation);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Ella could not prepare the resume yet.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function submit(event: FormEvent) {
@@ -250,6 +283,7 @@ export default function CandidateApplicationForm({
       setMessage(successMessage || `Application submitted. Application ID: ${String(result.applicationId ?? "")}`);
       setForm({ candidateName: "", email: "", applicantCountry: showRoleSelect ? "" : (roleCountry || ""), localContactNumber: "", resumeRoleId: roleId || "", salaryExpectation: "" });
       setResumeFile(null);
+      setLiveAvatarPreparation(null);
       setFileInputKey((value) => value + 1);
       if (fileInput.current) fileInput.current.value = "";
       setFieldErrors({});
@@ -355,8 +389,11 @@ export default function CandidateApplicationForm({
             </label>
             <small>PDF, DOC, or DOCX · up to {maxResumeFileLabel}</small>
             {readFieldError(fieldErrors, "resumeFile") && <small>{readFieldError(fieldErrors, "resumeFile")}</small>}
+            {enableLiveAvatar && <div className="resume-avatar-action"><div><strong>Want to meet Ella now?</strong><small>She will analyze this resume, prepare one relevant question, and show you a response summary.</small></div><button type="button" className="btn btn-secondary" disabled={saving || !form.candidateName.trim() || !resumeFile} onClick={() => void prepareElla()}>{saving ? "Analyzing resume..." : liveAvatarPreparation ? "Re-analyze resume" : "Analyze resume & prepare Ella"}</button></div>}
           </div>
         </div>
+
+        {enableLiveAvatar && liveAvatarPreparation && <LiveAvatarInterview roleId={form.resumeRoleId || roleId} roleTitle={liveAvatarRoleTitle || selectedRoleLabel || "this role"} candidateName={form.candidateName.trim()} preparation={liveAvatarPreparation} />}
 
         <div className="candidate-form-actions">
           <button className="btn btn-primary" type="submit" disabled={saving}>{saving ? "Submitting..." : submitLabel}</button>
