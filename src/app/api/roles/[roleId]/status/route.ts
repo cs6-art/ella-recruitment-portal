@@ -214,7 +214,6 @@ export async function POST(
       if (!role.department?.trim()) missingFields.push("Department");
       if (!role.numberOfVacancies || role.numberOfVacancies < 1) missingFields.push("Number_Of_Vacancies");
       if (!role.reasonForRequest?.trim()) missingFields.push("Reason_For_Request");
-      if (!role.targetHiringDate?.trim()) missingFields.push("Target_Hiring_Date");
       if (missingFields.length) return jsonError("Complete the requisition before requesting approval.", 409, { code: "REQUISITION_INCOMPLETE", missingFields });
     }
 

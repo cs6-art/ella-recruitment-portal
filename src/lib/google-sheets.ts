@@ -5,7 +5,6 @@ import { BASELINE_EVALUATION_FIELDS, EVALUATION_FIELD_CATALOG } from "@/lib/recr
 import { getGoogleServiceAccountPrivateKey } from "@/lib/google-service-account";
 import { demoRoleSummaries } from "@/lib/demo-data";
 import { isDemoMode, isDemoWindowRecord } from "@/lib/demo-mode";
-import { normalizeDateOnly } from "@/lib/date-only";
 
 const spreadsheetId =
   process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
@@ -67,7 +66,6 @@ export type RoleRequestSummary = {
   submissionId?: string;
   createdAt: string;
   requesterEmail: string;
-  targetHiringDate: string;
   requesterName: string;
   department: string;
   roleCountry: string;
@@ -121,7 +119,6 @@ export type RoleRequestDetails = {
   reasonForRequest: string;
   jobDescription: string;
   replacementEmployee: string;
-  targetHiringDate: string;
   hodAvailabilityDates: string;
   hodAvailabilityTimes: string;
   hodAvailabilitySlots: string;
@@ -487,11 +484,6 @@ function mapRoleRequest(
       "Replacement_Employee",
       "Replacement Employee",
     ]),
-
-    targetHiringDate: normalizeDateOnly(getField(record, [
-      "Target_Hiring_Date",
-      "Target Hiring Date",
-    ])),
 
     hodAvailabilityDates: getField(record, ["HOD_Availability_Dates"]),
     hodAvailabilityTimes: getField(record, ["HOD_Availability_Times"]),
@@ -990,7 +982,6 @@ export async function getRoleRequests(options: { liveOnly?: boolean; fresh?: boo
         submissionId: role.submissionId,
         createdAt: role.createdAt,
         requesterEmail: role.requesterEmail,
-        targetHiringDate: role.targetHiringDate,
         requesterName:
           role.requesterName,
         department: role.department,

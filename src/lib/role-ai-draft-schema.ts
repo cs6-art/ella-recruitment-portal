@@ -30,7 +30,6 @@ export const roleAiDraftSchema = z.object({
     reasonForRequest: text(2000),
     jobDescription: text(20000),
     replacementEmployee: text(150),
-    targetHiringDate: text(10),
   }),
   recruitmentSetup: roleAiRecruitmentSetupDraftSchema,
 }).superRefine((draft, context) => {

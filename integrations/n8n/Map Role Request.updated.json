@@ -10,7 +10,6 @@
         {"name":"Number_Of_Vacancies","value":"={{ $json.role.numberOfVacancies || 0 }}","type":"number"},
         {"name":"Reason_For_Request","value":"={{ $json.role.reasonForRequest || '' }}","type":"string"},
         {"name":"Replacement_Employee","value":"={{ $json.role.replacementEmployee || '' }}","type":"string"},
-        {"name":"Target_Hiring_Date","value":"={{ $json.role.targetHiringDate || '' }}","type":"string"},
         {"name":"Reporting_Manager","value":"={{ $json.role.reportingManager || '' }}","type":"string"},
         {"name":"Work_Location","value":"={{ $json.role.workLocation || '' }}","type":"string"},
         {"name":"Employment_Type","value":"={{ $json.role.employmentType || '' }}","type":"string"},

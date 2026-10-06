@@ -8,7 +8,6 @@ import ActionFeedback from "@/components/ActionFeedback";
 import UiIcon from "@/components/UiIcon";
 import ValidationSummary from "@/components/ValidationSummary";
 import { DEPARTMENT_OPTIONS, isKnownDepartment } from "@/lib/department-options";
-import { toDateInputValue } from "@/lib/date-only";
 import { roleRequestSchema } from "@/lib/role-schema";
 import type { RoleAiDraft } from "@/lib/role-ai-draft-schema";
 import { ROLE_COUNTRY_PROFILES, ROLE_COUNTRY_CODES } from "@/lib/role-countries";
@@ -41,7 +40,6 @@ type FormState = {
   reasonForRequest: string;
   jobDescription: string;
   replacementEmployee: string;
-  targetHiringDate: string;
   hodEmail: string;
   customScreeningQuestion1: string;
   customScreeningQuestion2: string;
@@ -65,7 +63,6 @@ const initial: FormState = {
   reasonForRequest: "",
   jobDescription: "",
   replacementEmployee: "",
-  targetHiringDate: "",
   hodEmail: HR_INTERVIEW_EMAIL,
   customScreeningQuestion1: "",
   customScreeningQuestion2: "",
@@ -99,7 +96,6 @@ const fieldLabels: Record<string, string> = {
   reasonForRequest: "Reason for Request",
   jobDescription: "Job Description",
   replacementEmployee: "Employee or Position Being Replaced",
-  targetHiringDate: "Target Hiring Date",
   salaryOrBudgetRange: "Approved salary or budget range",
   hodEmail: "HR interviewer email",
   customScreeningQuestion1: "Custom Screening Question 1",
@@ -120,7 +116,6 @@ export default function RoleRequestForm({ user, roleId, status = "", initialValu
       ...initialValues,
       department: isSavedCustomDepartment ? "Other" : savedDepartment,
       customDepartment: isSavedCustomDepartment ? savedDepartment : "",
-      targetHiringDate: toDateInputValue(initialValues?.targetHiringDate),
       hodEmail: HR_INTERVIEW_EMAIL,
     };
   }, [initialValues]);
@@ -537,11 +532,6 @@ export default function RoleRequestForm({ user, roleId, status = "", initialValu
             <div className="field">
               <label htmlFor="numberOfVacancies">Number of Vacancies <strong className="required-mark">*</strong></label>
               <input id="numberOfVacancies" {...fieldErrorProps("numberOfVacancies")} required min="1" max="100" type="number" value={form.numberOfVacancies} onChange={(event) => update("numberOfVacancies", Number(event.target.value))} />
-            </div>
-
-            <div className="field">
-              <label htmlFor="targetHiringDate">Target Hiring Date <strong className="required-mark">*</strong></label>
-              <input id="targetHiringDate" {...fieldErrorProps("targetHiringDate")} required type="date" value={form.targetHiringDate} onChange={(event) => update("targetHiringDate", event.target.value)} />
             </div>
 
             {form.requestType === "Staff Replacement" && (

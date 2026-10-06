@@ -49,7 +49,6 @@ export default async function EditRolePage({ params }: EditRolePageProps) {
     reasonForRequest: role.reasonForRequest,
     jobDescription: role.jobDescription,
     replacementEmployee: role.replacementEmployee,
-    targetHiringDate: role.targetHiringDate,
     hodEmail: role.hodEmail,
     customScreeningQuestion1: role.customScreeningQuestion1,
     customScreeningQuestion2: role.customScreeningQuestion2,

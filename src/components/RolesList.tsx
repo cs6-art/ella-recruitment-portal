@@ -38,7 +38,6 @@ type RoleRequest = {
   numberOfVacancies: number;
   status: string;
   latestComments: string;
-  targetHiringDate: string;
 };
 
 type RolesApiResponse = {
@@ -93,7 +92,7 @@ export default function RolesList({
     setError("");
 
     try {
-      const apiSort = sort === "target-latest" ? "target" : sort;
+      const apiSort = sort;
       const params = new URLSearchParams({ page: String(page), pageSize: "25", sort: apiSort });
       if (statusFilter !== "All") params.set("status", statusFilter);
       if (countryFilter) params.set("country", countryFilter);
@@ -157,13 +156,7 @@ export default function RolesList({
     void loadRoles();
   }, [loadRoles]);
 
-  const visibleRoles = sort === "target-latest"
-    ? [...roles].sort((left, right) => {
-        const leftDate = left.targetHiringDate || "0000-00-00";
-        const rightDate = right.targetHiringDate || "0000-00-00";
-        return rightDate.localeCompare(leftDate);
-      })
-    : roles;
+  const visibleRoles = roles;
   const selectableRoles = visibleRoles.filter((role) => canEditRole(role));
   const selectedRoles = selectableRoles.filter((role) => selectedRoleIds.has(role.roleId));
   const allVisibleRolesSelected = selectableRoles.length > 0 && selectableRoles.every((role) => selectedRoleIds.has(role.roleId));
@@ -400,8 +393,6 @@ export default function RolesList({
             <select id="sort-filter" aria-label="Sort role requests" value={sort} onChange={(event) => { setSort(event.target.value); setPage(1); }}>
               <option value="newest">Newest First</option>
               <option value="oldest">Oldest First</option>
-              <option value="target">Target Date: Earliest</option>
-              <option value="target-latest">Target Date: Latest</option>
             </select>
           </div>
         </div>
@@ -451,7 +442,6 @@ export default function RolesList({
                     <th>Vacancies</th>
                     <th>Requester</th>
                     <th>Created</th>
-                    <th>Target Date</th>
                     <th>Status</th>
                     <th>Action</th>
                   </tr>
@@ -496,7 +486,7 @@ export default function RolesList({
                       <td>
                         {formatDate(role.createdAt, true)}
                       </td>
-                      <td>{formatDate(role.targetHiringDate)}</td>
+
                       <td>
                         <span className={statusClass(role.status)}>
                           {role.status || "Submitted"}

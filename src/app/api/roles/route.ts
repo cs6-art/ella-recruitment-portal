@@ -48,7 +48,6 @@ function roleDraftFields(input: Record<string, unknown>, roleId: string, now: st
     Reason_For_Request: draftText(input.reasonForRequest, 2000),
     Job_Description: draftText(input.jobDescription),
     Replacement_Employee: draftText(input.requestType === "Staff Replacement" ? input.replacementEmployee : "", 150),
-    Target_Hiring_Date: draftText(input.targetHiringDate, 30),
     Employment_Type: draftText(input.employmentType, 50) || "Full-Time",
     HOD_Email: hodEmail,
     HOD_Availability_Dates: "",
@@ -146,7 +145,7 @@ export async function GET(request: Request) {
     );
     roles = [...roles].sort((left, right) => {
       if (sort === "oldest") return Date.parse(left.createdAt) - Date.parse(right.createdAt);
-      if (sort === "target") return (left.targetHiringDate || "9999-12-31").localeCompare(right.targetHiringDate || "9999-12-31");
+
       return Date.parse(right.createdAt) - Date.parse(left.createdAt);
     });
     const total = roles.length;
@@ -421,8 +420,6 @@ export async function POST(request: Request) {
         jobDescription: input.jobDescription,
         replacementEmployee:
           input.replacementEmployee,
-        targetHiringDate:
-          input.targetHiringDate,
         hodEmail: finalInterviewCalendar.email,
         hodAvailabilityDates: input.hodAvailabilityDates,
         hodAvailabilityTimes: input.hodAvailabilityTimes,

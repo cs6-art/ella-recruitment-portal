@@ -9,7 +9,6 @@ const apiSource = fs.readFileSync("src/app/api/roles/route.ts", "utf8");
 const parseDescriptionSource = fs.readFileSync("src/app/api/roles/parse-description/route.ts", "utf8");
 const documentExtractionSource = fs.readFileSync("src/lib/document-extraction.ts", "utf8");
 const pdfTextParserSource = fs.readFileSync("src/lib/pdf-text-parser.ts", "utf8");
-const dateOnlySource = fs.readFileSync("src/lib/date-only.ts", "utf8");
 
 function validate(input) {
   const email = String(input.requesterEmail || "").trim().toLowerCase();
@@ -60,7 +59,7 @@ test("required-field and vacancy rules remain in the shared schema", () => {
   assert.match(schemaSource, /jobTitle: z\.string\(\)\.trim\(\)\.min/);
   assert.match(schemaSource, /numberOfVacancies: z\.coerce\.number\(\)\.int\(\)\.min\(1\)/);
   assert.match(schemaSource, /reasonForRequest: z\.string\(\)\.trim\(\)\.min/);
-  assert.match(schemaSource, /targetHiringDate: z\.string\(\)\.trim\(\)\.min/);
+  assert.doesNotMatch(schemaSource, /targetHiringDate/);
 });
 
 test("role creation only renders the requisition and HR screening fields", () => {
@@ -74,7 +73,6 @@ test("role creation only renders the requisition and HR screening fields", () =>
     "department",
     "numberOfVacancies",
     "reasonForRequest",
-    "targetHiringDate",
     "customScreeningQuestion1",
     "customScreeningQuestion2",
   ]) {
@@ -131,10 +129,8 @@ test("role creation can generate AI guidance from typed job descriptions", () =>
   assert.match(formSource, /AI draft service returned an empty response/);
 });
 
-test("role drafts normalize the stored target date for the browser date input", () => {
-  assert.match(formSource, /targetHiringDate: toDateInputValue\(initialValues\?\.targetHiringDate\)/);
-  assert.match(dateOnlySource, /monthFirst/);
-  assert.match(dateOnlySource, /input type="date"/);
+test("role drafts no longer collect a target hiring date", () => {
+  assert.doesNotMatch(formSource, /targetHiringDate|Target Hiring Date/);
 });
 
 test("job-description PDF extraction uses the current resilient parser", () => {

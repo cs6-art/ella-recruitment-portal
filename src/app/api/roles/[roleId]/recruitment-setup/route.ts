@@ -363,7 +363,6 @@ export async function POST(request: Request, context: Context) {
           autoStartDate: setup.voiceInterviewAutoStartDate,
           autoEndDate: setup.voiceInterviewAutoEndDate,
           timezone: setup.voiceInterviewTimezone,
-          targetHiringDate: role.targetHiringDate,
         });
         voiceSlotsGeneratedAt = voiceSlots.created > 0 || voiceSlots.skipped > 0 ? updatedAt : voiceSlotsGeneratedAt;
         await updateRoleRequestFields(role.roleId, { Voice_Interview_Slots_Generated_At: voiceSlotsGeneratedAt });

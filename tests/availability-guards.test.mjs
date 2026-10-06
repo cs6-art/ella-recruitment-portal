@@ -17,14 +17,10 @@ test("availability rules reject overlapping weekday windows and deduplicate lega
   assert.match(rules, /export function withoutOverlappingAvailabilityRules/);
   assert.match(rules, /const rules = withoutOverlappingAvailabilityRules\(stored\)/);
   assert.match(rules, /new Map\(slots\.map/);
-  assert.match(rules, /date <= text\(targetHiringDate\)/);
   assert.match(rules, /startTime: "10:00"/);
   assert.match(rules, /endTime: "16:00"/);
   assert.match(rules, /start === 12 \* 60/);
   assert.match(rules, /isVoiceInterview \|\| isFinalInterview \? \[1, 2, 3, 4, 5\]/);
-  assert.match(rules, /export function isTargetHiringDateOverdue/);
-  assert.match(bookings, /Target hiring date overdue/);
-  assert.match(bookings, /is-target-overdue/);
 });
 
 test("availability write API blocks stacked voice schedules and rejects manual final schedules", () => {
@@ -56,4 +52,10 @@ test("calendar counter uses configured windows and recruitment setup is editable
   assert.match(bookings, /\{activeWindows\}/);
   assert.match(bookings, /Configured recurring and specific windows/);
   assert.match(roleDetails, /RecruitmentSetupEditor[^\n]*editable=\{canReviewRole\}/);
+});
+
+test("retired hiring dates cannot restrict availability or booking", () => {
+  assert.doesNotMatch(rules, /targetHiringDate|isBeforeTargetHiringDate/);
+  assert.doesNotMatch(workflow, /targetHiringDate|isBeforeTargetHiringDate/);
+  assert.doesNotMatch(bookings, /targetHiringDate|Target hiring date overdue/);
 });

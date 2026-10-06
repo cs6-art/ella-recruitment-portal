@@ -9,7 +9,7 @@ the portal maps by header name, but spelling must remain exact.
 `Last_Updated_By_Email`, `Latest_Comments`, `Resume_Target_Status`,
 `Requester_Name`, `Requester_Email`, `HOD_Email`, `Requester_Type`, `Request_Type`,
 `Role_Country`, `Department`, `Job_Title`, `Number_Of_Vacancies`, `Reason_For_Request`,
-`Replacement_Employee`, `Target_Hiring_Date`, `Reporting_Manager`,
+`Replacement_Employee`, `Reporting_Manager`,
 `Work_Location`, `Employment_Type`, `Job_Responsibilities`, `Required_Skills`,
 `Experience_Required`, `Education_Requirements`, `Preferred_Qualifications`,
 `Role_Expectations`, `Salary_Min`, `Salary_Max`, `Work_Schedule`,

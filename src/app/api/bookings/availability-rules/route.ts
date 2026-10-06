@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     const futureSlots = virtualSlotsForRole({ ...role, interviewAvailabilityRules: JSON.stringify([parsed[0]]) }, parsed[0].interviewType)
       .filter(hasValidFutureTime);
     if (futureSlots.length === 0) {
-      return NextResponse.json({ success: false, error: "This schedule creates no future interview times before the target hiring date. Choose an earlier date or a later target hiring date." }, { status: 422 });
+      return NextResponse.json({ success: false, error: "This schedule creates no future interview times in the current month. Choose a future date in the current month." }, { status: 422 });
     }
     // DEFAULT and LEGACY rules are read fallbacks. Do not persist and stack
     // them when an HR user adds a real availability rule.

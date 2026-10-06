@@ -13,7 +13,7 @@ import { cachedSheetsRead, invalidateSheetsCache } from "@/lib/sheets-cache";
 import type { ResumeFileRecord } from "@/lib/resume-files";
 import { generateAutomaticVoiceInterviewSlots, type VoiceInterviewSlot } from "@/lib/voice-interview-availability";
 import { countActiveVoiceInterviews, isActiveVoiceInterviewStatus, MAX_CONCURRENT_VOICE_INTERVIEWS, voiceCapacitySlotId, voiceInterviewConcurrencyKey } from "@/lib/voice-interview-capacity";
-import { hasValidFutureTime, isBeforeTargetHiringDate, isCurrentCalendarMonth, isStandardFinalInterviewSlot, isStandardVoiceInterviewSlot, isVirtualSlotId, slotKey, virtualSlotsForRole } from "@/lib/interview-availability-rules";
+import { hasValidFutureTime, isCurrentCalendarMonth, isStandardFinalInterviewSlot, isStandardVoiceInterviewSlot, isVirtualSlotId, slotKey, virtualSlotsForRole } from "@/lib/interview-availability-rules";
 
 export type BookingKind = "voice" | "final";
 export type ApplicantDecisionStage = "resume" | "voice" | "final";
@@ -624,7 +624,6 @@ export async function getBookingContext(kind: BookingKind, token: string): Promi
     .filter((slot) => field(slot, "Role_ID", "Role ID").toLowerCase() === roleId.toLowerCase())
     .filter((slot) => field(slot, "Interview_Type", "Interview Type") === bookingKindValue(kind))
     .filter((slot) => field(slot, "Status").toLowerCase() === "available")
-    .filter((slot) => isBeforeTargetHiringDate(field(slot, "Date"), role?.targetHiringDate))
     .map(slotFrom)
     .filter((slot) => kind !== "voice" || isStandardVoiceInterviewSlot(slot))
     .filter((slot) => kind !== "final" || isStandardFinalInterviewSlot(slot))
@@ -1116,7 +1115,6 @@ async function reserveBookingInternal(kind: BookingKind, token: string, slotId: 
   if (kind === "voice" && ["booked", "completed"].includes(context.currentSlot?.status?.toLowerCase() || "")) {
     throw new Error("This voice interview is already scheduled. Use the latest booking link for a replacement attempt.");
   }
-  const role = await getRoleRequestById(context.roleId);
   const finalCalendarEmail = kind === "final" ? (await getFinalInterviewCalendarConfig()).email : "";
   let matchingSlotIndex = slotsData.rows.findIndex((row) => field(row, "Slot_ID", "Slot ID") === cleanSlotId);
   let matchingSlot = matchingSlotIndex >= 0 ? slotsData.rows[matchingSlotIndex] : undefined;
@@ -1153,7 +1151,6 @@ async function reserveBookingInternal(kind: BookingKind, token: string, slotId: 
   // Re-check at confirmation time so a page opened earlier cannot reserve a
   // slot that has since started or passed.
   if (!hasValidFutureTime({ date: field(matchingSlot, "Date"), startTime: field(matchingSlot, "Start_Time", "Start Time"), timezone: field(matchingSlot, "Timezone", "Time Zone") || "Asia/Singapore" })) throw new Error("This interview slot has already passed. Choose another time.");
-  if (!isBeforeTargetHiringDate(field(matchingSlot, "Date"), role?.targetHiringDate)) throw new Error("This interview slot is outside the role's target hiring window. Choose another slot.");
   const matchingStatus = field(matchingSlot, "Status").toLowerCase();
   const matchingVoiceSlot = kind === "voice" && field(matchingSlot, "Interview_Type", "Interview Type").toLowerCase().includes("voice");
   const matchingVoiceBooking = matchingVoiceSlot && isActiveVoiceInterviewStatus(matchingStatus);
@@ -1845,7 +1842,6 @@ export async function createInterviewSlot(input: CreateInterviewSlotInput) {
   if (input.interviewType === "Final Interview" && !role) throw new Error("Role request not found.");
   if (input.interviewType === "Final Interview" && role) {
     if (!isStandardFinalInterviewSlot({ interviewType: input.interviewType, startTime, endTime })) throw new Error("HR interview slots must be one hour between 10:00 and 16:00, excluding 12:00–13:00.");
-    if (!isBeforeTargetHiringDate(date, role.targetHiringDate)) throw new Error("The HR interview date must be on or before the role's target hiring date.");
     const hodEmail = (await getFinalInterviewCalendarConfig()).email;
     if (!hodEmail) throw new Error("No HR interviewer email is configured for this role.");
     const calendar = await checkCalendarAvailability({ hodEmail, date, startTime, endTime, timezone });
@@ -1874,7 +1870,7 @@ export async function createInterviewSlot(input: CreateInterviewSlotInput) {
   return { slotId, interviewType: input.interviewType, roleId, date, startTime, endTime, timezone, status: "Available", applicationId: "", candidateName: "", candidateEmail: "", bookedAt: "", lastUpdated: new Date().toISOString() };
 }
 
-export async function createConfiguredVoiceInterviewSlots({ roleId, mode, manualSlots, autoStartDate, autoEndDate, timezone, targetHiringDate }: { roleId: string; mode: "none" | "manual" | "automatic"; manualSlots: VoiceInterviewSlot[]; autoStartDate: string; autoEndDate: string; timezone: string; targetHiringDate?: string }): Promise<{ created: number; skipped: number; slots: VoiceInterviewSlot[] }> {
+export async function createConfiguredVoiceInterviewSlots({ roleId, mode, manualSlots, autoStartDate, autoEndDate, timezone }: { roleId: string; mode: "none" | "manual" | "automatic"; manualSlots: VoiceInterviewSlot[]; autoStartDate: string; autoEndDate: string; timezone: string }): Promise<{ created: number; skipped: number; slots: VoiceInterviewSlot[] }> {
   if (mode === "none") return { created: 0, skipped: 0, slots: [] };
   const durationMinutes = 10;
   const configuredSlots = mode === "automatic"
@@ -1886,10 +1882,9 @@ export async function createConfiguredVoiceInterviewSlots({ roleId, mode, manual
   // this prevents setup actions from creating hidden future-month rows.
   const slots = configuredSlots
     .filter((slot) => isStandardVoiceInterviewSlot({ interviewType: "AI Voice Interview", date: slot.date, startTime: slot.startTime, endTime: slot.endTime }))
-    .filter((slot) => isBeforeTargetHiringDate(slot.date, targetHiringDate))
     .filter((slot) => isCurrentCalendarMonth(slot.date, slot.timezone))
     .filter((slot) => scheduledInstant(slot.date, slot.startTime, slot.timezone).getTime() > Date.now());
-  if (slots.length === 0) throw new Error("No AI Voice Interview slots match the current month, target hiring date, and future-time rules.");
+  if (slots.length === 0) throw new Error("No AI Voice Interview slots match the current month and future-time rules.");
 
   const data = await readSheet("Interview_Slots", "X");
   const existing = new Set(data.rows.map((row) => `${field(row, "Interview_Type", "Interview Type").toLowerCase()}|${field(row, "Role_ID", "Role ID").toLowerCase()}|${field(row, "Date")}|${field(row, "Start_Time", "Start Time")}`));
