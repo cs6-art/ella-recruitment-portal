@@ -9,7 +9,7 @@ const queueSchema = [
   'driveFileId', 'driveFileName', 'driveFileUrl', 'driveFileMimeType', 'roleId',
   'candidateName', 'candidateEmail', 'preferredMobile', 'applicantCountry', 'status',
   'applicationId', 'errorMessage', 'discoveredAt', 'processingStartedAt', 'processedAt',
-  'attemptCount', 'lastUpdated', 'environment', 'is_uat', 'batchId', 'jobId',
+  'attemptCount', 'lastUpdated', 'environment', 'is_uat', 'batchId', 'jobId', 'batchSize', 'submittedByEmail',
 ].map((id) => ({ id, displayName: id, type: id === 'is_uat' ? 'boolean' : 'string', canBeUsedToMatch: id === 'jobId' }));
 
 const queueParameters = {
@@ -51,9 +51,11 @@ const environment = text(body.environment) || 'production';
 const isUat = body.is_uat === true || text(body.is_uat).toLowerCase() === 'true';
 const batchId = text(body.batchId);
 const jobId = text(body.jobId) || queueId;
+const batchSize = String(Math.max(1, Math.min(20, Number(body.batchSize || 1))));
+const submittedByEmail = text(body.submittedByEmail).toLowerCase();
 if (!queueId || !text(body.roleId) || !text(body.resumeText)) throw new Error('Bulk resume payload is incomplete.');
 const now = new Date().toISOString();
-return [{ json: { skip: false, queueId, driveFileId: queueId, driveFileName: text(body.fileName), driveFileUrl: text(body.driveFileUrl), driveFileMimeType: text(body.mimeType), roleId: text(body.roleId), resumeText: text(body.resumeText), candidateName: text(body.candidateName), candidateEmail: text(body.candidateEmail).toLowerCase(), preferredMobile: text(body.preferredMobile), applicantCountry: text(body.applicantCountry).toUpperCase(), resumeFile: body.resumeFile || {}, applicationId: text(body.applicationId), environment, is_uat: isUat, batchId, jobId, status: 'Processing', discoveredAt: text(body.submittedAt) || now, processingStartedAt: now, processedAt: '', attemptCount: String(Number(body.attemptCount || 0) + 1), lastUpdated: now } }];`,
+return [{ json: { skip: false, queueId, driveFileId: queueId, driveFileName: text(body.fileName), driveFileUrl: text(body.driveFileUrl), driveFileMimeType: text(body.mimeType), roleId: text(body.roleId), resumeText: text(body.resumeText), candidateName: text(body.candidateName), candidateEmail: text(body.candidateEmail).toLowerCase(), preferredMobile: text(body.preferredMobile), applicantCountry: text(body.applicantCountry).toUpperCase(), resumeFile: body.resumeFile || {}, applicationId: text(body.applicationId), environment, is_uat: isUat, batchId, jobId, batchSize, submittedByEmail, status: 'Processing', discoveredAt: text(body.submittedAt) || now, processingStartedAt: now, processedAt: '', attemptCount: String(Number(body.attemptCount || 0) + 1), lastUpdated: now } }];`,
     },
     position: [800, 300],
   },

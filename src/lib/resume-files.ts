@@ -41,6 +41,9 @@ export type ResumeFileRecord = {
   uploadedAt: string;
   expiresAt: string;
   kind: ResumeFileKind;
+  uploadQueueId?: string;
+  uploadRoleId?: string;
+  uploadOwnerEmail?: string;
 };
 
 export type StoredResume = {
@@ -55,15 +58,25 @@ function accessSecret() {
   return secret;
 }
 
+let driveAuth: ReturnType<typeof createDriveAuth> | null = null;
 let driveClient: ReturnType<typeof google.drive> | null = null;
 
-function drive() {
-  if (driveClient) return driveClient;
+function createDriveAuth() {
   const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
   const key = getGoogleServiceAccountPrivateKey();
   if (!email || !key) throw new Error("GOOGLE_SERVICE_ACCOUNT_EMAIL / GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY is not configured.");
-  const auth = new google.auth.JWT({ email, key, scopes: ["https://www.googleapis.com/auth/drive.file"] });
-  driveClient = google.drive({ version: "v3", auth });
+  return new google.auth.JWT({ email, key, scopes: ["https://www.googleapis.com/auth/drive.file"] });
+}
+
+function auth() {
+  if (driveAuth) return driveAuth;
+  driveAuth = createDriveAuth();
+  return driveAuth;
+}
+
+function drive() {
+  if (driveClient) return driveClient;
+  driveClient = google.drive({ version: "v3", auth: auth() });
   return driveClient;
 }
 
@@ -181,6 +194,7 @@ type DriveFileFields = {
   size?: string | null;
   createdTime?: string | null;
   properties?: Record<string, string> | null;
+  appProperties?: Record<string, string> | null;
 };
 
 function recordFromDriveFile(file: DriveFileFields): ResumeFileRecord | null {
@@ -197,13 +211,81 @@ function recordFromDriveFile(file: DriveFileFields): ResumeFileRecord | null {
     uploadedAt: file.createdTime || new Date(0).toISOString(),
     expiresAt,
     kind,
+    uploadQueueId: file.appProperties?.queueId || undefined,
+    uploadRoleId: file.appProperties?.roleId || undefined,
+    uploadOwnerEmail: file.appProperties?.ownerEmail || undefined,
   };
 }
 
+/**
+ * Start a private Drive resumable upload so browsers can transfer files larger
+ * than Vercel's function request-body limit without routing the binary through
+ * a short-lived serverless invocation. The returned session URI is a temporary
+ * bearer capability; callers must never log or persist it.
+ */
+export async function createResumeUploadSession(input: {
+  fileName: string;
+  mimeType: string;
+  size: number;
+  sha256: string;
+  roleId: string;
+  queueId: string;
+  ownerEmail: string;
+  environment?: BulkResumeEnvironment;
+}) {
+  const fileName = safeFileName(input.fileName);
+  const kind = detectKind(fileName, input.mimeType);
+  if (!kind) throw new Error("Only PDF, DOC, and DOCX resume files are supported.");
+  if (!Number.isSafeInteger(input.size) || input.size <= 0) throw new Error("The uploaded resume is empty or has an invalid size.");
+  if (input.size > MAX_RESUME_FILE_BYTES) throw new Error("Resume files must be 10 MB or smaller.");
+  if (!/^[a-f0-9]{64}$/i.test(input.sha256)) throw new Error("The resume checksum is invalid.");
+
+  await cleanupIfDue(input.environment);
+  const uploadedAt = new Date();
+  const expiry = retentionExpiry(uploadedAt);
+  const folderId = resumeFolderId(input.environment);
+  const token = (await auth().getAccessToken()).token;
+  if (!token) throw new Error("Google Drive did not issue an upload authorization token.");
+  const query = new URLSearchParams({
+    uploadType: "resumable",
+    supportsAllDrives: "true",
+    fields: "id,name,mimeType,size,createdTime,properties,appProperties",
+  });
+  const response = await fetch(`https://www.googleapis.com/upload/drive/v3/files?${query}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json; charset=UTF-8",
+      "X-Upload-Content-Type": resumeMimeType(kind),
+      "X-Upload-Content-Length": String(input.size),
+    },
+    body: JSON.stringify({
+      name: fileName,
+      parents: [folderId],
+      properties: { kind, sha256: input.sha256.toLowerCase(), expiresAt: expiry },
+      appProperties: {
+        queueId: input.queueId,
+        roleId: input.roleId,
+        ownerEmail: input.ownerEmail.trim().toLowerCase(),
+      },
+    }),
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    console.error("[Resume Upload] Drive could not start a resumable upload:", response.status);
+    throw new Error("Private resume storage could not start the upload. Please try again.");
+  }
+  const uploadUrl = response.headers.get("location") || "";
+  if (!uploadUrl.startsWith("https://www.googleapis.com/upload/drive/v3/files?")) {
+    throw new Error("Private resume storage returned an invalid upload session.");
+  }
+  return { uploadUrl, kind, fileName, mimeType: resumeMimeType(kind), sha256: input.sha256.toLowerCase(), expiresAt: expiry };
+}
+
 /** Remove expired resumes from the Drive storage folder. */
-export async function cleanupExpiredResumeFiles(now = Date.now()) {
+export async function cleanupExpiredResumeFiles(now = Date.now(), environment: BulkResumeEnvironment = "production") {
   const client = drive();
-  const folderId = resumeFolderId();
+  const folderId = resumeFolderId(environment);
   let scanned = 0;
   let deleted = 0;
   let pageToken: string | undefined;
@@ -235,23 +317,25 @@ export async function cleanupExpiredResumeFiles(now = Date.now()) {
   return { deleted, scanned };
 }
 
-let lastCleanupAt = 0;
-let cleanupInFlight: Promise<unknown> | null = null;
+const lastCleanupAt = new Map<BulkResumeEnvironment, number>();
+const cleanupInFlight = new Map<BulkResumeEnvironment, Promise<unknown>>();
 const CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
 
-async function cleanupIfDue() {
+async function cleanupIfDue(environment: BulkResumeEnvironment = "production") {
   const now = Date.now();
-  if (cleanupInFlight) return cleanupInFlight;
-  if (lastCleanupAt + CLEANUP_INTERVAL_MS > now) return;
-  lastCleanupAt = now;
-  cleanupInFlight = cleanupExpiredResumeFiles(now)
+  const inFlight = cleanupInFlight.get(environment);
+  if (inFlight) return inFlight;
+  if ((lastCleanupAt.get(environment) || 0) + CLEANUP_INTERVAL_MS > now) return;
+  lastCleanupAt.set(environment, now);
+  const cleanup = cleanupExpiredResumeFiles(now, environment)
     .catch((error) => console.warn("[Resume Cleanup] Unable to remove expired files:", error))
-    .finally(() => { cleanupInFlight = null; });
-  return cleanupInFlight;
+    .finally(() => { cleanupInFlight.delete(environment); });
+  cleanupInFlight.set(environment, cleanup);
+  return cleanup;
 }
 
 export async function storeResumeFile(file: File, options: { environment?: BulkResumeEnvironment } = {}): Promise<StoredResume> {
-  await cleanupIfDue().catch(() => undefined);
+  await cleanupIfDue(options.environment).catch(() => undefined);
   const fileName = safeFileName(file.name || "resume");
   const kind = detectKind(fileName, file.type);
   if (!kind) throw new Error("Only PDF, DOC, and DOCX resume files are supported.");
@@ -303,7 +387,7 @@ export async function storeResumeFile(file: File, options: { environment?: BulkR
 export async function getResumeFileRecord(fileId: string) {
   if (!isPlausibleDriveFileId(fileId)) return null;
   try {
-    const response = await drive().files.get({ fileId, fields: "id, name, mimeType, size, createdTime, properties, trashed", supportsAllDrives: true });
+    const response = await drive().files.get({ fileId, fields: "id, name, mimeType, size, createdTime, properties, appProperties, trashed", supportsAllDrives: true });
     if (response.data.trashed) return null;
     const record = recordFromDriveFile(response.data);
     if (!record) return null;

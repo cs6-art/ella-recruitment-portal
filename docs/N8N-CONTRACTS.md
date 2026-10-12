@@ -259,12 +259,14 @@ Binary or base64 resume content is never sent to or stored in Google Sheets.
 
 ## Bulk Resume Screening
 
-The Resume Screening page can direct HR to a shared Google Drive folder for
-bulk intake. Upload PDF, legacy DOC, or DOCX files using a role-prefixed filename such as
-`AC01 - Candidate Name.pdf`. The n8n poller searches that folder every five
-minutes, claims one file at a time, extracts its text through the portal, and
-submits the same candidate-application contract used by the existing screening
-workflow.
+The Resume Screening page supports two separate intake paths. The “Upload from
+Google Drive” link and role-mapped Drive folders use the scheduled n8n poller
+described below. The portal's multi-file uploader writes each PDF, legacy DOC,
+or DOCX directly to private Google Drive storage, then publishes a durable
+Vercel Queue message. The Vercel consumer extracts and validates the resume,
+calls the same n8n candidate screening intake contract, and records queue
+status. Portal uploads do not depend on a request continuing after a Vercel
+response.
 
 Create a `Bulk_Resume_Queue` tab in the candidate workbook with this header
 row, in this order:
@@ -272,13 +274,14 @@ row, in this order:
 `driveFileId, driveFileName, driveFileUrl, driveFileMimeType, roleId,
 candidateName, candidateEmail, preferredMobile, applicantCountry, status,
 applicationId, errorMessage, discoveredAt, processingStartedAt, processedAt,
-attemptCount, lastUpdated`
+attemptCount, lastUpdated, environment, is_uat, batchId, jobId, batchSize,
+submittedByEmail`
 
 The queue uses `Queued`, `Processing`, `Screened`, `Failed`, and `Skipped`
-statuses. The portal groups events by `driveFileId` and displays only the latest
-timestamped status. `Screened` is terminal for the selected role: uploading the
-same resume again returns a `Skipped` result and does not call the AI screening
-workflow or create another queue item.
+statuses. The portal groups events by role and `driveFileId` and displays only
+the latest status. A resume is shown as Completed only after the candidate
+screening result is present in `High_Match_Profile`. A duplicate hash for the
+same role is recorded as Skipped and does not start a second screening request.
 The queue identity is role-scoped for portal uploads, so the same resume may be
 screened independently for a different published role. The Drive poller retries
 transient failures up to three total attempts. It waits five minutes before the
@@ -290,19 +293,35 @@ Configure the n8n environment with `GOOGLE_BULK_RESUME_DRIVE_FOLDER_ID` and
 `N8N_BULK_RESUME_PORTAL_BASE_URL`. The latter must be a URL reachable from n8n
 (a local `http://localhost:3000` URL will not work from a hosted n8n instance).
 
-For local HR testing, the primary flow is the portal's direct multi-file upload.
-The portal extracts each PDF/DOC/DOCX locally and sends at most two files in
-flight, starting later workers 10 seconds apart, to
-`N8N_BULK_RESUME_UPLOAD_WEBHOOK_URL` at `/webhook/bulk-resume-upload`.
-The `McLink - Bulk Resume Upload Intake` workflow extracts candidate contact
-details, writes the processing claim, calls the existing candidate screening
-workflow, retries quota-sensitive Sheets operations up to five times with a
-5-second delay, and records the final queue status. The portal also applies
-exponential backoff to its own Sheets reads. This conservative limit yields a
-long-run intake rate of approximately six resumes per minute, subject to AI and
-Sheets latency; completed results may be slower when retries are needed. It
-uses the SHA-256 file hash as the queue ID, so uploading the same file again
-does not create another screening request after it is marked `Screened`.
+For portal uploads, deploy the Vercel Queues
+`queue/v2beta` trigger in `vercel.json`. The consumer is
+`/api/queues/bulk-resume-screening`; it reads the saved resume from Drive,
+validates candidate name/email, then calls
+`N8N_BULK_RESUME_UPLOAD_WEBHOOK_URL` at `/webhook/bulk-resume-upload`. The
+`McLink - Bulk Resume Upload Intake` workflow must remain active and continue
+calling the existing candidate application workflow. Queue messages contain
+file references and correlation IDs; resume text is not stored in Vercel Queue.
+Vercel delivery is at-least-once, so the consumer checks the saved applicant
+record and uses the role-scoped SHA-256 queue ID to prevent duplicate handoffs.
+
+The portal uploads bytes to a Google Drive resumable session, outside the Vercel
+function request body. Configure `RESUME_STORAGE_DRIVE_FOLDER_ID` and grant the
+service account write access to that private folder. Each file is limited to
+10 MB, and up to 20 files can be submitted per batch. A recovery cron runs every
+five minutes and republishes stale Queued records with the same queue
+idempotency key; configure `CRON_SECRET` in Vercel so only Vercel Cron can call
+the recovery endpoint. Queue, retry, and status APIs apply role and department
+access checks.
+
+The portal rejects unsupported, empty, unreadable, and clearly non-resume
+documents before queueing. Processing errors retry automatically up to five
+deliveries when the candidate handoff has not started. If a network timeout
+occurs after dispatch begins, the item is marked Failed with an explicit
+uncertain-outcome message; the retry endpoint checks for an existing candidate
+record before allowing another handoff. The consumer lease is ten minutes,
+while a stale Processing record is not retryable until fifty minutes; this
+leaves room for the five-delivery retry limit to settle before HR starts a new
+attempt.
 
 The active workflow `JD Role Folder Bulk Resume Screening`
 (`MWt7W7LNFNZxcc0q`) reads active role-to-folder mappings from the
@@ -315,13 +334,10 @@ are stored as blank and do not prevent the applicant from appearing in the
 portal. See `docs/AUTOMATED-BULK-RESUME-SCREENING.md` for operations and access
 requirements.
 
-Portal multi-file uploads emit one `bulk_resume_batch_complete` event to the
-canonical role-request webhook after every selected file has received a
-terminal response from the bulk intake workflow. The active role-request
-workflow sends one internal HTML summary through Gmail account 4 to
-`cs6@mclinkgroup.com`, `cs9@mclinkgroup.com`, `mgt@mclinkgroup.com`, and
-`hrsg@mclinkgroup.com`. This notification is internal-only; no candidate is
-included as a recipient.
+The scheduled Drive poller remains a separate path: it reads active mappings
+from `Bulk_Role_Folder_Map`, and only scans month/year folders inside mapped
+role folders. It does not recover portal queue jobs; the Vercel recovery cron
+handles those.
 
 ## Recruitment Setup stage actions
 

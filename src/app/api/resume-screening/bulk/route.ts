@@ -8,7 +8,7 @@ import { getRoleRequests, isPublishedRoleForIntake } from "@/lib/google-sheets";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
-const STALE_PROCESSING_MS = 30 * 60 * 1000;
+const STALE_PROCESSING_MS = 50 * 60 * 1000;
 
 function errorResponse(error: string, status: number) {
   return NextResponse.json({ success: false, error }, { status });
@@ -42,7 +42,14 @@ export async function GET(request: Request) {
     // written before jobId existed. The evidence matcher falls back through
     // application ID, SHA, Drive file ID, role-scoped filename, and unique
     // candidate identifiers without allowing cross-role matches.
-    const screeningEvidence = await getBulkResumeScreeningEvidence(queueItems);
+    let screeningEvidence = new Set<string>();
+    let evidenceError = "";
+    try {
+      screeningEvidence = await getBulkResumeScreeningEvidence(queueItems);
+    } catch (error) {
+      evidenceError = error instanceof Error ? error.message : "The saved screening results could not be verified.";
+      console.error("[Bulk Resume Status] Unable to verify saved screening evidence:", error);
+    }
     const now = Date.now();
     const queueAge = (item: (typeof queueItems)[number]) => {
       const timestamp = Date.parse(item.lastUpdated || item.processedAt || item.processingStartedAt || item.discoveredAt);
@@ -51,6 +58,11 @@ export async function GET(request: Request) {
     const items = queueItems.map((item) => {
       const rawStatus = item.status.toLowerCase();
       const hasEvidence = screeningEvidence.has(`${item.roleId.toLowerCase()}|${item.driveFileId.toLowerCase()}`);
+      if (evidenceError && ["screened", "processed"].includes(rawStatus)) {
+        return queueAge(item) >= STALE_PROCESSING_MS
+          ? { ...item, status: "Failed", errorMessage: "The saved screening result could not be verified after 50 minutes. Refresh status before retrying." }
+          : { ...item, status: "Processing", errorMessage: "The workflow reported completion, but the saved screening result could not be verified. Refresh status or contact support." };
+      }
       if (hasEvidence && ["screened", "processed", "processing"].includes(rawStatus)) {
         return { ...item, status: "Screened", errorMessage: "" };
       }
@@ -64,7 +76,10 @@ export async function GET(request: Request) {
         return { ...item, status: "Processing", errorMessage: "Waiting for the saved applicant screening result." };
       }
       if (rawStatus === "processing" && queueAge(item) >= STALE_PROCESSING_MS) {
-        return { ...item, status: "Failed", errorMessage: "Screening did not produce a saved result within 30 minutes." };
+        return { ...item, status: "Failed", errorMessage: "Screening did not produce a saved result within 50 minutes." };
+      }
+      if (rawStatus === "queued" && queueAge(item) >= STALE_PROCESSING_MS) {
+        return { ...item, status: "Failed", errorMessage: "The queued job did not start within 50 minutes. Retry this resume or upload it again." };
       }
       return item;
     });
@@ -84,6 +99,8 @@ export async function GET(request: Request) {
       batchId: configuredProductionUatBatchId,
       environment: bulkResumeIsUatMarked() ? "uat" : bulkResumeEnvironment(),
       isUat: bulkResumeIsUatMarked(),
+      evidenceVerified: !evidenceError,
+      ...(evidenceError ? { error: "Queue statuses are available, but saved screening results could not be verified. Refresh status before treating any item as complete." } : {}),
       counts,
       // Keep the legacy response property for existing clients, but make it
       // the exact same reconciled current-state distribution as `counts`.
@@ -95,11 +112,9 @@ export async function GET(request: Request) {
     const message = error instanceof Error ? error.message : "Bulk screening status is not configured.";
     const configured = !message.toLowerCase().includes("bulk_resume_queue") && !message.toLowerCase().includes("unable to parse range");
     return NextResponse.json({
-      success: true,
-      configured: false,
-      counts: {},
-      items: [],
+      success: false,
+      configured,
       error: configured ? message : "Create the Bulk_Resume_Queue tab to view processing status.",
-    });
+    }, { status: 503 });
   }
 }

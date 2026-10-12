@@ -1,14 +1,16 @@
 import crypto from "node:crypto";
 import { cookies } from "next/headers";
-import { after, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
 import { canManagePipeline, canManageRolePipeline } from "@/lib/access-control";
-import { appendBulkResumeQueueEvent, getBulkResumeQueue, getBulkResumeScreeningEvidence, type BulkResumeQueueItem } from "@/lib/candidate-applications";
-import { extractResumeContactDetails } from "@/lib/resume-contact-extraction";
+import { appendBulkResumeQueueEvent, getBulkResumeQueue, getBulkResumeScreeningEvidence, getBulkResumeApplicantSubmissionEvidence, type BulkResumeQueueItem } from "@/lib/candidate-applications";
+import { enqueueBulkResumeJob } from "@/lib/bulk-resume-queue";
+import { bulkResumeEnvironment, bulkResumeIsUatMarked } from "@/lib/bulk-resume-config";
+import { notifyBulkResumeBatchComplete } from "@/lib/bulk-resume-notifications";
+import { validateCandidateResume } from "@/lib/resume-contact-extraction";
 import { getRoleRequestById, isPublishedRoleForIntake } from "@/lib/google-sheets";
-import { bulkResumeEnvironment, bulkResumeIsUatMarked, bulkResumeWebhookConfig, productionUatBatchId } from "@/lib/bulk-resume-config";
 import { consumeRateLimit, rateLimitHeaders, requestClientKey } from "@/lib/rate-limit";
-import { deleteResumeFile, MAX_RESUME_FILE_BYTES, storeResumeFile } from "@/lib/resume-files";
+import { createResumeUploadSession, deleteResumeFile, getResumeFileRecord, readResumeFile, storeResumeFile, MAX_RESUME_FILE_BYTES } from "@/lib/resume-files";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
 
 export const runtime = "nodejs";
@@ -16,430 +18,399 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 const MAX_FILES_PER_BATCH = 20;
-const MAX_BULK_REQUEST_BYTES = 100 * 1024 * 1024;
-const STALE_PROCESSING_MS = 30 * 60 * 1000;
+const STALE_JOB_MS = 50 * 60 * 1000;
 
-// Each file's pipeline (contact extraction + role-specific AI screening,
-// chained across two n8n workflows) previously ran one at a time from this
-// route, which is why bulk screening topped out around 1 resume/minute even
-// though nothing else in the chain was that slow. Files are independent of
-// each other (distinct content hash, distinct queue row), so running several
-// in flight at once is safe; the concurrency is capped and configurable so
-// it can be tuned to the connected OpenAI/Google Sheets quota instead of
-// guessed. The production cap is intentionally conservative because each file
-// triggers several downstream Google Sheets reads/writes.
-// Keep the burst below the service account's per-user quota while retaining
-// limited parallelism for throughput.
-const DEFAULT_CONCURRENCY = 2;
-const MAX_CONCURRENCY = 2;
-const WORKER_START_INTERVAL_MS = 10_000;
-const SCREENING_WEBHOOK_TIMEOUT_MS = 120_000;
+type PrepareFile = { fileName: string; mimeType: string; size: number; sha256: string };
 
-async function fetchWithTimeout(input: string, init: RequestInit, timeoutMs: number) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(input, { ...init, signal: controller.signal });
-  } catch (error) {
-    if (controller.signal.aborted) throw new Error(`The screening workflow timed out after ${Math.round(timeoutMs / 1000)} seconds.`);
-    throw error;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-function resolveConcurrency(fileCount: number) {
-  const configured = Number(process.env.BULK_RESUME_UPLOAD_CONCURRENCY);
-  const bounded = Number.isFinite(configured) ? Math.min(Math.max(Math.trunc(configured), 1), MAX_CONCURRENCY) : DEFAULT_CONCURRENCY;
-  return Math.max(1, Math.min(bounded, fileCount));
-}
-
-function responseError(error: string, status: number, extra: Record<string, unknown> = {}) {
+function errorResponse(error: string, status: number, extra: Record<string, unknown> = {}) {
   return NextResponse.json({ success: false, error, ...extra }, { status });
 }
 
 function queueIdForHash(roleId: string, sha256: string) {
   const roleKey = roleId.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, "-");
-  return `BULK-${roleKey}-${sha256}`;
-}
-
-function legacyQueueIdForHash(sha256: string) {
-  return `BULK-${sha256}`;
+  return `BULK-${roleKey}-${sha256.toLowerCase()}`;
 }
 
 function driveFileUrl(fileId: string) {
-  return fileId ? `https://drive.google.com/file/d/${fileId}/view` : "";
+  return `https://drive.google.com/file/d/${fileId}/view`;
 }
 
-export async function POST(request: Request) {
+function fileIdFromUrl(url: string) {
+  return url.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]{10,80})/)?.[1] || "";
+}
+
+function queueAge(item: BulkResumeQueueItem) {
+  const timestamp = Date.parse(item.lastUpdated || item.processedAt || item.processingStartedAt || item.discoveredAt);
+  return Number.isFinite(timestamp) ? Date.now() - timestamp : Number.MAX_SAFE_INTEGER;
+}
+
+function rateLimit(request: Request, email: string) {
+  return consumeRateLimit(`bulk-resume-file-upload:${email}:${requestClientKey(request)}`, 120, 15 * 60 * 1000);
+}
+
+async function requireRole(request: Request) {
   const user = verifySessionToken((await cookies()).get(COOKIE_NAME)?.value);
-  if (!user) return responseError("Authentication required.", 401);
-  if (!canManagePipeline(user)) return responseError("Only HR reviewers can upload bulk resumes.", 403);
+  if (!user) return { response: errorResponse("Authentication required.", 401) };
+  if (!canManagePipeline(user)) return { response: errorResponse("Only HR reviewers can upload bulk resumes.", 403) };
+  const rate = rateLimit(request, user.email);
+  if (!rate.allowed) return { response: NextResponse.json({ success: false, error: "Too many resume uploads. Try again later." }, { status: 429, headers: rateLimitHeaders(rate) }) };
+  return { user };
+}
 
-  const rate = consumeRateLimit(`bulk-resume-upload:${user.email}:${requestClientKey(request)}`, 5, 15 * 60 * 1000);
-  if (!rate.allowed) return NextResponse.json({ success: false, error: "Too many bulk uploads. Try again later." }, { status: 429, headers: rateLimitHeaders(rate) });
+async function loadPublishedRole(user: NonNullable<Awaited<ReturnType<typeof verifySessionToken>>>, roleId: string) {
+  const role = await getRoleRequestById(roleId);
+  if (!role || !isPublishedRoleForIntake(role)) return { error: errorResponse("The selected role is not available for bulk screening.", 409) };
+  if (!canManageRolePipeline(user, role)) return { error: errorResponse("Only HR reviewers can upload bulk resumes for this role.", 403) };
+  return { role };
+}
 
-  const contentLength = Number(request.headers.get("content-length") || 0);
-  if (contentLength > MAX_BULK_REQUEST_BYTES) return responseError("Bulk uploads must be 100 MB or smaller per batch.", 413);
+async function appendSkippedDuplicate(input: {
+  roleId: string;
+  queueId: string;
+  batchId: string;
+  batchSize: number;
+  submittedByEmail: string;
+  fileName: string;
+  mimeType: string;
+  applicationId?: string;
+  previous?: BulkResumeQueueItem;
+  message: string;
+}) {
+  const now = new Date().toISOString();
+  const skippedId = `SKIPPED-${crypto.createHash("sha256").update(`${input.queueId}:${input.batchId}:${crypto.randomUUID()}`).digest("hex").slice(0, 32)}`;
+  await appendBulkResumeQueueEvent({
+    driveFileId: skippedId,
+    driveFileName: input.fileName,
+    driveFileUrl: input.previous?.driveFileUrl || "",
+    driveFileMimeType: input.mimeType,
+    roleId: input.roleId,
+    candidateName: input.previous?.candidateName || "",
+    candidateEmail: input.previous?.candidateEmail || "",
+    status: "Skipped",
+    applicationId: input.applicationId || input.previous?.applicationId || "",
+    errorMessage: input.message,
+    discoveredAt: now,
+    processedAt: now,
+    attemptCount: "0",
+    lastUpdated: now,
+    environment: bulkResumeEnvironment(),
+    isUat: bulkResumeIsUatMarked(),
+    batchId: input.batchId,
+    jobId: input.queueId,
+    batchSize: String(input.batchSize),
+    submittedByEmail: input.submittedByEmail,
+  });
+  return { queueId: input.queueId, status: "Skipped", message: input.message };
+}
 
-  const environment = bulkResumeEnvironment();
-  const isUat = bulkResumeIsUatMarked();
-  const configuredUatBatchId = productionUatBatchId();
+function previousForQueue(queue: BulkResumeQueueItem[], queueId: string) {
+  // Skipped duplicate submissions are separate audit rows that carry the
+  // stable queue ID in jobId. They must never shadow the actual resume row.
+  return queue.find((item) => item.driveFileId === queueId)
+    || queue.filter((item) => item.jobId === queueId && !item.driveFileId.startsWith("SKIPPED-"))
+      .sort((left, right) => Date.parse(right.lastUpdated || right.discoveredAt) - Date.parse(left.lastUpdated || left.discoveredAt))[0];
+}
 
-  try {
-    const formData = await request.formData();
-    const roleId = String(formData.get("roleId") || "").trim();
-    const files = formData.getAll("resumes").filter((value): value is File => value instanceof File);
-    // This is an operator-controlled escape hatch for the marked Production
-    // UAT batch only. It is intentionally not a general stale-timeout change:
-    // the operator may set it only after checking n8n execution history and
-    // confirming that the listed terminal/orphaned attempts are dead.
-    const immediateUatRecovery = isUat && Boolean(configuredUatBatchId) && String(formData.get("uatRecovery") || "").trim() === configuredUatBatchId;
-    if (!roleId) return responseError("Select a published role before uploading resumes.", 422);
-    // Keep the API contract explicit: legacy binary DOC is accepted alongside
-    // the PDF/DOCX formats supported by the shared extractor.
-    if (!files.length) return responseError("Choose at least one PDF, DOC, or DOCX resume.", 422);
-    if (files.length > MAX_FILES_PER_BATCH) return responseError(`Upload up to ${MAX_FILES_PER_BATCH} resumes per batch.`, 422);
-    const invalidFiles = files.filter((file) => !/\.(pdf|docx?|doc)$/i.test(file.name));
-    if (invalidFiles.length > 0) {
-      return responseError("Unsupported resume file type. Use PDF, DOC, or DOCX files only.", 422, {
-        validationErrors: invalidFiles.map((file) => `${file.name || "Unnamed file"}: unsupported file type`),
+async function prepare(request: Request, body: Record<string, unknown>) {
+  const roleId = String(body.roleId || "").trim();
+  const batchId = String(body.batchId || "").trim();
+  const files = Array.isArray(body.files) ? body.files as PrepareFile[] : [];
+  if (!roleId) return errorResponse("Select a published role before uploading resumes.", 422);
+  if (!/^[a-zA-Z0-9_-]{12,80}$/.test(batchId)) return errorResponse("The upload batch identifier is invalid.", 422);
+  if (!files.length) return errorResponse("Choose at least one PDF, DOC, or DOCX resume.", 422);
+  if (files.length > MAX_FILES_PER_BATCH) return errorResponse(`Upload up to ${MAX_FILES_PER_BATCH} resumes per batch.`, 422);
+
+  const access = await requireRole(request);
+  if (access.response) return access.response;
+  const { user } = access;
+  const roleResult = await loadPublishedRole(user, roleId);
+  if (roleResult.error) return roleResult.error;
+
+  const invalid = files.filter((file) => !file || !/\.(pdf|docx?)$/i.test(String(file.fileName || ""))
+    || !Number.isSafeInteger(file.size) || file.size <= 0 || file.size > MAX_RESUME_FILE_BYTES
+    || !/^[a-f0-9]{64}$/i.test(String(file.sha256 || ""))
+    || (file.mimeType && !["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/octet-stream"].includes(file.mimeType)));
+  if (invalid.length) return errorResponse("One or more uploads have invalid file metadata. Use non-empty PDF, DOC, or DOCX files up to 10 MB each.", 422);
+
+  const queue = await getBulkResumeQueue(roleId, { fresh: true });
+  const screeningEvidence = await getBulkResumeScreeningEvidence(queue);
+  const submittedApplications = await getBulkResumeApplicantSubmissionEvidence(queue);
+  const claimedInBatch = new Set<string>();
+  const prepared: Array<Record<string, unknown>> = [];
+
+  for (let index = 0; index < files.length; index += 1) {
+    const file = files[index];
+    const sha256 = file.sha256.toLowerCase();
+    const queueId = queueIdForHash(roleId, sha256);
+    const previous = previousForQueue(queue, queueId);
+    if (claimedInBatch.has(queueId)) {
+      prepared.push({ ...await appendSkippedDuplicate({ roleId, queueId, batchId, batchSize: files.length, submittedByEmail: user.email, fileName: file.fileName, mimeType: file.mimeType, previous, message: "Duplicate file selected in this same upload." }), fileIndex: index });
+      continue;
+    }
+    claimedInBatch.add(queueId);
+
+    const hasSavedResult = Boolean(previous && screeningEvidence.has(`${previous.roleId.toLowerCase()}|${previous.driveFileId.toLowerCase()}`));
+    const alreadySubmitted = Boolean(previous && submittedApplications.has(`${previous.roleId.toLowerCase()}|${previous.driveFileId.toLowerCase()}`));
+    const status = previous?.status.toLowerCase() || "";
+    const activeOrRecent = ["queued", "processing", "screened", "processed"].includes(status) && queueAge(previous!) < STALE_JOB_MS;
+    if (previous && (hasSavedResult || alreadySubmitted || activeOrRecent)) {
+      const message = hasSavedResult || ["screened", "processed"].includes(status)
+        ? "This resume has already been screened for this role."
+        : alreadySubmitted ? "A candidate application already exists for this resume. It was not submitted again to avoid duplicate screening."
+        : status === "queued" ? "This resume is already waiting in the screening queue." : "This resume is already being screened for this role.";
+      prepared.push({ ...await appendSkippedDuplicate({ roleId, queueId, batchId, batchSize: files.length, submittedByEmail: user.email, fileName: file.fileName, mimeType: file.mimeType, previous, message }), fileIndex: index });
+      continue;
+    }
+
+    try {
+      const session = await createResumeUploadSession({
+        fileName: file.fileName,
+        mimeType: file.mimeType,
+        size: file.size,
+        sha256,
+        roleId,
+        queueId,
+        ownerEmail: user.email,
+        environment: bulkResumeEnvironment(),
       });
-    }
-    const emptyFiles = files.filter((file) => file.size === 0);
-    if (emptyFiles.length > 0) {
-      return responseError("Empty resume files cannot be submitted.", 422, {
-        validationErrors: emptyFiles.map((file) => `${file.name || "Unnamed file"}: file is empty`),
-      });
-    }
-    const oversizedFiles = files.filter((file) => file.size > MAX_RESUME_FILE_BYTES);
-    if (oversizedFiles.length > 0) {
-      return responseError("Each resume must be 10 MB or smaller.", 422, {
-        validationErrors: oversizedFiles.map((file) => `${file.name || "Unnamed file"}: exceeds the 10 MB limit`),
-      });
-    }
-    const totalFileBytes = files.reduce((total, file) => total + file.size, 0);
-    if (totalFileBytes > MAX_BULK_REQUEST_BYTES) return responseError("The selected resumes exceed the 100 MB total upload limit.", 413);
-
-    const { url: webhookUrl, secret: webhookSecret } = bulkResumeWebhookConfig();
-
-    const role = await getRoleRequestById(roleId);
-    if (!role || !isPublishedRoleForIntake(role)) return responseError("The selected role is not available for bulk screening.", 409);
-    if (!canManageRolePipeline(user, role)) return responseError("Only HR reviewers can upload bulk resumes.", 403);
-
-    // This is the duplicate gate for the portal endpoint. Bypass the short
-    // process-local Sheets cache so a successful prior upload is not missed
-    // by a retry from another serverless instance.
-    const queue = await getBulkResumeQueue(roleId, { fresh: true });
-    const latestByFile = new Map(queue.map((item) => [item.driveFileId, item]));
-    const savedScreeningEvidence = await getBulkResumeScreeningEvidence(queue);
-    const results: Array<Record<string, unknown>> = [];
-    // Keep one correlation id for the complete upload so the internal
-    // notification contains a single, auditable batch summary.
-    const batchId = configuredUatBatchId || `${isUat ? "UAT-BATCH" : "BATCH"}-${new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 14)}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
-
-    // Concurrent workers below can race on the exact same file content
-    // appearing twice in one batch (e.g. a candidate's resume picked up
-    // from two folders): both could pass the "not already queued" check
-    // before either has written a status. Reserve each content hash
-    // synchronously, up front, so a same-batch duplicate is caught here
-    // instead of being screened twice.
-    const claimedInBatch = new Set<string>();
-    async function hashFile(file: File) {
-      const buffer = Buffer.from(await file.arrayBuffer());
-      const sha256 = crypto.createHash("sha256").update(buffer).digest("hex");
-      return { file, sha256, queueId: queueIdForHash(roleId, sha256) };
-    }
-    const hashed = await Promise.all(files.map(hashFile));
-    const toProcess: typeof hashed = [];
-    for (const item of hashed) {
-      if (claimedInBatch.has(item.queueId)) {
-        results.push({ fileName: item.file.name, queueId: item.queueId, status: "Skipped", skipped: true, message: "Duplicate file selected in this same upload." });
-        continue;
-      }
-      claimedInBatch.add(item.queueId);
-      toProcess.push(item);
-    }
-
-    // Reserve every accepted file before returning the 202 response. The
-    // background handoff may take a moment to start, but the status endpoint
-    // can now account for all accepted files immediately and a killed worker
-    // cannot make one file silently disappear from Role Total.
-    const priorLatestByFile = new Map(latestByFile);
-    const reservedAt = new Date().toISOString();
-    await Promise.all(toProcess.map(async ({ file, sha256, queueId }) => {
-      const previous = priorLatestByFile.get(queueId) || priorLatestByFile.get(legacyQueueIdForHash(sha256));
-      const applicationId = `${isUat ? "UAT-" : ""}APP-${crypto.createHash("sha256").update(`${roleId}:${sha256}`).digest("hex").slice(0, 24)}`;
+      prepared.push({ queueId, fileName: session.fileName, mimeType: session.mimeType, status: "Uploading", uploadUrl: session.uploadUrl, fileIndex: index });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Private resume storage could not start the upload.";
+      const now = new Date().toISOString();
       await appendBulkResumeQueueEvent({
         driveFileId: queueId,
-        driveFileName: file.name,
+        driveFileName: file.fileName,
         driveFileUrl: "",
-        driveFileMimeType: file.type,
+        driveFileMimeType: file.mimeType,
         roleId,
-        candidateName: "",
-        candidateEmail: "",
-        status: "Queued",
+        status: "Failed",
+        errorMessage: message,
+        discoveredAt: now,
+        processedAt: now,
+        attemptCount: "0",
+        lastUpdated: now,
+        environment: bulkResumeEnvironment(),
+        isUat: bulkResumeIsUatMarked(),
+        batchId,
+        jobId: queueId,
+        batchSize: String(files.length),
+        submittedByEmail: user.email,
+      });
+      prepared.push({ queueId, fileName: file.fileName, status: "Failed", error: message, fileIndex: index });
+    }
+  }
+
+  await notifyBulkResumeBatchComplete(roleId, batchId);
+  return NextResponse.json({ success: true, roleId, batchId, batchSize: files.length, files: prepared });
+}
+
+async function finalize(request: Request, body: Record<string, unknown>) {
+  const roleId = String(body.roleId || "").trim();
+  const batchId = String(body.batchId || "").trim();
+  const batchSize = Number(body.batchSize || 1);
+  const queueId = String(body.queueId || "").trim();
+  const resumeFileId = String(body.resumeFileId || "").trim();
+  if (!roleId || !queueId || !resumeFileId || !/^[a-zA-Z0-9_-]{12,80}$/.test(batchId) || !Number.isSafeInteger(batchSize) || batchSize < 1 || batchSize > MAX_FILES_PER_BATCH) return errorResponse("The uploaded resume is missing required screening details.", 422);
+
+  const access = await requireRole(request);
+  if (access.response) return access.response;
+  const { user } = access;
+  const roleResult = await loadPublishedRole(user, roleId);
+  if (roleResult.error) return roleResult.error;
+
+  try {
+    const uploadRecord = await getResumeFileRecord(resumeFileId);
+    if (!uploadRecord || uploadRecord.uploadQueueId !== queueId || uploadRecord.uploadRoleId?.toLowerCase() !== roleId.toLowerCase() || uploadRecord.uploadOwnerEmail?.toLowerCase() !== user.email.toLowerCase()) {
+      return errorResponse("The stored file does not match this upload session. Start the upload again.", 403);
+    }
+
+    const bytes = await readResumeFile(uploadRecord);
+    const actualSha256 = crypto.createHash("sha256").update(bytes).digest("hex");
+    if (actualSha256 !== uploadRecord.sha256.toLowerCase() || queueId !== queueIdForHash(roleId, actualSha256)) {
+      await deleteResumeFile(uploadRecord).catch(() => undefined);
+      return errorResponse("The uploaded file changed during transfer. Please select it again and retry.", 422);
+    }
+    const file = new File([bytes], uploadRecord.fileName, { type: uploadRecord.mimeType });
+    const environment = bulkResumeEnvironment();
+    const stored = await storeResumeFile(file, { environment });
+    const validation = validateCandidateResume(stored.extractedText);
+    if (!validation.valid) {
+      if (!stored.reused && stored.record.fileId !== uploadRecord.fileId) await deleteResumeFile(stored.record).catch(() => undefined);
+      await deleteResumeFile(uploadRecord).catch(() => undefined);
+      return errorResponse(validation.error, 422, { validationErrors: [`${uploadRecord.fileName}: ${validation.error}`] });
+    }
+
+    const currentQueue = await getBulkResumeQueue(roleId, { fresh: true });
+    const previous = previousForQueue(currentQueue, queueId);
+    const evidence = await getBulkResumeScreeningEvidence(previous ? [previous] : []);
+    const submittedApplications = await getBulkResumeApplicantSubmissionEvidence(previous ? [previous] : []);
+    const hasSavedResult = Boolean(previous && evidence.has(`${previous.roleId.toLowerCase()}|${previous.driveFileId.toLowerCase()}`));
+    const alreadySubmitted = Boolean(previous && submittedApplications.has(`${previous.roleId.toLowerCase()}|${previous.driveFileId.toLowerCase()}`));
+    const previousStatus = previous?.status.toLowerCase() || "";
+    const previousIsRecent = Boolean(previous && queueAge(previous) < STALE_JOB_MS);
+    if (previous && (hasSavedResult || alreadySubmitted || (previousIsRecent && ["queued", "processing", "screened", "processed"].includes(previousStatus)))) {
+      const existingFileId = fileIdFromUrl(previous.driveFileUrl);
+      if (stored.record.fileId !== existingFileId && !stored.reused) await deleteResumeFile(stored.record).catch(() => undefined);
+      if (uploadRecord.fileId !== existingFileId) await deleteResumeFile(uploadRecord).catch(() => undefined);
+      const message = hasSavedResult || ["screened", "processed"].includes(previousStatus)
+        ? "This resume has already been screened for this role."
+        : alreadySubmitted ? "A candidate application already exists for this resume. It was not submitted again to avoid duplicate screening."
+        : "This resume is already waiting in or being processed by the screening queue.";
+      const result = await appendSkippedDuplicate({ roleId, queueId, batchId, batchSize, submittedByEmail: user.email, fileName: stored.record.fileName, mimeType: stored.record.mimeType, previous, message });
+      await notifyBulkResumeBatchComplete(roleId, batchId);
+      return NextResponse.json({ success: true, ...result, batchId, fileIndex: Number(body.fileIndex) });
+    }
+
+    if (stored.record.fileId !== uploadRecord.fileId) await deleteResumeFile(uploadRecord).catch(() => undefined);
+    const now = new Date().toISOString();
+    const attemptCount = Number(previous?.attemptCount || 0) + 1;
+    const isUat = bulkResumeIsUatMarked();
+    const applicationId = `${isUat ? "UAT-" : ""}APP-${crypto.createHash("sha256").update(`${roleId}:${actualSha256}`).digest("hex").slice(0, 24)}`;
+    const message = {
+      queueId,
+      roleId,
+      resumeFileId: stored.record.fileId,
+      sha256: actualSha256,
+      fileName: stored.record.fileName,
+      mimeType: stored.record.mimeType,
+      applicationId,
+      batchId,
+      batchSize,
+      submittedByEmail: user.email,
+      attemptCount,
+      environment,
+      isUat,
+    } as const;
+
+    await appendBulkResumeQueueEvent({
+      driveFileId: queueId,
+      driveFileName: stored.record.fileName,
+      driveFileUrl: driveFileUrl(stored.record.fileId),
+      driveFileMimeType: stored.record.mimeType,
+      roleId,
+      candidateName: validation.details?.candidateName || "",
+      candidateEmail: validation.details?.candidateEmail || "",
+      status: "Queued",
+      applicationId,
+      errorMessage: "",
+      discoveredAt: previous?.discoveredAt || now,
+      processingStartedAt: "",
+      processedAt: "",
+      attemptCount: String(attemptCount),
+      lastUpdated: now,
+      environment,
+      isUat,
+      batchId,
+      jobId: queueId,
+      batchSize: String(batchSize),
+      submittedByEmail: user.email,
+    });
+
+    try {
+      await enqueueBulkResumeJob(message);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "The durable screening queue is unavailable.";
+      await appendBulkResumeQueueEvent({
+        driveFileId: queueId,
+        driveFileName: stored.record.fileName,
+        driveFileUrl: driveFileUrl(stored.record.fileId),
+        driveFileMimeType: stored.record.mimeType,
+        roleId,
+        candidateName: validation.details?.candidateName || "",
+        candidateEmail: validation.details?.candidateEmail || "",
+        status: "Failed",
         applicationId,
-        errorMessage: "",
-        discoveredAt: reservedAt,
-        processingStartedAt: "",
-        processedAt: "",
-        attemptCount: String(Number(previous?.attemptCount || 0) + 1),
-        lastUpdated: reservedAt,
-        environment: isUat ? "uat" : environment,
+        errorMessage: `The resume is stored, but the screening queue rejected the job: ${reason}`,
+        discoveredAt: previous?.discoveredAt || now,
+        processedAt: new Date().toISOString(),
+        attemptCount: String(attemptCount),
+        lastUpdated: new Date().toISOString(),
+        environment,
         isUat,
         batchId,
         jobId: queueId,
+        batchSize: String(batchSize),
+        submittedByEmail: user.email,
       });
-    }));
-
-    async function processFile({ file, queueId }: { file: File; sha256: string; queueId: string }) {
-      let stored: Awaited<ReturnType<typeof storeResumeFile>> | null = null;
-      let resolvedQueueId = queueId;
-      const submittedAt = new Date().toISOString();
-      try {
-        if (file.size > MAX_RESUME_FILE_BYTES) throw new Error("Resume files must be 10 MB or smaller.");
-        stored = await storeResumeFile(file, { environment });
-        resolvedQueueId = queueIdForHash(roleId, stored.record.sha256);
-        const previous = priorLatestByFile.get(resolvedQueueId) || priorLatestByFile.get(legacyQueueIdForHash(stored.record.sha256));
-        const previousStatus = previous?.status.toLowerCase() || "";
-        const evidenceKey = `${roleId.toLowerCase()}|${resolvedQueueId.toLowerCase()}`;
-        const previousHasSavedResult = savedScreeningEvidence.has(evidenceKey);
-        const previousUpdatedAt = Date.parse(previous?.lastUpdated || previous?.processingStartedAt || previous?.discoveredAt || "");
-        const previousRunIsFresh = Number.isFinite(previousUpdatedAt) && Date.now() - previousUpdatedAt < STALE_PROCESSING_MS;
-        const previousIsActive = previousStatus === "queued" || previousStatus === "screened" || previousStatus === "processing";
-        const recoveryMayBypassTerminalState = immediateUatRecovery && !previousHasSavedResult && previousStatus === "screened";
-        const shouldSkip = previousIsActive && !recoveryMayBypassTerminalState && (previousHasSavedResult || previousRunIsFresh);
-        if (shouldSkip) {
-          await appendBulkResumeQueueEvent({
-            driveFileId: resolvedQueueId,
-            driveFileName: stored.record.fileName,
-            driveFileUrl: driveFileUrl(stored.record.fileId),
-            driveFileMimeType: stored.record.mimeType,
-            roleId,
-            candidateName: previous?.candidateName || "",
-            candidateEmail: previous?.candidateEmail || "",
-            status: "Skipped",
-            applicationId: previous?.applicationId || "",
-            errorMessage: "",
-            discoveredAt: previous?.discoveredAt || submittedAt,
-            processingStartedAt: previous?.processingStartedAt || "",
-            processedAt: submittedAt,
-            attemptCount: previous?.attemptCount || "1",
-            lastUpdated: submittedAt,
-            environment: isUat ? "uat" : environment,
-            isUat,
-            batchId,
-            jobId: resolvedQueueId,
-          });
-          if (!stored.reused) await deleteResumeFile(stored.record);
-          results.push({ fileName: file.name, queueId: resolvedQueueId, status: previousHasSavedResult ? "Screened" : previous?.status || "Queued", skipped: true, message: previousHasSavedResult || previousStatus === "screened" ? "This resume was already screened for this role." : previousStatus === "queued" ? "This resume is already queued for this role." : "This resume is already being screened for this role." });
-          return;
-        }
-
-        const fileUrl = driveFileUrl(stored.record.fileId);
-        const extractedContact = extractResumeContactDetails(stored.extractedText);
-        // Save the processing row first. Downstream parsing can now fail
-        // without making the upload disappear from Role Total.
-        await appendBulkResumeQueueEvent({
-          driveFileId: resolvedQueueId,
-          driveFileName: stored.record.fileName,
-          driveFileUrl: fileUrl,
-          driveFileMimeType: stored.record.mimeType,
-          roleId,
-          candidateName: extractedContact.candidateName,
-          candidateEmail: extractedContact.candidateEmail,
-          status: "Processing",
-          applicationId: `${isUat ? "UAT-" : ""}APP-${crypto.createHash("sha256").update(`${roleId}:${stored.record.sha256}`).digest("hex").slice(0, 24)}`,
-          discoveredAt: submittedAt,
-          processingStartedAt: submittedAt,
-          attemptCount: String(Number(previous?.attemptCount || 0) + 1),
-          lastUpdated: submittedAt,
-          environment: isUat ? "uat" : environment,
-          isUat,
-          batchId,
-          jobId: resolvedQueueId,
-        });
-        const payload = {
-          eventType: "bulk_resume_uploaded",
-          batchId,
-          queueId: resolvedQueueId,
-          roleId,
-          applicationId: `${isUat ? "UAT-" : ""}APP-${crypto.createHash("sha256").update(`${roleId}:${stored.record.sha256}`).digest("hex").slice(0, 24)}`,
-          fileName: stored.record.fileName,
-          mimeType: stored.record.mimeType,
-          sha256: stored.record.sha256,
-          resumeText: stored.extractedText,
-          candidateName: extractedContact.candidateName,
-          candidateEmail: extractedContact.candidateEmail,
-          preferredMobile: extractedContact.preferredMobile,
-          applicantCountry: extractedContact.applicantCountry,
-          resumeFile: stored.record,
-          driveFileUrl: fileUrl,
-          submittedAt,
-          source: isUat ? "Portal Bulk Upload (UAT)" : "Portal Bulk Upload",
-          environment: isUat ? "uat" : environment,
-          isUat,
-          is_uat: isUat,
-          attemptCount: String(Number(previous?.attemptCount || 0) + 1),
-          jobId: resolvedQueueId,
-        };
-        const response = await fetchWithTimeout(webhookUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "X-Webhook-Secret": webhookSecret, "X-Idempotency-Key": resolvedQueueId },
-          body: JSON.stringify(payload),
-          cache: "no-store",
-        }, SCREENING_WEBHOOK_TIMEOUT_MS);
-        if (!response.ok) throw new Error(`The screening workflow returned HTTP ${response.status}.`);
-        const workflowResult = await response.json().catch(() => ({})) as Record<string, unknown>;
-        // The active intake webhook uses an immediate acknowledgement. A 2xx
-        // response therefore means only that n8n accepted the request; it does
-        // not mean that candidate extraction, AI screening, and applicant
-        // persistence have finished. Only an explicit terminal status from a
-        // synchronous integration may be treated as terminal here. Otherwise
-        // the queue poll remains the source of truth.
-        const reportedStatus = String(workflowResult.status || "").trim();
-        const terminalStatus = /^(screened|processed|failed|skipped)$/i.test(reportedStatus) ? reportedStatus : "Queued";
-
-        const queueItem: BulkResumeQueueItem = {
-          driveFileId: resolvedQueueId,
-          driveFileName: stored.record.fileName,
-          driveFileUrl: fileUrl,
-          roleId,
-          candidateName: "",
-          candidateEmail: "",
-          status: terminalStatus,
-          applicationId: payload.applicationId,
-          errorMessage: "",
-          discoveredAt: payload.submittedAt,
-          processingStartedAt: payload.submittedAt,
-          processedAt: /^(screened|processed)$/i.test(terminalStatus) ? payload.submittedAt : "",
-          attemptCount: String(Number(previous?.attemptCount || 0) + 1),
-          lastUpdated: payload.submittedAt,
-        };
-        latestByFile.set(resolvedQueueId, queueItem);
-        results.push({ fileName: stored.record.fileName, queueId: resolvedQueueId, applicationId: payload.applicationId, status: terminalStatus, driveFileUrl: fileUrl });
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : "Unable to submit this resume.";
-        // Best effort only: if storage itself is unavailable, retain the
-        // upload result in the response while avoiding a second failure.
-        await appendBulkResumeQueueEvent({
-          driveFileId: resolvedQueueId,
-          driveFileName: stored?.record.fileName || file.name,
-          driveFileUrl: stored ? driveFileUrl(stored.record.fileId) : "",
-          driveFileMimeType: stored?.record.mimeType || file.type,
-          roleId,
-          status: "Failed",
-          applicationId: stored ? `${isUat ? "UAT-" : ""}APP-${crypto.createHash("sha256").update(`${roleId}:${stored.record.sha256}`).digest("hex").slice(0, 24)}` : "",
-          errorMessage,
-          discoveredAt: submittedAt,
-          processingStartedAt: submittedAt,
-          processedAt: submittedAt,
-          attemptCount: "1",
-          lastUpdated: new Date().toISOString(),
-          environment: isUat ? "uat" : environment,
-          isUat,
-          batchId,
-          jobId: resolvedQueueId,
-        }).catch((queueError) => console.error("[Bulk Resume Upload] Could not save failure queue event:", queueError));
-        if (stored && !results.some((result) => result.queueId === queueIdForHash(roleId, stored?.record.sha256 || ""))) await deleteResumeFile(stored.record).catch(() => undefined);
-        results.push({ fileName: file.name, queueId: resolvedQueueId, status: "Failed", error: errorMessage });
-      }
+      await notifyBulkResumeBatchComplete(roleId, batchId);
+      return errorResponse("The resume was stored, but the durable screening queue is unavailable. Use Retry on this file after the queue is restored.", 503, { queueId, status: "Failed" });
     }
 
-    const concurrency = resolveConcurrency(toProcess.length);
-    const notifyOnSuccess = String(process.env.BULK_RESUME_NOTIFY_ON_SUCCESS || "").trim().toLowerCase() === "true";
-    /**
-     * The upload request only reserves the batch. The expensive Drive and n8n
-     * work continues after the 202 response so a large batch cannot hit the
-     * hosting proxy timeout while the queue is still making progress.
-     */
-    const processBatch = async () => {
-      // Controlled-concurrency worker pool: a fixed number of files are ever
-      // in flight at once, each independently going through Drive storage +
-      // the two-stage n8n screening chain.
-      let cursor = 0;
-      let startedWorkers = 0;
-      let nextWorkerStartAt = 0;
-      async function waitForWorkerStart() {
-        const workerNumber = startedWorkers++;
-        if (workerNumber < concurrency) {
-          if (workerNumber === concurrency - 1) nextWorkerStartAt = Date.now() + WORKER_START_INTERVAL_MS;
-          return;
-        }
-        const startAt = Math.max(Date.now(), nextWorkerStartAt);
-        nextWorkerStartAt = startAt + WORKER_START_INTERVAL_MS;
-        const delay = startAt - Date.now();
-        if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
-      }
-      async function worker() {
-        while (cursor < toProcess.length) {
-          const index = cursor++;
-          await waitForWorkerStart();
-          await processFile(toProcess[index]);
-        }
-      }
-      await Promise.all(Array.from({ length: concurrency }, worker));
-
-      // Bulk completion emails are disabled by default; when enabled, send the
-      // message only after every queue-backed file result is terminal.
-      let notificationStatus: "sent" | "failed" | "disabled" | "not_requested" = notifyOnSuccess ? "not_requested" : "disabled";
-      const notificationUrl = (process.env.N8N_ROLE_REQUEST_WEBHOOK_URL || process.env.N8N_ROLE_WEBHOOK_URL || "").trim();
-      const terminalResults = new Set(["screened", "processed", "failed", "skipped"]);
-      const allResultsTerminal = results.length > 0 && results.every((result) => terminalResults.has(String(result.status || "").toLowerCase()));
-      if (notifyOnSuccess && !isUat && allResultsTerminal && notificationUrl && webhookSecret && files.length > 0) {
-        try {
-          const notificationResponse = await fetch(notificationUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "X-Webhook-Secret": webhookSecret, "X-Idempotency-Key": `bulk-batch-${batchId}` },
-            body: JSON.stringify({
-              eventType: "bulk_resume_batch_complete",
-              batchId,
-              roleId,
-              roleTitle: role.jobTitle || "",
-              submittedByEmail: user.email,
-              totalFiles: files.length,
-              submitted: results.filter((result) => ["Screened", "Processed"].includes(String(result.status))).length,
-              skipped: results.filter((result) => result.skipped === true).length,
-              failed: results.filter((result) => result.status === "Failed").length,
-              results,
-              completedAt: new Date().toISOString(),
-              source: "Portal Bulk Upload",
-            }),
-            cache: "no-store",
-          });
-          notificationStatus = notificationResponse.ok ? "sent" : "failed";
-        } catch (error) {
-          // Upload success must not be rolled back because an internal alert is
-          // temporarily unavailable; the queue records remain authoritative.
-          console.error("[Bulk Resume Upload] completion notification failed:", error);
-          notificationStatus = "failed";
-        }
-      }
-      console.info("[Bulk Resume Upload] Batch finished", { batchId, roleId, results: results.length, notificationStatus });
-    };
-
-    after(() => processBatch().catch((error) => {
-      console.error("[Bulk Resume Upload] Background batch failed:", error);
-    }));
-
-    const acceptedResults = [
-      ...results,
-      ...toProcess.map(({ file, queueId }) => ({ fileName: file.name, queueId, status: "Queued" })),
-    ];
-    return NextResponse.json({
-      success: true,
-      roleId,
-      batchId,
-      environment: isUat ? "uat" : environment,
-      isUat,
-      results: acceptedResults,
-      notificationStatus: notifyOnSuccess ? "pending" : "disabled",
-      concurrency,
-      submitted: toProcess.length,
-    }, { status: 202 });
+    return NextResponse.json({ success: true, queueId, applicationId, batchId, status: "Queued", message: "Resume stored securely and queued for screening.", fileIndex: Number(body.fileIndex) }, { status: 202 });
   } catch (error) {
-    console.error("[Bulk Resume Upload] POST failed:", error);
-    return responseError(error instanceof Error ? error.message : "Unable to upload bulk resumes.", 400);
+    console.error("[Bulk Resume Upload] Finalization failed:", error);
+    return errorResponse(error instanceof Error ? error.message : "Unable to validate and queue this resume.", 422);
+  }
+}
+
+async function recordUploadFailure(request: Request, body: Record<string, unknown>) {
+  const roleId = String(body.roleId || "").trim();
+  const batchId = String(body.batchId || "").trim();
+  const batchSize = Number(body.batchSize || 1);
+  const queueId = String(body.queueId || "").trim();
+  const resumeFileId = String(body.resumeFileId || "").trim();
+  const fileName = String(body.fileName || "Resume upload").trim().slice(0, 180);
+  const errorMessage = String(body.errorMessage || "The upload did not finish. Select this file again to retry.").trim().slice(0, 500);
+  if (!roleId || !/^BULK-[A-Z0-9_-]+-[a-f0-9]{64}$/i.test(queueId) || !/^[a-zA-Z0-9_-]{12,80}$/.test(batchId) || !Number.isSafeInteger(batchSize) || batchSize < 1 || batchSize > MAX_FILES_PER_BATCH) return errorResponse("The failed upload is missing valid queue details.", 422);
+  const access = await requireRole(request);
+  if (access.response) return access.response;
+  const { user } = access;
+  const roleResult = await loadPublishedRole(user, roleId);
+  if (roleResult.error) return roleResult.error;
+
+  const queue = await getBulkResumeQueue(roleId, { fresh: true });
+  const previous = previousForQueue(queue, queueId);
+  if (previous && ["queued", "processing", "screened", "processed"].includes(previous.status.toLowerCase()) && queueAge(previous) < STALE_JOB_MS) {
+    return NextResponse.json({ success: true, queueId, status: previous.status, fileIndex: Number(body.fileIndex), message: "The screening job is already active; its status was preserved." });
+  }
+  const evidence = await getBulkResumeScreeningEvidence(previous ? [previous] : []);
+  if (previous && evidence.has(`${previous.roleId.toLowerCase()}|${previous.driveFileId.toLowerCase()}`)) {
+    return NextResponse.json({ success: true, queueId, status: "Screened", fileIndex: Number(body.fileIndex), message: "A saved screening result was found; it was preserved." });
+  }
+  const storedFile = resumeFileId ? await getResumeFileRecord(resumeFileId) : null;
+  const verifiedStoredFile = storedFile
+    && storedFile.uploadQueueId === queueId
+    && storedFile.uploadRoleId?.toLowerCase() === roleId.toLowerCase()
+    && storedFile.uploadOwnerEmail?.toLowerCase() === user.email.toLowerCase()
+    ? storedFile
+    : null;
+  const now = new Date().toISOString();
+  await appendBulkResumeQueueEvent({
+    driveFileId: queueId,
+    driveFileName: verifiedStoredFile?.fileName || fileName,
+    driveFileUrl: previous?.driveFileUrl || (verifiedStoredFile ? driveFileUrl(verifiedStoredFile.fileId) : ""),
+    driveFileMimeType: verifiedStoredFile?.mimeType || "",
+    roleId,
+    candidateName: previous?.candidateName || "",
+    candidateEmail: previous?.candidateEmail || "",
+    status: "Failed",
+    applicationId: previous?.applicationId || "",
+    errorMessage,
+    discoveredAt: previous?.discoveredAt || now,
+    processedAt: now,
+    attemptCount: previous?.attemptCount || "0",
+    lastUpdated: now,
+    environment: bulkResumeEnvironment(),
+    isUat: bulkResumeIsUatMarked(),
+    batchId,
+    jobId: queueId,
+    batchSize: String(batchSize),
+    submittedByEmail: user.email,
+  });
+  await notifyBulkResumeBatchComplete(roleId, batchId);
+  return NextResponse.json({ success: true, queueId, status: "Failed", fileIndex: Number(body.fileIndex), message: errorMessage });
+}
+
+export async function POST(request: Request) {
+  try {
+    const body = await request.json() as Record<string, unknown>;
+    const action = String(body.action || "").trim().toLowerCase();
+    if (action === "prepare") return await prepare(request, body);
+    if (action === "finalize") return await finalize(request, body);
+    if (action === "upload-failed") return await recordUploadFailure(request, body);
+    return errorResponse("Choose an upload action before submitting a resume.", 422);
+  } catch (error) {
+    console.error("[Bulk Resume Upload] Request failed:", error);
+    return errorResponse(error instanceof Error ? error.message : "Unable to start resume upload.", 400);
   }
 }

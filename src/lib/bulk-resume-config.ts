@@ -43,8 +43,8 @@ export function requireBulkResumeUatConfig() {
   }
 }
 
-export function bulkResumeWebhookConfig() {
-  if (isBulkResumeUatMode()) {
+export function bulkResumeWebhookConfig(environment: BulkResumeEnvironment = bulkResumeEnvironment()) {
+  if (environment === "uat") {
     requireBulkResumeUatConfig();
     return {
       url: process.env.N8N_BULK_RESUME_UPLOAD_UAT_WEBHOOK_URL!.trim(),

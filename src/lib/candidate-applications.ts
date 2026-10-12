@@ -198,6 +198,8 @@ export type BulkResumeQueueItem = {
   isUat?: boolean;
   batchId?: string;
   jobId?: string;
+  batchSize?: string;
+  submittedByEmail?: string;
 };
 
 export type BulkResumeQueueEvent = Partial<BulkResumeQueueItem> & {
@@ -950,7 +952,7 @@ export async function getActiveBookingLinkRoleIds() {
 }
 
 export async function getBulkResumeQueue(roleId = "", options: { fresh?: boolean } = {}): Promise<BulkResumeQueueItem[]> {
-  const { rows } = await readTab("Bulk_Resume_Queue", "U", { ...options, spreadsheetId: bulkResumeSpreadsheetId() });
+  const { rows } = await readTab("Bulk_Resume_Queue", "W", { ...options, spreadsheetId: bulkResumeSpreadsheetId() });
   const normalizedRoleId = roleId.trim().toLowerCase();
   const latestByFile = new Map<string, BulkResumeQueueItem>();
   const eventTimestamp = (item: BulkResumeQueueItem) => {
@@ -977,6 +979,8 @@ export async function getBulkResumeQueue(roleId = "", options: { fresh?: boolean
       isUat: ["true", "1", "yes"].includes(field(record, "Is_UAT", "Is UAT", "is_uat").toLowerCase()),
       batchId: field(record, "Batch_ID", "Batch ID", "batchId"),
       jobId: field(record, "Job_ID", "Job ID", "jobId"),
+      batchSize: field(record, "Batch_Size", "Batch Size", "batchSize"),
+      submittedByEmail: field(record, "Submitted_By_Email", "Submitted By Email", "submittedByEmail"),
     }))
     .filter((item) => item.driveFileId && (!normalizedRoleId || item.roleId.toLowerCase() === normalizedRoleId))
     .forEach((item) => {
@@ -1037,7 +1041,7 @@ export async function appendBulkResumeQueueEvent(event: BulkResumeQueueEvent) {
     // Headers are structural metadata, not live queue state. Reuse the short
     // cache here so a 15-file upload does not spend one Sheets read per event
     // before n8n has even started screening.
-    const { headers } = await readTab("Bulk_Resume_Queue", "U", { spreadsheetId: targetSpreadsheetId });
+    const { headers } = await readTab("Bulk_Resume_Queue", "W", { spreadsheetId: targetSpreadsheetId });
     if (!headers.length) throw new Error("The Bulk_Resume_Queue tab has no header row.");
     const values = headers.map((header) => {
       const key = normalizeHeader(header);
@@ -1061,13 +1065,15 @@ export async function appendBulkResumeQueueEvent(event: BulkResumeQueueEvent) {
         is_uat: event.isUat,
         batch_id: event.batchId,
         job_id: event.jobId,
+        batch_size: event.batchSize,
+        submitted_by_email: event.submittedByEmail,
       };
       return aliases[key] === undefined ? "" : aliases[key];
     });
     await waitForBulkQueueWriteSlot();
     await withSheetsBackoff(() => sheets.spreadsheets.values.append({
       spreadsheetId: targetSpreadsheetId,
-      range: "'Bulk_Resume_Queue'!A:U",
+      range: "'Bulk_Resume_Queue'!A:W",
       valueInputOption: "USER_ENTERED",
       insertDataOption: "INSERT_ROWS",
       requestBody: { values: [values] },
@@ -1077,7 +1083,7 @@ export async function appendBulkResumeQueueEvent(event: BulkResumeQueueEvent) {
 
 /** Count the latest saved queue state for each resume in the selected role. */
 export async function getBulkResumeQueueTotals(roleId = "", options: { fresh?: boolean } = {}) {
-  const { rows } = await readTab("Bulk_Resume_Queue", "U", { ...options, spreadsheetId: bulkResumeSpreadsheetId() });
+  const { rows } = await readTab("Bulk_Resume_Queue", "W", { ...options, spreadsheetId: bulkResumeSpreadsheetId() });
   const normalizedRoleId = roleId.trim().toLowerCase();
   const events = rows.map((record) => {
     const rowRoleId = field(record, "Role_ID", "Role ID", "roleId").toLowerCase();
@@ -1187,6 +1193,26 @@ export async function getBulkResumeScreeningEvidence(queueItems: BulkResumeQueue
     if (result) matched.add(bulkQueueKey(item));
   }
   return matched;
+}
+
+/** Return queue identities already submitted to the candidate foundation, even when its screening result is still pending. */
+export async function getBulkResumeApplicantSubmissionEvidence(queueItems: BulkResumeQueueItem[]): Promise<Set<string>> {
+  if (queueItems.length === 0) return new Set();
+  const { rows } = await readTab("High_Match_Profile", "CZ", { fresh: true, spreadsheetId: bulkResumeSpreadsheetId() });
+  const byApplicationId = new Map<string, SheetRow[]>();
+  for (const record of rows) {
+    const id = applicationId(record).toLowerCase();
+    if (!id) continue;
+    byApplicationId.set(id, [...(byApplicationId.get(id) || []), record]);
+  }
+  const submitted = new Set<string>();
+  for (const item of queueItems) {
+    const id = text(item.applicationId).toLowerCase();
+    if (!id) continue;
+    const matches = (byApplicationId.get(id) || []).filter((record) => applicantRoleMatches(item, record));
+    if (matches.length) submitted.add(bulkQueueKey(item));
+  }
+  return submitted;
 }
 
 export async function getApplicantById(id: string): Promise<ApplicantDetails | null> {

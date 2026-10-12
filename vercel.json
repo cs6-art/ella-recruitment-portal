@@ -1,0 +1,22 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "src/app/api/queues/bulk-resume-screening/route.ts": {
+      "experimentalTriggers": [
+        {
+          "type": "queue/v2beta",
+          "topic": "bulk-resume-screening",
+          "maxConcurrency": 1,
+          "retryAfterSeconds": 30,
+          "initialDelaySeconds": 0
+        }
+      ]
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/resume-screening/bulk/recover",
+      "schedule": "*/5 * * * *"
+    }
+  ]
+}

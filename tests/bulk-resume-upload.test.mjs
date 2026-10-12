@@ -9,20 +9,18 @@ function read(relativePath) {
   return readFileSync(path.join(root, "..", relativePath), "utf8");
 }
 
-test("bulk resume upload processes files with bounded, configurable concurrency instead of one at a time", () => {
+test("bulk uploads use Drive resumable sessions and bounded client concurrency", () => {
   const route = read("src/app/api/resume-screening/bulk/upload/route.ts");
+  const panel = read("src/components/BulkResumeScreeningPanel.tsx");
   assert.match(route, /const MAX_FILES_PER_BATCH = 20/);
   assert.match(route, /export const maxDuration = 300/);
-  assert.match(route, /BULK_RESUME_UPLOAD_CONCURRENCY/);
-  assert.match(route, /DEFAULT_CONCURRENCY = 2/);
-  assert.match(route, /MAX_CONCURRENCY = 2/);
-  // The old implementation awaited each n8n round trip inside a plain
-  // `for...of` loop, which is exactly what capped bulk screening at
-  // roughly one resume per minute. That pattern must not come back.
-  assert.doesNotMatch(route, /for \(const file of files\)/);
-  assert.match(route, /Array\.from\(\{ length: concurrency \}, worker\)/);
-  assert.match(route, /WORKER_START_INTERVAL_MS = 10_000/);
-  assert.match(route, /waitForWorkerStart/);
+  assert.match(route, /createResumeUploadSession/);
+  assert.match(route, /action === "prepare"/);
+  assert.match(route, /action === "finalize"/);
+  assert.match(panel, /uploadToDrive/);
+  assert.match(panel, /Content-Range/);
+  assert.match(panel, /mapWithConcurrency\(prepared, 2/);
+  assert.doesNotMatch(panel, /new FormData\(\)/);
 });
 
 test("bulk Sheets reads use a quota-sized exponential backoff window", () => {
@@ -35,11 +33,15 @@ test("bulk Sheets reads use a quota-sized exponential backoff window", () => {
   assert.match(intake, /retryOnFail: true, maxTries: 5, waitBetweenTries: 5000/);
 });
 
-test("every bulk file gets a saved queue event before downstream parsing", () => {
+test("each validated resume is durably queued before downstream screening", () => {
   const route = read("src/app/api/resume-screening/bulk/upload/route.ts");
   const queue = read("src/lib/candidate-applications.ts");
+  const consumer = read("src/app/api/queues/bulk-resume-screening/route.ts");
   assert.match(route, /appendBulkResumeQueueEvent/);
-  assert.match(route, /status: "Processing"/);
+  assert.match(route, /status: "Queued"/);
+  assert.match(route, /await enqueueBulkResumeJob\(message\)/);
+  assert.match(consumer, /appendStatus\(message, "Processing"/);
+  assert.match(consumer, /postScreeningWebhook/);
   assert.match(route, /status: "Failed"/);
   assert.match(queue, /getBulkResumeQueueTotals/);
   assert.match(queue, /latest saved queue state/);
@@ -55,34 +57,46 @@ test("bulk totals count one current state per resume and match the reconciled st
   assert.match(route, /roleTotals: counts/);
 });
 
-test("accepted bulk files are reserved before the asynchronous worker starts", () => {
-  const route = read("src/app/api/resume-screening/bulk/upload/route.ts");
-  assert.match(route, /Reserve every accepted file before returning the 202 response/);
-  assert.match(route, /await Promise\.all\(toProcess\.map/);
-  assert.match(route, /status: "Queued"/);
-  assert.match(route, /after\(\(\) => processBatch\(\)/);
+test("bulk jobs use durable Vercel Queue delivery with an idempotent recovery cron", () => {
+  const queue = read("src/lib/bulk-resume-queue.ts");
+  const consumer = read("src/app/api/queues/bulk-resume-screening/route.ts");
+  const recover = read("src/app/api/resume-screening/bulk/recover/route.ts");
+  const config = read("vercel.json");
+  const upload = read("src/app/api/resume-screening/bulk/upload/route.ts");
+  const notifications = read("src/lib/bulk-resume-notifications.ts");
+  assert.match(queue, /idempotencyKey: `\$\{message\.queueId\}:\$\{message\.attemptCount\}`/);
+  assert.match(consumer, /handleCallback\(processMessage/);
+  assert.match(consumer, /MAX_DELIVERIES = 5/);
+  assert.match(consumer, /visibilityTimeoutSeconds: 600/);
+  assert.match(consumer, /metadata\.deliveryCount >= MAX_DELIVERIES/);
+  assert.match(recover, /CRON_SECRET/);
+  assert.match(recover, /getBulkResumeQueue\("", \{ fresh: true \}\)/);
+  assert.match(notifications, /bulk_resume_batch_complete/);
+  assert.match(notifications, /X-Idempotency-Key/);
+  assert.match(notifications, /batchSize/);
+  assert.match(config, /queue\/v2beta/);
+  assert.match(config, /"maxConcurrency": 1/);
+  assert.match(config, /"schedule": "\*\/5 \* \* \* \*"/);
+  assert.doesNotMatch(upload, /after\(/);
 });
 
 test("a hung screening webhook is converted into a failed queue item", () => {
-  const route = read("src/app/api/resume-screening/bulk/upload/route.ts");
-  assert.match(route, /SCREENING_WEBHOOK_TIMEOUT_MS = 120_000/);
-  assert.match(route, /controller\.abort\(\)/);
-  assert.match(route, /screening workflow timed out after/);
-  assert.match(route, /fetchWithTimeout\(webhookUrl/);
+  const consumer = read("src/app/api/queues/bulk-resume-screening/route.ts");
+  assert.match(consumer, /WEBHOOK_TIMEOUT_MS = 120_000/);
+  assert.match(consumer, /controller\.abort\(\)/);
+  assert.match(consumer, /workflow timed out after 120 seconds/);
+  assert.match(consumer, /markFailed/);
 });
 
 test("bulk upload validates file type, empty files, per-file size, and total size before queueing", () => {
   const route = read("src/app/api/resume-screening/bulk/upload/route.ts");
-  assert.match(route, /invalidFiles/);
-  assert.match(route, /Unsupported resume file type/);
-  assert.match(route, /validationErrors: invalidFiles\.map/);
-  assert.match(route, /emptyFiles/);
-  assert.match(route, /Empty resume files cannot be submitted/);
-  assert.match(route, /oversizedFiles/);
-  assert.match(route, /Each resume must be 10 MB or smaller/);
-  assert.match(route, /totalFileBytes/);
-  assert.match(route, /100 MB total upload limit/);
-  assert.match(route, /bulkResumeWebhookConfig\(\)/);
+  const validation = read("src/lib/resume-contact-extraction.ts");
+  assert.match(route, /invalid = files\.filter/);
+  assert.match(route, /One or more uploads have invalid file metadata/);
+  assert.match(route, /MAX_RESUME_FILE_BYTES/);
+  assert.match(route, /validateCandidateResume/);
+  assert.match(validation, /job description, not a candidate resume/);
+  assert.match(route, /validationErrors: \[`\$\{uploadRecord\.fileName\}/);
 });
 
 test("application invitations can send email and lock the invited identity", () => {
@@ -109,24 +123,25 @@ test("re-uploading a historical hash reuses the existing Drive object", () => {
   assert.match(files, /existingRecord/);
   assert.match(files, /reused: true/);
   const upload = read("src/app/api/resume-screening/bulk/upload/route.ts");
-  assert.match(upload, /if \(!stored\.reused\) await deleteResumeFile/);
+  assert.match(upload, /!stored\.reused/);
 });
 
-test("bulk completion emails default to disabled but remain configurable", () => {
+test("finalization distinguishes a candidate-resume validation failure from queue acceptance", () => {
   const route = read("src/app/api/resume-screening/bulk/upload/route.ts");
-  assert.match(route, /BULK_RESUME_NOTIFY_ON_SUCCESS/);
-  assert.match(route, /notifyOnSuccess \? "not_requested" : "disabled"/);
-  assert.match(route, /notificationResponse\.ok \? "sent" : "failed"/);
-  assert.match(route, /notificationStatus = "failed"/);
-  assert.match(route, /allResultsTerminal/);
+  const validation = read("src/lib/resume-contact-extraction.ts");
+  assert.match(route, /validateCandidateResume\(stored\.extractedText\)/);
+  assert.match(validation, /This document looks like a job description/);
+  assert.match(route, /status: "Queued"/);
+  assert.match(route, /status: "Failed"/);
 });
 
-test("an accepted asynchronous intake request cannot be presented as completed", () => {
-  const route = read("src/app/api/resume-screening/bulk/upload/route.ts");
-  assert.match(route, /active intake webhook uses an immediate acknowledgement/);
-  assert.match(route, /reportedStatus/);
-  assert.match(route, /reportedStatus\) \? reportedStatus : "Queued"/);
-  assert.doesNotMatch(route, /String\(workflowResult\.status \|\| "Screened"\)/);
+test("queue processing is idempotent and does not repeat a candidate handoff after an uncertain response", () => {
+  const consumer = read("src/app/api/queues/bulk-resume-screening/route.ts");
+  const retry = read("src/app/api/resume-screening/bulk/retry/route.ts");
+  assert.match(consumer, /getBulkResumeApplicantSubmissionEvidence/);
+  assert.match(consumer, /may have reached candidate screening/);
+  assert.match(retry, /duplicate screening was blocked/);
+  assert.match(retry, /ambiguousDispatch/);
 });
 
 test("the intake contract records Screened only after the candidate workflow accepts", () => {
@@ -179,7 +194,7 @@ test("live bulk status reads are fresh and expose the downstream queue as the so
   assert.match(queue, /getBulkResumeQueue\(roleId = "", options: \{ fresh\?: boolean \} = \{\}\)/);
   assert.match(queue, /freshSheetsRead/);
   assert.match(queue, /getBulkResumeScreeningEvidence/);
-  assert.match(queue, /Bulk_Resume_Queue", "U"/);
+  assert.match(queue, /Bulk_Resume_Queue", "W"/);
   assert.match(cache, /export async function freshSheetsRead/);
   assert.match(route, /saved applicant screening result/);
   assert.match(route, /getBulkResumeQueue\(roleId, \{ fresh: true \}\)/);
@@ -195,19 +210,18 @@ test("bulk status reconciliation supports historical identifiers and expires sta
   assert.match(queue, /byResumeSha/);
   assert.match(queue, /byDriveFileId/);
   assert.match(queue, /byRoleAndFileName/);
-  assert.match(route, /STALE_PROCESSING_MS = 30 \* 60 \* 1000/);
+  assert.match(route, /STALE_PROCESSING_MS = 50 \* 60 \* 1000/);
   assert.match(route, /Applicant result could not be persisted/);
-  assert.match(route, /Screening did not produce a saved result within 30 minutes/);
+  assert.match(route, /Screening did not produce a saved result within 50 minutes/);
 });
 
-test("bulk retries stale queue states only when no saved applicant evidence exists", () => {
-  const upload = read("src/app/api/resume-screening/bulk/upload/route.ts");
-  assert.match(upload, /immediateUatRecovery = isUat/);
-  assert.match(upload, /uatRecovery/);
-  assert.match(upload, /recoveryMayBypassTerminalState = immediateUatRecovery/);
-  assert.match(upload, /const savedScreeningEvidence = await getBulkResumeScreeningEvidence\(queue\)/);
-  assert.match(upload, /const shouldSkip = previousIsActive && !recoveryMayBypassTerminalState && \(previousHasSavedResult \|\| previousRunIsFresh\)/);
-  assert.match(upload, /const STALE_PROCESSING_MS = 30 \* 60 \* 1000/);
+test("individual retries are role-scoped and preserve any saved applicant result", () => {
+  const retry = read("src/app/api/resume-screening/bulk/retry/route.ts");
+  assert.match(retry, /canManageRolePipeline\(user, role\)/);
+  assert.match(retry, /getBulkResumeScreeningEvidence/);
+  assert.match(retry, /getBulkResumeApplicantSubmissionEvidence/);
+  assert.match(retry, /saved screening result was found; no duplicate screening was started/);
+  assert.match(retry, /enqueueBulkResumeJob\(message\)/);
 });
 
 test("uploaded resumes keep a traceable Drive link back to the candidate/application", () => {
@@ -216,18 +230,18 @@ test("uploaded resumes keep a traceable Drive link back to the candidate/applica
   assert.match(route, /drive\.google\.com\/file\/d\//);
 });
 
-test("the bulk panel supports drag-and-drop, live auto-refresh, and retrying only failed files", () => {
+test("the bulk panel supports durable upload, accurate progress, role totals, and server retries", () => {
   const panel = read("src/components/BulkResumeScreeningPanel.tsx");
   assert.match(panel, /const MAX_FILES_PER_BATCH = 20/);
   assert.match(panel, /Up to \{MAX_FILES_PER_BATCH\}/);
   assert.match(panel, /onDrop=/);
   assert.match(panel, /setInterval\(\(\) => \{ void refreshStatus\(\); \}, POLL_INTERVAL_MS\)/);
-  assert.match(panel, /Retry failed/);
-  assert.match(panel, /failedFiles/);
+  assert.match(panel, /retryQueueItem/);
   assert.match(panel, /Bulk Resume Processing/);
   assert.match(panel, /Bulk screening completed/);
   assert.match(panel, /View Processed Applicants/);
-  assert.match(panel, /Retry \{failedFiles\.length\} Failed/);
+  assert.match(panel, /Queue status is unavailable until the backend responds/);
+  assert.match(panel, /statusAvailable && configured/);
   assert.match(panel, /refreshInFlight/);
   assert.match(panel, /AbortController/);
   assert.match(panel, /readBulkApiResponse/);
@@ -248,10 +262,10 @@ test("the bulk panel reports rejected files and exposes per-file processing erro
   assert.match(panel, /validationErrors/);
   assert.match(panel, /batchFailureDetails/);
   assert.match(panel, /role="alert"/);
-  assert.match(panel, /Retry failed/);
-  assert.match(panel, /let requestAccepted = false/);
-  assert.match(panel, /optimistic client batch/);
-  assert.match(panel, /if \(!requestAccepted\)/);
+  assert.match(panel, /action: "upload-failed"/);
+  assert.match(panel, /action: "finalize"/);
+  assert.match(panel, /fileIndex/);
+  assert.match(panel, /retryQueueItem/);
 });
 
 test("bulk upload is wired into the live Resume Screening page", () => {
@@ -316,10 +330,10 @@ test("bulk UAT mode is fail-closed and carries environment correlation metadata"
   assert.match(files, /storeResumeFile\(file: File, options/);
   assert.match(files, /environment === "uat"/);
   assert.match(upload, /environment/);
-  assert.match(upload, /is_uat/);
+  assert.match(upload, /isUat/);
   assert.match(upload, /jobId/);
   assert.match(upload, /bulkResumeIsUatMarked/);
-  assert.match(upload, /!isUat/);
+  assert.match(upload, /environment: bulkResumeEnvironment\(\)/);
   assert.match(queue, /bulkResumeSpreadsheetId\(\)/);
   assert.match(page, /UAT MODE/);
 });

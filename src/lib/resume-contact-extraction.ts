@@ -71,3 +71,26 @@ export function extractResumeContactDetails(resumeText: string) {
   };
 }
 
+/** Reject clearly wrong documents before they enter the durable screening queue. */
+export function validateCandidateResume(resumeText: string) {
+  const text = clean(resumeText);
+  const details = extractResumeContactDetails(text);
+  const lower = text.toLowerCase();
+  const jobDescriptionSignals = [
+    /\bjob description\b/,
+    /\b(job title|position title)\s*:/,
+    /\b(key )?responsibilities\b/,
+    /\b(required|preferred) qualifications\b/,
+    /\bwe are (looking for|seeking)\b/,
+    /\bhow to apply\b/,
+  ].filter((pattern) => pattern.test(lower)).length;
+
+  if (jobDescriptionSignals >= 2 && /\b(job description|how to apply)\b|\b(job title|position title)\s*:/i.test(lower)) {
+    return { valid: false, error: "This document looks like a job description, not a candidate resume." };
+  }
+  if (!details.candidateName || !details.candidateEmail) {
+    return { valid: false, error: "We couldn't identify a candidate name and email in this document. Check that this is a readable candidate resume, not a job description." };
+  }
+  return { valid: true, error: "", details };
+}
+

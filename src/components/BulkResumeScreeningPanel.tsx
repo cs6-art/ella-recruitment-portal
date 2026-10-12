@@ -18,6 +18,8 @@ type QueueItem = {
   processedAt: string;
   attemptCount: string;
   lastUpdated: string;
+  batchId?: string;
+  jobId?: string;
 };
 
 const statusOrder = ["Queued", "Processing", "Completed", "Failed", "Skipped"];
@@ -42,6 +44,7 @@ type BulkStatusApiResponse = BulkApiResponse & {
   counts?: Record<string, number>;
   items?: QueueItem[];
   roleTotals?: Record<string, number>;
+  evidenceVerified?: boolean;
 };
 
 /**
@@ -87,11 +90,124 @@ async function fileQueueId(roleId: string, file: File) {
   return `BULK-${roleKey}-${sha256}`;
 }
 
+function fileMimeType(file: File) {
+  if (file.type) return file.type;
+  if (/\.pdf$/i.test(file.name)) return "application/pdf";
+  if (/\.docx$/i.test(file.name)) return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  return "application/msword";
+}
+
+function uploadedFileId(response: Response, body: string) {
+  if (response.status !== 200 && response.status !== 201) return "";
+  try {
+    const result = JSON.parse(body) as { id?: string };
+    return typeof result.id === "string" ? result.id : "";
+  } catch {
+    return "";
+  }
+}
+
+function driveRangeOffset(response: Response) {
+  const range = response.headers.get("Range") || "";
+  const match = range.match(/bytes=0-(\d+)/i);
+  return match ? Number(match[1]) + 1 : 0;
+}
+
+async function driveUploadStatus(uploadUrl: string, totalBytes: number) {
+  const response = await fetch(uploadUrl, {
+    method: "PUT",
+    headers: { "Content-Range": `bytes */${totalBytes}` },
+    body: new Blob([]),
+    credentials: "omit",
+  });
+  const body = await response.text();
+  const fileId = uploadedFileId(response, body);
+  if (fileId) return { fileId, offset: totalBytes };
+  if (response.status !== 308) throw new Error("Google Drive could not confirm the interrupted upload. Select the file again and retry.");
+  return { fileId: "", offset: driveRangeOffset(response) };
+}
+
+/** Transfer directly to Drive in resumable chunks, keeping the binary out of Vercel's request body. */
+async function uploadToDrive(uploadUrl: string, file: File) {
+  const chunkBytes = 2 * 1024 * 1024;
+  let offset = 0;
+  let retriesWithoutProgress = 0;
+  while (offset < file.size) {
+    const end = Math.min(offset + chunkBytes, file.size);
+    let response: Response;
+    try {
+      response = await fetch(uploadUrl, {
+        method: "PUT",
+        headers: {
+          "Content-Type": fileMimeType(file),
+          "Content-Range": `bytes ${offset}-${end - 1}/${file.size}`,
+        },
+        body: file.slice(offset, end),
+        credentials: "omit",
+      });
+    } catch {
+      retriesWithoutProgress += 1;
+      if (retriesWithoutProgress > 4) throw new Error("The network interrupted the resume upload. Select this file again and retry.");
+      const state = await driveUploadStatus(uploadUrl, file.size);
+      if (state.fileId) return state.fileId;
+      if (state.offset > offset) offset = state.offset;
+      await new Promise((resolve) => setTimeout(resolve, 400 * retriesWithoutProgress));
+      continue;
+    }
+
+    const responseBody = await response.text();
+    const fileId = uploadedFileId(response, responseBody);
+    if (fileId) return fileId;
+    if (response.status === 308) {
+      let nextOffset = driveRangeOffset(response);
+      if (!nextOffset) nextOffset = (await driveUploadStatus(uploadUrl, file.size)).offset;
+      if (nextOffset <= offset) {
+        retriesWithoutProgress += 1;
+        if (retriesWithoutProgress > 4) throw new Error("Google Drive did not confirm upload progress. Select the file again and retry.");
+        await new Promise((resolve) => setTimeout(resolve, 400 * retriesWithoutProgress));
+      } else {
+        offset = nextOffset;
+        retriesWithoutProgress = 0;
+      }
+      continue;
+    }
+    if (response.status >= 500 || response.status === 429) {
+      retriesWithoutProgress += 1;
+      if (retriesWithoutProgress > 4) throw new Error(`Google Drive is temporarily unavailable (HTTP ${response.status}). Select the file again and retry.`);
+      const state = await driveUploadStatus(uploadUrl, file.size);
+      if (state.fileId) return state.fileId;
+      if (state.offset > offset) offset = state.offset;
+      await new Promise((resolve) => setTimeout(resolve, 400 * retriesWithoutProgress));
+      continue;
+    }
+    throw new Error(`Google Drive rejected the resume upload (HTTP ${response.status}).`);
+  }
+
+  const completed = await driveUploadStatus(uploadUrl, file.size);
+  if (!completed.fileId) throw new Error("Google Drive received the resume but did not return its file ID. Select the file again and retry.");
+  return completed.fileId;
+}
+
+async function mapWithConcurrency<T, R>(items: T[], concurrency: number, worker: (item: T, index: number) => Promise<R>) {
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (true) {
+      const index = nextIndex++;
+      if (index >= items.length) return;
+      results[index] = await worker(items[index], index);
+    }
+  }));
+  return results;
+}
+
 export default function BulkResumeScreeningPanel({ roleOptions, driveUrl }: { roleOptions: RoleOption[]; driveUrl: string }) {
   const [roleId, setRoleId] = useState("");
   const [items, setItems] = useState<QueueItem[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [configured, setConfigured] = useState(true);
+  const [statusAvailable, setStatusAvailable] = useState(false);
+  const [activeBatchId, setActiveBatchId] = useState("");
   const [loading, setLoading] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [dragActive, setDragActive] = useState(false);
@@ -99,11 +215,13 @@ export default function BulkResumeScreeningPanel({ roleOptions, driveUrl }: { ro
   const [uploadMessage, setUploadMessage] = useState("");
   const [validationMessage, setValidationMessage] = useState("");
   const [error, setError] = useState("");
+  const [retryingQueueId, setRetryingQueueId] = useState("");
   // Tracks the resumes submitted in the batch currently in flight, keyed by
   // the same content-hash queue ID the server computes, so the live section
   // below can show real-time progress for exactly this upload rather than
   // the role's entire screening history.
   const [activeBatch, setActiveBatch] = useState<Map<string, string>>(new Map());
+  const [activeBatchQueueIds, setActiveBatchQueueIds] = useState<Map<string, string>>(new Map());
   const [batchResultStatuses, setBatchResultStatuses] = useState<Map<string, string>>(new Map());
   const [batchResultMessages, setBatchResultMessages] = useState<Map<string, string>>(new Map());
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -124,7 +242,10 @@ export default function BulkResumeScreeningPanel({ roleOptions, driveUrl }: { ro
     try {
       const response = await fetch(`/api/resume-screening/bulk?roleId=${encodeURIComponent(roleId)}`, { cache: "no-store", signal: controller.signal });
       const result = await readBulkApiResponse<BulkStatusApiResponse>(response, "Bulk screening status");
-      if (!response.ok || result.success !== true) throw new Error(result.error || "Unable to load bulk screening status.");
+      if (!response.ok || result.success !== true) {
+        if (result.configured === false) setConfigured(false);
+        throw new Error(result.error || "Unable to load bulk screening status.");
+      }
       // Ignore a response that belongs to an older role/request. This keeps a
       // slow poll from overwriting a newer queue snapshot.
       if (requestId !== statusRequestId.current) return;
@@ -133,9 +254,38 @@ export default function BulkResumeScreeningPanel({ roleOptions, driveUrl }: { ro
       // the current API returns the same reconciled snapshot in both fields.
       setCounts(result.counts || result.roleTotals || {});
       setConfigured(result.configured !== false);
+      setStatusAvailable(true);
       if (result.error) setError(result.error);
+      else setError("");
+      if (activeBatch.size === 0 && !uploading) {
+        const latest = [...(result.items || [])]
+          .filter((item) => item.batchId)
+          .sort((left, right) => Date.parse(right.lastUpdated || right.discoveredAt) - Date.parse(left.lastUpdated || left.discoveredAt))[0];
+        if (latest?.batchId) {
+          const batchItems = (result.items || []).filter((item) => item.batchId === latest.batchId);
+          const restoredBatch = new Map<string, string>();
+          const restoredQueueIds = new Map<string, string>();
+          const restoredStatuses = new Map<string, string>();
+          const restoredMessages = new Map<string, string>();
+          for (const item of batchItems) {
+            const entryId = item.driveFileId;
+            restoredBatch.set(entryId, item.driveFileName || entryId);
+            restoredQueueIds.set(entryId, item.jobId || item.driveFileId);
+            restoredStatuses.set(entryId, item.status || "Queued");
+            if (item.errorMessage) restoredMessages.set(entryId, item.errorMessage);
+          }
+          setActiveBatchId(latest.batchId);
+          setActiveBatch(restoredBatch);
+          setActiveBatchQueueIds(restoredQueueIds);
+          setBatchResultStatuses(restoredStatuses);
+          setBatchResultMessages(restoredMessages);
+        }
+      }
     } catch (caught) {
-      if (requestId === statusRequestId.current && !(caught instanceof DOMException && caught.name === "AbortError")) setError(caught instanceof Error ? caught.message : "Unable to load bulk screening status.");
+      if (requestId === statusRequestId.current && !(caught instanceof DOMException && caught.name === "AbortError")) {
+        setStatusAvailable(false);
+        setError(caught instanceof Error ? caught.message : "Unable to load bulk screening status.");
+      }
     } finally {
       if (refreshAbort.current === controller) {
         refreshAbort.current = null;
@@ -143,7 +293,7 @@ export default function BulkResumeScreeningPanel({ roleOptions, driveUrl }: { ro
         if (requestId === statusRequestId.current) setLoading(false);
       }
     }
-  }, [roleId]);
+  }, [activeBatch.size, roleId, uploading]);
 
   function selectRole(nextRoleId: string) {
     refreshAbort.current?.abort();
@@ -153,7 +303,10 @@ export default function BulkResumeScreeningPanel({ roleOptions, driveUrl }: { ro
     setRoleId(nextRoleId);
     setItems([]);
     setCounts({});
+    setStatusAvailable(false);
+    setActiveBatchId("");
     setActiveBatch(new Map());
+    setActiveBatchQueueIds(new Map());
     setBatchResultStatuses(new Map());
     setBatchResultMessages(new Map());
     batchFiles.current.clear();
@@ -172,16 +325,19 @@ export default function BulkResumeScreeningPanel({ roleOptions, driveUrl }: { ro
   // Processing. Stops on its own once everything reaches a terminal state.
   const pendingInBatch = useMemo(() => {
     if (activeBatch.size === 0) return false;
-    return Array.from(activeBatch.keys()).some((queueId) => {
-      const item = items.find((entry) => entry.driveFileId === queueId);
-      const reportedStatus = batchResultStatuses.get(queueId)?.toLowerCase() || "";
+    return Array.from(activeBatch.keys()).some((entryId) => {
+      const queueId = activeBatchQueueIds.get(entryId) || entryId.split("::")[0];
+      const item = items.find((entry) => entry.driveFileId === entryId)
+        || items.find((entry) => entry.driveFileId === queueId && entry.batchId === activeBatchId)
+        || items.find((entry) => entry.jobId === queueId && entry.batchId === activeBatchId);
+      const reportedStatus = batchResultStatuses.get(entryId)?.toLowerCase() || "";
       // A successful response without a queue row is still only an accepted
       // handoff. Local validation/request failures may terminate immediately,
       // but successful completion must come from the queue-backed status API.
-      const status = item?.status || (["failed", "skipped"].includes(reportedStatus) ? reportedStatus : "Queued");
+      const status = reportedStatus === "skipped" ? reportedStatus : item?.status || reportedStatus || "Queued";
       return !TERMINAL_STATUSES.has(status.toLowerCase());
     });
-  }, [activeBatch, batchResultStatuses, items]);
+  }, [activeBatch, activeBatchId, activeBatchQueueIds, batchResultStatuses, items]);
   const anyPending = pendingInBatch || items.some((item) => !TERMINAL_STATUSES.has(item.status.toLowerCase()));
 
   useEffect(() => {
@@ -238,71 +394,149 @@ export default function BulkResumeScreeningPanel({ roleOptions, driveUrl }: { ro
     setError("");
     setUploadMessage("");
     setValidationMessage("");
-    let requestAccepted = false;
     try {
-      // Pre-compute each file's queue ID client-side (same hash the server
-      // uses) so the live section below can track this exact batch from the
-      // moment upload starts, rather than only after the request resolves.
-      const batch = new Map<string, string>();
-      const fileMap = new Map<string, File>();
-      await Promise.all(fileList.map(async (file) => {
+      const batchId = crypto.randomUUID();
+      const entries = await Promise.all(fileList.map(async (file, index) => {
         const queueId = await fileQueueId(roleId, file);
-        batch.set(queueId, file.name);
-        fileMap.set(queueId, file);
+        return { file, index, queueId, sha256: queueId.slice(queueId.lastIndexOf("-") + 1), entryId: `${queueId}::${index}` };
       }));
-      batchFiles.current = fileMap;
+      const batch = new Map(entries.map((entry) => [entry.entryId, entry.file.name]));
+      const queueIds = new Map(entries.map((entry) => [entry.entryId, entry.queueId]));
+      batchFiles.current = new Map(entries.map((entry) => [entry.entryId, entry.file]));
+      setActiveBatchId(batchId);
       setActiveBatch(batch);
+      setActiveBatchQueueIds(queueIds);
       setBatchResultStatuses(new Map());
+      setBatchResultMessages(new Map());
 
-      const formData = new FormData();
-      formData.set("roleId", roleId);
-      fileList.forEach((file) => formData.append("resumes", file));
-      const response = await fetch("/api/resume-screening/bulk/upload", { method: "POST", body: formData });
-      const result = await readBulkApiResponse(response, "Bulk resume upload");
-      if (!response.ok || result.success !== true) {
-        const validationDetails = Array.isArray(result.validationErrors) && result.validationErrors.length > 0
-          ? ` ${result.validationErrors.join(" ")}`
-          : "";
-        throw new Error(`${result.error || "Unable to submit the bulk resumes."}${validationDetails}`);
+      const response = await fetch("/api/resume-screening/bulk/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "prepare", roleId, batchId,
+          files: entries.map(({ file, sha256 }) => ({ fileName: file.name, mimeType: fileMimeType(file), size: file.size, sha256 })),
+        }),
+      });
+      const result = await readBulkApiResponse(response, "Bulk resume upload preparation");
+      if (!response.ok || result.success !== true) throw new Error(result.error || "Unable to prepare the bulk resumes.");
+      const batchSize = Number(result.batchSize) || entries.length;
+
+      const prepared = (result.files || []) as Array<{ queueId?: string; fileName?: string; status?: string; uploadUrl?: string; error?: string; message?: string; fileIndex?: number }>;
+      const statuses = new Map<string, string>();
+      const messages = new Map<string, string>();
+      for (const item of prepared) {
+        const entry = entries[Number(item.fileIndex)];
+        if (!entry) continue;
+        if (item.status && item.status !== "Uploading") statuses.set(entry.entryId, item.status);
+        if (item.error || item.message) messages.set(entry.entryId, String(item.error || item.message));
       }
-      requestAccepted = true;
-      const submitted = Number(result.submitted || 0);
-      const results = (result.results || []) as Array<{ fileName?: string; queueId?: string; status?: string; skipped?: boolean; message?: string; error?: string }>;
-      setBatchResultStatuses(new Map(results.filter((item) => item.queueId).map((item) => [item.queueId as string, String(item.status || "Queued")])));
-      setBatchResultMessages(new Map(results.filter((item) => item.queueId).map((item) => [item.queueId as string, String(item.message || item.error || "")])));
-      const notificationStatus = String(result.notificationStatus || "not_requested");
-      const skippedResults = results.filter((item) => item.skipped);
-      const alreadyScreened = skippedResults.filter((item) => item.status?.toLowerCase() === "screened").length;
-      const alreadyActive = skippedResults.length - alreadyScreened;
-      const failed = results.filter((item) => String(item.status || "").toLowerCase() === "failed");
-      const failedQueueIds = new Set(failed.map((item) => item.queueId).filter(Boolean));
-      const failedFileSet = new Set([...failedQueueIds].map((queueId) => fileMap.get(queueId as string)).filter(Boolean));
-      const uploadSummary = submitted ? `${submitted} resume${submitted === 1 ? "" : "s"} submitted for processing` : "No new resumes were submitted";
-      const notificationSummary = notificationStatus === "sent"
-        ? " Internal completion email sent to HR and management."
-        : notificationStatus === "pending"
-          ? " Completion email will be sent after processing finishes."
-        : notificationStatus === "disabled"
-          ? " Success email notifications are currently disabled for bulk processing."
-          : notificationStatus === "failed"
-            ? " The internal completion email failed; resume processing is unaffected."
-            : " No internal completion email was requested.";
-      setUploadMessage(`${uploadSummary}${failed.length ? `; ${failed.length} failed` : ""}${alreadyScreened ? `; ${alreadyScreened} already screened and skipped` : ""}${alreadyActive ? `; ${alreadyActive} already queued or processing` : ""}.${notificationSummary}`);
-      setFiles((current) => current.filter((file) => !fileList.includes(file) || failedFileSet.has(file)));
+      setBatchResultStatuses(new Map(statuses));
+      setBatchResultMessages(new Map(messages));
+
+      const outcomes = await mapWithConcurrency(prepared, 2, async (item) => {
+        const index = Number(item.fileIndex);
+        const entry = entries[index];
+        if (!entry) return { entryId: "", status: "Failed", message: "The upload response did not match a selected resume.", fileIndex: index };
+        if (item.status !== "Uploading" || !item.uploadUrl) {
+          if (String(item.status).toLowerCase() === "failed") {
+            await fetch("/api/resume-screening/bulk/upload", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action: "upload-failed", roleId, batchId, batchSize, queueId: entry.queueId, fileName: entry.file.name, fileIndex: index, errorMessage: item.error || "Private resume storage could not start the upload." }),
+            }).catch(() => undefined);
+          }
+          return { entryId: entry.entryId, status: String(item.status || "Failed"), message: String(item.message || item.error || ""), fileIndex: index };
+        }
+
+        let resumeFileId = "";
+        let finalizeResponseReceived = false;
+        try {
+          resumeFileId = await uploadToDrive(item.uploadUrl, entry.file);
+          const finalizeResponse = await fetch("/api/resume-screening/bulk/upload", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "finalize", roleId, batchId, batchSize, queueId: entry.queueId, resumeFileId, fileIndex: index }),
+          });
+          finalizeResponseReceived = true;
+          const finalized = await readBulkApiResponse(finalizeResponse, "Resume validation and queue handoff");
+          if (!finalizeResponse.ok || finalized.success !== true) {
+            const validationErrors = Array.isArray(finalized.validationErrors) ? finalized.validationErrors.map(String) : [];
+            if (validationErrors.length) setValidationMessage((current) => [current, ...validationErrors].filter(Boolean).join(" "));
+            const failureMessage = validationErrors.join(" ") || String(finalized.error || "The resume could not be queued for screening.");
+            if (!validationErrors.length) {
+              await fetch("/api/resume-screening/bulk/upload", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "upload-failed", roleId, batchId, batchSize, queueId: entry.queueId, fileName: entry.file.name, fileIndex: index, resumeFileId, errorMessage: failureMessage }),
+              }).catch(() => undefined);
+            }
+            return { entryId: entry.entryId, status: "Failed", message: failureMessage, fileIndex: index };
+          }
+          return { entryId: entry.entryId, status: String(finalized.status || "Queued"), message: String(finalized.message || ""), fileIndex: index };
+        } catch (caught) {
+          const message = caught instanceof Error ? caught.message : "The resume upload was interrupted.";
+          if (!finalizeResponseReceived || !resumeFileId) {
+            await fetch("/api/resume-screening/bulk/upload", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action: "upload-failed", roleId, batchId, batchSize, queueId: entry.queueId, fileName: entry.file.name, fileIndex: index, resumeFileId, errorMessage: message }),
+            }).catch(() => undefined);
+          }
+          return { entryId: entry.entryId, status: "Failed", message, fileIndex: index };
+        }
+      });
+
+      for (const outcome of outcomes) {
+        if (!outcome.entryId) continue;
+        statuses.set(outcome.entryId, outcome.status);
+        if (outcome.message) messages.set(outcome.entryId, outcome.message);
+      }
+      setBatchResultStatuses(new Map(statuses));
+      setBatchResultMessages(new Map(messages));
+
+      const failedIndices = new Set(outcomes.filter((outcome) => outcome.status.toLowerCase() === "failed").map((outcome) => outcome.fileIndex));
+      setFiles((current) => current.filter((file) => {
+        const index = fileList.indexOf(file);
+        return index < 0 || failedIndices.has(index);
+      }));
+      const failed = outcomes.filter((outcome) => outcome.status.toLowerCase() === "failed").length;
+      const skipped = outcomes.filter((outcome) => outcome.status.toLowerCase() === "skipped").length;
+      const submitted = outcomes.filter((outcome) => !["failed", "skipped"].includes(outcome.status.toLowerCase())).length;
+      setUploadMessage(`${submitted} resume${submitted === 1 ? "" : "s"} queued for screening${skipped ? ` · ${skipped} skipped as duplicates or already screened` : ""}${failed ? ` · ${failed} failed` : ""}. The queue status is refreshed automatically.`);
       await refreshStatus();
     } catch (caught) {
-      // A rejected upload never created an accepted batch. Do not leave the
-      // optimistic client batch behind, or it will poll phantom Queued items
-      // forever after a validation/API error.
-      if (!requestAccepted) {
-        setActiveBatch(new Map());
-        setBatchResultStatuses(new Map());
-        setBatchResultMessages(new Map());
-        batchFiles.current.clear();
-      }
+      setActiveBatch(new Map());
+      setActiveBatchQueueIds(new Map());
+      setBatchResultStatuses(new Map());
+      setBatchResultMessages(new Map());
+      batchFiles.current.clear();
       setError(caught instanceof Error ? caught.message : "Unable to submit the bulk resumes.");
     } finally {
       setUploading(false);
+    }
+  }
+
+  async function retryQueueItem(queueId: string) {
+    if (!roleId || retryingQueueId) return;
+    setRetryingQueueId(queueId);
+    setError("");
+    try {
+      const response = await fetch("/api/resume-screening/bulk/retry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ roleId, queueId }),
+      });
+      const result = await readBulkApiResponse(response, "Resume retry");
+      if (!response.ok || result.success !== true) throw new Error(result.error || "This resume could not be retried.");
+      const current = items.find((item) => item.driveFileId === queueId);
+      const retryBatchId = String(result.batchId || "existing-result");
+      const entryId = `${queueId}::retry::${retryBatchId}`;
+      setActiveBatchId(retryBatchId);
+      setActiveBatch(new Map([[entryId, current?.driveFileName || queueId]]));
+      setActiveBatchQueueIds(new Map([[entryId, queueId]]));
+      setBatchResultStatuses(new Map([[entryId, String(result.status || "Queued")]]));
+      setBatchResultMessages(new Map());
+      await refreshStatus();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "This resume could not be retried.");
+    } finally {
+      setRetryingQueueId("");
     }
   }
 
@@ -315,10 +549,13 @@ export default function BulkResumeScreeningPanel({ roleOptions, driveUrl }: { ro
   const batchTerminal = useMemo(() => {
     if (batchTotal === 0) return { completed: 0, failed: 0, processing: 0, queued: 0, skipped: 0 };
     let completed = 0, failed = 0, processing = 0, queued = 0, skipped = 0;
-    for (const queueId of activeBatch.keys()) {
-      const item = items.find((entry) => entry.driveFileId === queueId);
-      const reportedStatus = batchResultStatuses.get(queueId)?.toLowerCase() || "";
-      const status = (item?.status || (["failed", "skipped"].includes(reportedStatus) ? reportedStatus : "Queued")).toLowerCase();
+    for (const entryId of activeBatch.keys()) {
+      const queueId = activeBatchQueueIds.get(entryId) || entryId.split("::")[0];
+      const item = items.find((entry) => entry.driveFileId === entryId)
+        || items.find((entry) => entry.driveFileId === queueId && entry.batchId === activeBatchId)
+        || items.find((entry) => entry.jobId === queueId && entry.batchId === activeBatchId);
+      const reportedStatus = batchResultStatuses.get(entryId)?.toLowerCase() || "";
+      const status = (reportedStatus === "skipped" ? reportedStatus : item?.status || reportedStatus || "Queued").toLowerCase();
       if (status === "screened" || status === "processed") completed += 1;
       else if (status === "skipped") skipped += 1;
       else if (status === "failed") failed += 1;
@@ -326,24 +563,29 @@ export default function BulkResumeScreeningPanel({ roleOptions, driveUrl }: { ro
       else queued += 1;
     }
     return { completed, failed, processing, queued, skipped };
-  }, [activeBatch, batchResultStatuses, items, batchTotal]);
+  }, [activeBatch, activeBatchId, activeBatchQueueIds, batchResultStatuses, items, batchTotal]);
   const batchProcessed = batchTerminal.completed + batchTerminal.failed + batchTerminal.skipped;
   const batchPercent = batchTotal > 0 ? Math.round((batchProcessed / batchTotal) * 100) : 0;
   const batchFinished = batchTotal > 0 && batchTerminal.queued === 0 && batchTerminal.processing === 0;
   const batchFailureDetails = useMemo(() => {
-    return [...activeBatch.keys()].flatMap((queueId) => {
-      const item = items.find((entry) => entry.driveFileId === queueId);
-      const status = (item?.status || batchResultStatuses.get(queueId) || "").toLowerCase();
+    return [...activeBatch.keys()].flatMap((entryId) => {
+      const queueId = activeBatchQueueIds.get(entryId) || entryId.split("::")[0];
+      const item = items.find((entry) => entry.driveFileId === entryId)
+        || items.find((entry) => entry.driveFileId === queueId && entry.batchId === activeBatchId)
+        || items.find((entry) => entry.jobId === queueId && entry.batchId === activeBatchId);
+      const reportedStatus = batchResultStatuses.get(entryId)?.toLowerCase() || "";
+      const status = (reportedStatus === "skipped" ? reportedStatus : item?.status || reportedStatus).toLowerCase();
       if (status !== "failed") return [];
       return [{
         queueId,
-        file: batchFiles.current.get(queueId),
-        name: item?.driveFileName || activeBatch.get(queueId) || queueId,
-        message: item?.errorMessage || batchResultMessages.get(queueId) || "The screening workflow could not process this resume.",
+        entryId,
+        item,
+        file: batchFiles.current.get(entryId),
+        name: item?.driveFileName || activeBatch.get(entryId) || queueId,
+        message: item?.errorMessage || batchResultMessages.get(entryId) || "The screening workflow could not process this resume.",
       }];
     });
-  }, [activeBatch, batchResultMessages, batchResultStatuses, items]);
-  const failedFiles = useMemo(() => batchFailureDetails.map((failure) => failure.file).filter((file): file is File => Boolean(file)), [batchFailureDetails]);
+  }, [activeBatch, activeBatchId, activeBatchQueueIds, batchResultMessages, batchResultStatuses, items]);
   const visibleCounts = useMemo(() => {
     const normalized: Record<string, number> = {};
     for (const [rawStatus, count] of Object.entries(counts)) {
@@ -447,7 +689,7 @@ export default function BulkResumeScreeningPanel({ roleOptions, driveUrl }: { ro
               <strong>{batchFailureDetails.length} resume{batchFailureDetails.length === 1 ? "" : "s"} failed to process.</strong>
               <ul>{batchFailureDetails.map((failure) => <li key={failure.queueId}><strong>{failure.name}</strong>: {failure.message}</li>)}</ul>
             </div>
-            {failedFiles.length > 0 && <button type="button" className="btn btn-secondary" onClick={() => void uploadResumes(failedFiles)}>Retry failed ({failedFiles.length})</button>}
+            <span>Use Retry on a failed queue row. Upload failures without a saved file can be submitted again from the file picker.</span>
           </div>
         )}
 
@@ -484,27 +726,26 @@ export default function BulkResumeScreeningPanel({ roleOptions, driveUrl }: { ro
             </div>
             <div className="bulk-screening-finished-actions">
               <a className="btn btn-primary" href="/applicants">View Processed Applicants</a>
-              {failedFiles.length > 0 && <button type="button" className="btn btn-secondary" onClick={() => void uploadResumes(failedFiles)}>Retry {failedFiles.length} Failed</button>}
             </div>
           </div>
         )}
 
         <div className="bulk-screening-status-header">
-          <div><strong>Role Total</strong><small>{roleId ? `Current status for each saved screening record in ${roleId}${anyPending ? " · updating automatically every 15 seconds" : ""}` : "Select a role to view its records"}</small></div>
+          <div><strong>Role Total</strong><small>{roleId ? statusAvailable ? `Current status for each saved screening record in ${roleId}${anyPending ? " · updating automatically every 15 seconds" : ""}` : "Loading status from the screening queue…" : "Select a role to view its records"}</small></div>
           <button type="button" className="btn btn-secondary" onClick={() => void refreshStatus()} disabled={loading}>{loading ? "Refreshing..." : "Refresh status"}</button>
         </div>
 
         {!configured && <div className="warning-box" role="alert">{error || "Create the Bulk_Resume_Queue tab to view processing status."}</div>}
         {configured && error && <div className="error-box" role="alert">{error}</div>}
 
-        <div className="bulk-screening-counts">
+        {statusAvailable && configured && <div className="bulk-screening-counts">
           {statusOrder.map((status) => <div key={status} className="bulk-count-card"><span>{status}</span><strong>{visibleCounts[status] || 0}</strong></div>)}
-        </div>
+        </div>}
 
-        {roleId && visibleItems.length > 0 ? (
+        {roleId && statusAvailable && visibleItems.length > 0 ? (
           <div className="bulk-screening-table-wrap">
             <table className="bulk-screening-table">
-              <thead><tr><th>Resume</th><th>Candidate</th><th>Status</th><th>Result</th><th>Updated</th></tr></thead>
+              <thead><tr><th>Resume</th><th>Candidate</th><th>Status</th><th>Result</th><th>Updated</th><th>Action</th></tr></thead>
               <tbody>
                 {visibleItems.map((item) => {
                   const { label, result } = displayStatus(item.status || "Queued");
@@ -514,12 +755,13 @@ export default function BulkResumeScreeningPanel({ roleOptions, driveUrl }: { ro
                     <td><span className={statusClass(label)}>{label}</span></td>
                     <td>{item.errorMessage || result}</td>
                     <td>{item.lastUpdated || item.processedAt || item.discoveredAt || "—"}</td>
+                    <td>{label === "Failed" && item.driveFileUrl && <button type="button" className="btn btn-secondary" disabled={Boolean(retryingQueueId)} onClick={() => void retryQueueItem(item.driveFileId)}>{retryingQueueId === item.driveFileId ? "Retrying…" : "Retry"}</button>}</td>
                   </tr>;
                 })}
               </tbody>
             </table>
           </div>
-        ) : <p className="bulk-screening-empty">{roleId ? "No bulk resumes have been detected for this role yet." : "Choose a published role to see its bulk screening status."}</p>}
+        ) : <p className="bulk-screening-empty">{!roleId ? "Choose a published role to see its bulk screening status." : !statusAvailable ? "Queue status is unavailable until the backend responds; no zero totals are shown." : "No bulk resumes have been detected for this role yet."}</p>}
       </div>
     </section>
   );
