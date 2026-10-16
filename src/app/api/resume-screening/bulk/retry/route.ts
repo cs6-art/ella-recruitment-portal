@@ -9,7 +9,7 @@ import { notifyBulkResumeBatchComplete } from "@/lib/bulk-resume-notifications";
 import { bulkResumeEnvironment, bulkResumeIsUatMarked } from "@/lib/bulk-resume-config";
 import { getRoleRequestById, isPublishedRoleForIntake } from "@/lib/google-sheets";
 import { consumeRateLimit, rateLimitHeaders, requestClientKey } from "@/lib/rate-limit";
-import { getResumeFileRecord } from "@/lib/resume-files";
+import { findUploadedResumeFile, getResumeFileRecord } from "@/lib/resume-files";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
 
 export const runtime = "nodejs";
@@ -77,7 +77,11 @@ export async function POST(request: Request) {
     if (status !== "failed" && !stale) return responseError("Only a failed or abandoned resume can be retried.", 409);
 
     const resumeFileId = fileIdFromUrl(item.driveFileUrl);
-    const resumeFile = resumeFileId ? await getResumeFileRecord(resumeFileId) : null;
+    const environment = item.environment === "uat" ? "uat" : bulkResumeEnvironment();
+    // The upload can be saved in Drive while the browser loses the response
+    // carrying its file ID; fall back to the file tagged with this queue ID.
+    const resumeFile = (resumeFileId ? await getResumeFileRecord(resumeFileId) : null)
+      || await findUploadedResumeFile(queueId, environment);
     const expectedSha = queueId.match(/-([a-f0-9]{64})$/i)?.[1]?.toLowerCase();
     if (!resumeFile || !expectedSha || resumeFile.sha256.toLowerCase() !== expectedSha) {
       return responseError("The stored resume is no longer available. Upload the file again to retry screening.", 410);
@@ -85,7 +89,6 @@ export async function POST(request: Request) {
 
     const batchId = `RETRY-${new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 14)}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
     const attemptCount = Number(item.attemptCount || 0) + 1;
-    const environment = item.environment === "uat" ? "uat" : bulkResumeEnvironment();
     const isUat = item.isUat ?? bulkResumeIsUatMarked();
     const now = new Date().toISOString();
     const message = {
@@ -108,7 +111,7 @@ export async function POST(request: Request) {
       ...item,
       driveFileId: queueId,
       driveFileName: message.fileName,
-      driveFileUrl: item.driveFileUrl,
+      driveFileUrl: item.driveFileUrl || `https://drive.google.com/file/d/${resumeFile.fileId}/view`,
       driveFileMimeType: message.mimeType,
       roleId,
       status: "Queued",

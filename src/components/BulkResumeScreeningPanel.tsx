@@ -762,7 +762,7 @@ export default function BulkResumeScreeningPanel({ roleOptions, driveUrl }: { ro
                     <td><span className={statusClass(label)}>{label}</span></td>
                     <td>{item.errorMessage || result}</td>
                     <td>{item.lastUpdated || item.processedAt || item.discoveredAt || "—"}</td>
-                    <td>{label === "Failed" && item.driveFileUrl && <button type="button" className="btn btn-secondary" disabled={Boolean(retryingQueueId)} onClick={() => void retryQueueItem(item.driveFileId)}>{retryingQueueId === item.driveFileId ? "Retrying…" : "Retry"}</button>}</td>
+                    <td>{label === "Failed" && /^BULK-[A-Z0-9_-]+-[a-f0-9]{64}$/i.test(item.driveFileId) && <button type="button" className="btn btn-secondary" disabled={Boolean(retryingQueueId)} onClick={() => void retryQueueItem(item.driveFileId)}>{retryingQueueId === item.driveFileId ? "Retrying…" : "Retry"}</button>}</td>
                   </tr>;
                 })}
               </tbody>

@@ -407,6 +407,30 @@ export async function getResumeFileRecord(fileId: string) {
   }
 }
 
+/**
+ * Find the Drive object a browser upload created for a queue row. The browser
+ * can lose Drive's final response (and the file ID in it) after the bytes are
+ * saved, leaving the queue row without a driveFileUrl although the file exists.
+ */
+export async function findUploadedResumeFile(queueId: string, environment: BulkResumeEnvironment = "production") {
+  if (!/^BULK-[A-Z0-9_-]+-[a-f0-9]{64}$/i.test(queueId)) return null;
+  try {
+    const response = await drive().files.list({
+      q: `'${resumeFolderId(environment)}' in parents and trashed = false and appProperties has { key='queueId' and value='${queueId}' }`,
+      fields: "files(id, name, mimeType, size, createdTime, properties, appProperties)",
+      orderBy: "createdTime desc",
+      pageSize: 10,
+      includeItemsFromAllDrives: true,
+      supportsAllDrives: true,
+    });
+    return (response.data.files || [])
+      .map(recordFromDriveFile)
+      .find((record): record is ResumeFileRecord => Boolean(record && new Date(record.expiresAt).getTime() > Date.now())) || null;
+  } catch {
+    return null;
+  }
+}
+
 export async function readResumeFile(record: ResumeFileRecord) {
   const response = await drive().files.get({ fileId: record.fileId, alt: "media", supportsAllDrives: true }, { responseType: "arraybuffer" });
   return Buffer.from(response.data as ArrayBuffer);
