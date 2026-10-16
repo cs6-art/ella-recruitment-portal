@@ -64,7 +64,9 @@ export function extractResumeContactDetails(resumeText: string) {
     .map((candidate) => normalizePhone(candidate, country))
     .find(Boolean) || "";
   return {
-    candidateName: nameFromText(text, email, phone),
+    // The name search works line by line, so it needs the original line
+    // breaks; clean() would collapse the whole resume into one line.
+    candidateName: nameFromText(String(resumeText ?? ""), email, phone),
     candidateEmail: email,
     preferredMobile: phone,
     applicantCountry: country,
@@ -74,7 +76,7 @@ export function extractResumeContactDetails(resumeText: string) {
 /** Reject clearly wrong documents before they enter the durable screening queue. */
 export function validateCandidateResume(resumeText: string) {
   const text = clean(resumeText);
-  const details = extractResumeContactDetails(text);
+  const details = extractResumeContactDetails(resumeText);
   const lower = text.toLowerCase();
   const jobDescriptionSignals = [
     /\bjob description\b/,
