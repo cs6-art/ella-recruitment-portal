@@ -9,6 +9,7 @@ import { bulkResumeEnvironment, bulkResumeIsUatMarked } from "@/lib/bulk-resume-
 import { notifyBulkResumeBatchComplete } from "@/lib/bulk-resume-notifications";
 import { validateCandidateResume } from "@/lib/resume-contact-extraction";
 import { getRoleRequestById, isPublishedRoleForIntake } from "@/lib/google-sheets";
+import { getPublicAppBaseUrl } from "@/lib/public-url";
 import { consumeRateLimit, rateLimitHeaders, requestClientKey } from "@/lib/rate-limit";
 import { createResumeUploadSession, deleteResumeFile, getResumeFileRecord, readResumeFile, storeResumeFile, MAX_RESUME_FILE_BYTES } from "@/lib/resume-files";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
@@ -29,6 +30,18 @@ function errorResponse(error: string, status: number, extra: Record<string, unkn
 function queueIdForHash(roleId: string, sha256: string) {
   const roleKey = roleId.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, "-");
   return `BULK-${roleKey}-${sha256.toLowerCase()}`;
+}
+
+/** The page origin that will upload directly to Drive; the browser sends it on this same-origin POST. */
+function browserOrigin(request: Request) {
+  const origin = request.headers.get("origin") || "";
+  try {
+    const parsed = new URL(origin);
+    if (parsed.protocol === "https:" || parsed.protocol === "http:") return parsed.origin;
+  } catch {
+    // Fall back to the configured or forwarded public URL below.
+  }
+  return getPublicAppBaseUrl(request);
 }
 
 function driveFileUrl(fileId: string) {
@@ -172,6 +185,7 @@ async function prepare(request: Request, body: Record<string, unknown>) {
         queueId,
         ownerEmail: user.email,
         environment: bulkResumeEnvironment(),
+        browserOrigin: browserOrigin(request),
       });
       prepared.push({ queueId, fileName: session.fileName, mimeType: session.mimeType, status: "Uploading", uploadUrl: session.uploadUrl, fileIndex: index });
     } catch (error) {

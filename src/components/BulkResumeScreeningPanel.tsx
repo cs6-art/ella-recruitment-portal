@@ -114,12 +114,19 @@ function driveRangeOffset(response: Response) {
 }
 
 async function driveUploadStatus(uploadUrl: string, totalBytes: number) {
-  const response = await fetch(uploadUrl, {
-    method: "PUT",
-    headers: { "Content-Range": `bytes */${totalBytes}` },
-    body: new Blob([]),
-    credentials: "omit",
-  });
+  let response: Response;
+  try {
+    response = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: { "Content-Range": `bytes */${totalBytes}` },
+      body: new Blob([]),
+      credentials: "omit",
+    });
+  } catch {
+    // Both the chunk and the status probe were unreachable: the browser could
+    // not talk to Drive at all (offline, firewall, or a CORS rejection).
+    throw new Error("The browser could not reach Google Drive to upload this resume. Check the connection and retry.");
+  }
   const body = await response.text();
   const fileId = uploadedFileId(response, body);
   if (fileId) return { fileId, offset: totalBytes };

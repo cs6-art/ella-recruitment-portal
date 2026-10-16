@@ -232,6 +232,8 @@ export async function createResumeUploadSession(input: {
   queueId: string;
   ownerEmail: string;
   environment?: BulkResumeEnvironment;
+  /** Origin of the page that will PUT the bytes. Drive only returns CORS headers to the origin named when the session starts. */
+  browserOrigin: string;
 }) {
   const fileName = safeFileName(input.fileName);
   const kind = detectKind(fileName, input.mimeType);
@@ -255,6 +257,10 @@ export async function createResumeUploadSession(input: {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
+      // Without Origin, Drive omits Access-Control-Allow-Origin on the final
+      // 200 response, so the browser reports "Failed to fetch" even though the
+      // file was saved.
+      Origin: input.browserOrigin,
       "Content-Type": "application/json; charset=UTF-8",
       "X-Upload-Content-Type": resumeMimeType(kind),
       "X-Upload-Content-Length": String(input.size),
