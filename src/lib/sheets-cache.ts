@@ -115,6 +115,32 @@ export async function freshSheetsRead<T>(fetcher: () => Promise<T>): Promise<T> 
   return withSheetsBackoff(fetcher);
 }
 
+/**
+ * Fresh-enough read for bulk screening checks: identical reads within
+ * `windowMs` (and concurrent in-flight reads) share one Sheets call. The bulk
+ * worker, upload route and status poller each check screening evidence and
+ * submission evidence back-to-back against the same large tab; without this,
+ * one 20-file batch spends several full-tab reads per resume and trips the
+ * shared read quota.
+ */
+const coalesced = new Map<string, { value: unknown; cachedAt: number }>();
+const coalescedInFlight = new Map<string, Promise<unknown>>();
+
+export async function coalescedSheetsRead<T>(key: string, fetcher: () => Promise<T>, windowMs: number): Promise<T> {
+  const entry = coalesced.get(key);
+  if (entry && Date.now() - entry.cachedAt < windowMs) return entry.value as T;
+  const existing = coalescedInFlight.get(key) as Promise<T> | undefined;
+  if (existing) return existing;
+  const read = freshSheetsRead(fetcher)
+    .then((value) => {
+      coalesced.set(key, { value, cachedAt: Date.now() });
+      return value;
+    })
+    .finally(() => coalescedInFlight.delete(key));
+  coalescedInFlight.set(key, read);
+  return read;
+}
+
 /** Call after any write to a tab so the next read reflects it, instead of
  * serving up-to-20s-stale data right after the app itself changed it. */
 export function invalidateSheetsCache(tabPrefix: string): void {

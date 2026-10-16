@@ -337,3 +337,12 @@ test("bulk UAT mode is fail-closed and carries environment correlation metadata"
   assert.match(queue, /bulkResumeSpreadsheetId\(\)/);
   assert.match(page, /UAT MODE/);
 });
+
+test("queue events map camelCase, snake_case, and spaced headers and refuse identity-less rows", () => {
+  const queue = read("src/lib/candidate-applications.ts");
+  // The live Bulk_Resume_Queue tab uses camelCase headers; matching only
+  // snake_case aliases wrote blank rows that no reader could ever find.
+  assert.match(queue, /const columnKey = \(value: unknown\) => normalizeHeader\(value\)\.replace\(\/_\/g, ""\)/);
+  assert.match(queue, /\["drive_file_id", "role_id", "status", "last_updated"\]/);
+  assert.match(queue, /Bulk_Resume_Queue tab is missing required columns/);
+});

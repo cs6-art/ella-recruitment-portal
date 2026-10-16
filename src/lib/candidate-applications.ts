@@ -1,7 +1,7 @@
 import { google } from "googleapis";
 import { getGoogleServiceAccountPrivateKey } from "@/lib/google-service-account";
 import { bulkResumeSpreadsheetId } from "@/lib/bulk-resume-config";
-import { cachedSheetsRead, freshSheetsRead, withSheetsBackoff } from "@/lib/sheets-cache";
+import { cachedSheetsRead, coalescedSheetsRead, freshSheetsRead, withSheetsBackoff } from "@/lib/sheets-cache";
 import { demoActiveBookingLinkRoleIds, demoApplicantRows, demoInterviewBookings } from "@/lib/demo-data";
 import { isDemoMode, isDemoWindowRecord } from "@/lib/demo-mode";
 import { getRoleRequestById, type RoleRequestDetails } from "@/lib/google-sheets";
@@ -284,7 +284,7 @@ function configuredEvaluationValues(
     });
 }
 
-async function readTab(tabName: string, endColumn: string, options: { fresh?: boolean; spreadsheetId?: string } = {}): Promise<{ headers: string[]; rows: SheetRow[] }> {
+async function readTab(tabName: string, endColumn: string, options: { fresh?: boolean; coalesceMs?: number; spreadsheetId?: string } = {}): Promise<{ headers: string[]; rows: SheetRow[] }> {
   const escapedTabName = tabName.replace(/'/g, "''");
   const targetSpreadsheetId = options.spreadsheetId || spreadsheetId;
   const fetchValues = async () => {
@@ -300,7 +300,9 @@ async function readTab(tabName: string, endColumn: string, options: { fresh?: bo
   // page is often rendered by another. A process-local cache invalidation in
   // the write request cannot reach that second instance, so detail reads must
   // bypass the short-lived cache and show the decision that was just saved.
-  const values = options.fresh
+  const values = options.coalesceMs
+    ? await coalescedSheetsRead(`${tabName}:${endColumn}:${targetSpreadsheetId}`, fetchValues, options.coalesceMs)
+    : options.fresh
     ? await freshSheetsRead(fetchValues)
     : await cachedSheetsRead(`${tabName}:${endColumn}:${targetSpreadsheetId}`, fetchValues);
   const headers = (values[0] ?? []).map((value) => text(value));
@@ -1043,33 +1045,42 @@ export async function appendBulkResumeQueueEvent(event: BulkResumeQueueEvent) {
     // before n8n has even started screening.
     const { headers } = await readTab("Bulk_Resume_Queue", "W", { spreadsheetId: targetSpreadsheetId });
     if (!headers.length) throw new Error("The Bulk_Resume_Queue tab has no header row.");
-    const values = headers.map((header) => {
-      const key = normalizeHeader(header);
-      const aliases: Record<string, unknown> = {
-        drive_file_id: event.driveFileId,
-        drive_file_name: event.driveFileName,
-        drive_file_url: event.driveFileUrl,
-        drive_file_mime_type: (event as BulkResumeQueueEvent & { driveFileMimeType?: string }).driveFileMimeType,
-        role_id: event.roleId,
-        candidate_name: event.candidateName,
-        candidate_email: event.candidateEmail,
-        status: event.status,
-        application_id: event.applicationId,
-        error_message: event.errorMessage,
-        discovered_at: event.discoveredAt,
-        processing_started_at: event.processingStartedAt,
-        processed_at: event.processedAt,
-        attempt_count: event.attemptCount,
-        last_updated: event.lastUpdated,
-        environment: event.environment,
-        is_uat: event.isUat,
-        batch_id: event.batchId,
-        job_id: event.jobId,
-        batch_size: event.batchSize,
-        submitted_by_email: event.submittedByEmail,
-      };
-      return aliases[key] === undefined ? "" : aliases[key];
-    });
+    // The live tab uses camelCase headers (driveFileId) while older tabs use
+    // Drive_File_ID / "Drive File ID". normalizeHeader keeps camelCase as one
+    // word ("drivefileid"), so compare with separators removed; otherwise every
+    // field silently maps to "" and the queue row is unreadable.
+    const columnKey = (value: unknown) => normalizeHeader(value).replace(/_/g, "");
+    const aliases: Record<string, unknown> = Object.fromEntries(Object.entries({
+      drive_file_id: event.driveFileId,
+      drive_file_name: event.driveFileName,
+      drive_file_url: event.driveFileUrl,
+      drive_file_mime_type: (event as BulkResumeQueueEvent & { driveFileMimeType?: string }).driveFileMimeType,
+      role_id: event.roleId,
+      candidate_name: event.candidateName,
+      candidate_email: event.candidateEmail,
+      preferred_mobile: (event as BulkResumeQueueEvent & { preferredMobile?: string }).preferredMobile,
+      applicant_country: (event as BulkResumeQueueEvent & { applicantCountry?: string }).applicantCountry,
+      status: event.status,
+      application_id: event.applicationId,
+      error_message: event.errorMessage,
+      discovered_at: event.discoveredAt,
+      processing_started_at: event.processingStartedAt,
+      processed_at: event.processedAt,
+      attempt_count: event.attemptCount,
+      last_updated: event.lastUpdated,
+      environment: event.environment,
+      is_uat: event.isUat,
+      batch_id: event.batchId,
+      job_id: event.jobId,
+      batch_size: event.batchSize,
+      submitted_by_email: event.submittedByEmail,
+    }).map(([name, value]) => [columnKey(name), value]));
+    const headerKeys = headers.map(columnKey);
+    const missing = ["drive_file_id", "role_id", "status", "last_updated"].filter((name) => !headerKeys.includes(columnKey(name)));
+    // Fail loudly: a row without its identity columns is invisible to every
+    // reader (status page, worker, recovery cron) and stalls the job forever.
+    if (missing.length) throw new Error(`The Bulk_Resume_Queue tab is missing required columns: ${missing.join(", ")}.`);
+    const values = headerKeys.map((key) => aliases[key] === undefined ? "" : aliases[key]);
     await waitForBulkQueueWriteSlot();
     await withSheetsBackoff(() => sheets.spreadsheets.values.append({
       spreadsheetId: targetSpreadsheetId,
@@ -1145,9 +1156,15 @@ function applicantRoleMatches(item: BulkResumeQueueItem, record: SheetRow) {
  * Strong identifiers are accepted directly, while filename/name fallbacks are
  * accepted only when they identify one role-scoped applicant.
  */
+// Screening evidence and submission evidence are read back-to-back by the
+// worker, upload route, recovery cron and status poller. Sharing one read for
+// a few seconds halves those full-tab reads without hiding n8n's writes for
+// longer than a status poll interval.
+const BULK_EVIDENCE_COALESCE_MS = 5_000;
+
 export async function getBulkResumeScreeningEvidence(queueItems: BulkResumeQueueItem[]): Promise<Set<string>> {
   if (queueItems.length === 0) return new Set();
-  const { rows } = await readTab("High_Match_Profile", "CZ", { fresh: true, spreadsheetId: bulkResumeSpreadsheetId() });
+  const { rows } = await readTab("High_Match_Profile", "CZ", { coalesceMs: BULK_EVIDENCE_COALESCE_MS, spreadsheetId: bulkResumeSpreadsheetId() });
   const evidenceRows = rows.filter(applicantHasScreeningEvidence);
   const index = (valueFor: (record: SheetRow) => string) => {
     const result = new Map<string, SheetRow[]>();
@@ -1198,7 +1215,7 @@ export async function getBulkResumeScreeningEvidence(queueItems: BulkResumeQueue
 /** Return queue identities already submitted to the candidate foundation, even when its screening result is still pending. */
 export async function getBulkResumeApplicantSubmissionEvidence(queueItems: BulkResumeQueueItem[]): Promise<Set<string>> {
   if (queueItems.length === 0) return new Set();
-  const { rows } = await readTab("High_Match_Profile", "CZ", { fresh: true, spreadsheetId: bulkResumeSpreadsheetId() });
+  const { rows } = await readTab("High_Match_Profile", "CZ", { coalesceMs: BULK_EVIDENCE_COALESCE_MS, spreadsheetId: bulkResumeSpreadsheetId() });
   const byApplicationId = new Map<string, SheetRow[]>();
   for (const record of rows) {
     const id = applicationId(record).toLowerCase();
